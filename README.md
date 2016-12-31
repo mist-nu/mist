@@ -24,7 +24,7 @@ valid state, but some changes may be invisible due to the conflict
 resolution. Such changes will still be available as an older version. 
 
 Mist uses the NSS library for TLS, the TOR client for anonymous
-connection and hidden service, the nginx library for HTTP/2 and
+connection and hidden service, the nghttp2 library for HTTP/2 and
 SQLite3 for storage. 
 
 For this release the only way to use Mist is as a library to build
@@ -185,7 +185,7 @@ Currently you must have cmake, can be obtained with `apt install
 cmake` **or** `brew install cmake`  
 Other than that it can be downloaded from https://cmake.org/download/
 
-You must also have the *nss* library, the *nginx http/2* library,
+You must also have the *nss* library, the *nghttp2* http/2 library,
 *sqlite3*  and the *TOR* client.
 
 ### Install
@@ -197,18 +197,19 @@ Clone this repository.
 ##### Currently clunky part:
 You have to init the git submodules with `git submodule init` **and** `git submodule update`
 After that you have to build the logger by doing the following or equvivilant: 
-```cd lib/g3log
-mkdir -p build
-cd build
-cmake -DCMAKE_BUILD_TYPE=Debug -DCHANGE_G3LOG_DEBUG_TO_DBUG=On ..
-make
-cd ../..
+
+```cd lib/g3log  
+mkdir -p build  
+cd build  
+cmake -DCMAKE_BUILD_TYPE=Debug -DCHANGE_G3LOG_DEBUG_TO_DBUG=On ..  
+make  
+cd ../..  
 ``` 
+
 ##### And the rest
 On Linux and OS X:
 
-```npm install
-```
+`npm install`
 
 Built files can be found in: `build/Debug`
 
@@ -226,20 +227,21 @@ View the bindings.gyp file to see what directories to include,  flags to use and
 The clunky part from the install above.
 
 ##### The easy way
-```cd gtests
-./init_build.sh 
+
+```cd gtests  
+./init_build.sh  
 ./build_and_run_gtest.sh```
 
 ##### A more descriptive way
 Run the following to download googletest:
 
-```git submodule init
-git submodule update
+```git submodule init  
+git submodule update  
 ```
 
 Then go to `gtest` and create a directory called e.g. `build`:
-```mkdir build
-cd build
+```mkdir build  
+cd build  
 ```
 
 Then `cmake` can create the build `Makefile` file for you.
