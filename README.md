@@ -246,8 +246,7 @@ Then `cmake` can create the build `Makefile` file for you.
 
 Example on how to do on Linux:
 
-```cmake -Dtest=ON .. && make && ./testDatabase ; rm test.db
-```
+`cmake -Dtest=ON .. && make && ./testDatabase ; rm test.db`
 
 Where `-Dtest=ON` enables the building of the test files, `..` is the directory to get the `CMakeLists.txt` from. The rest should be self explanatory.
 
