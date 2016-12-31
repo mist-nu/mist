@@ -1,0 +1,26 @@
+{
+  "name": "mist",
+  "version": "0.1.0",
+  "author": "visiarc",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:mist-nu/mist.git"
+  },
+  "main": "index.js",
+  "keywords": [
+    "mist",
+    "p2p"
+  ],
+  "engines": {
+    "node": ">=4.6.0"
+  },
+  "dependencies": {
+    "nan": "^2.4.0"
+  },
+  "scripts": {
+    "install": "node-gyp rebuild --debug --verbose --no-duplicate-basename-check"
+  },
+  "devDependencies": {},
+  "optionalDependencies": {},
+  "license": "GPL-3.0"
+}

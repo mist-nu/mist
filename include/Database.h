@@ -1,0 +1,517 @@
+/*
+ * Database.h
+ *
+ *  Created on: 18 Sep 2016
+ *      Author: mattias
+ */
+
+#ifndef SRC_DATABASE_H_
+#define SRC_DATABASE_H_
+
+// STL
+#include <cstdint>
+#include <map>
+#include <memory>
+#include <streambuf>
+#include <string>
+#include <vector>
+
+#include <SQLiteCpp/SQLiteCpp.h>
+
+#include "CryptoHelper.h"
+#include "Helper.h"
+#include "PrivateUserAccount.h"
+#include "Query.h"
+
+namespace Mist {
+
+// Forward declaration
+class Central;
+class RemoteTransaction;
+class Transaction;
+class Deserializer;
+class Serializer;
+
+/**
+ * Mist database class. It handles a versioned JSON store, that uses SQLite as
+ * a storage engine.
+ *
+ * Each database has a simple access control system, with a list or users. Each
+ * user has read, write or admin permission. With admin permission a user can
+ * change user permissions.
+ *
+ * Each change to the database is stored as a transaction, and signed by the
+ * user performing the change. Such transactions are then replicated to other users
+ * of the database.
+ *
+ * Since the database is distributed this are not ACID transactions. Indeed the
+ * database may have different state for different users. However, eventually, it
+ * will reach the same state, when all transactions have been replicated.
+ */
+class Database {
+public:
+    using Connection = Helper::Database::Database;
+    using Statement = Helper::Database::Statement;
+
+    class Manifest {
+        std::string name;
+        Helper::Date created;
+        CryptoHelper::PublicKey creator;
+        CryptoHelper::SHA3 hash;
+        CryptoHelper::Signature signature;
+
+        Central* central;
+
+        std::string inner() const;
+
+    public:
+        Manifest( Central* central, std::string name, Helper::Date created, CryptoHelper::PublicKey creator,
+                CryptoHelper::Signature signature = {}, CryptoHelper::SHA3 hash = {} );
+        virtual ~Manifest() = default;
+        CryptoHelper::SHA3 getHash() const { return hash; }
+        CryptoHelper::PublicKey getCreator() const { return creator; }
+        void sign();
+        bool verify() const;
+        std::string toString() const;
+        static Manifest fromString( const std::string& serialized, Central* central );
+    };
+
+    enum class AccessDomain
+        : std::int8_t {
+            Settings = 1,
+        Normal = 2,
+        User = 3,
+        Device = 4
+    };
+    enum class ObjectStatus
+        : std::int8_t {
+            Current = 1,
+        Deleted = 2,
+        DeletedParent = 3, // If a parent in another access domain is deleted,
+                                                         // or a parent is deleted in another transaction during a transaction conflict
+        InvalidNew = 4,     // Object has not been created with a new action
+        InvalidParent = 5,  // Object has never had a valid parent
+
+        Old = 11,
+        OldDeleted = 12,
+        OldDeletedParent = 13,
+        OldInvalidNew = 14,
+        OldInvalidParent = 15,
+
+        InvalidMove = 20, // Invalid move, use last revision instead
+    };
+    enum class ObjectAction
+        : std::int8_t {
+            New = 1, Update = 2, Move = 3, MoveUpdate = 4, Delete = 5,
+    };
+
+    struct Transaction {
+        AccessDomain accessDomain;
+        unsigned version;
+        Helper::Date date;
+        CryptoHelper::SHA3 creatorHash;
+        CryptoHelper::SHA3 hash;
+        CryptoHelper::Signature signature;
+    };
+    struct Meta {
+        AccessDomain accessDomain;
+        std::vector<CryptoHelper::SHA3> parents;
+        Helper::Date timestamp;
+        CryptoHelper::SHA3 user;
+        CryptoHelper::SHA3 transactionHash;
+        CryptoHelper::Signature signature;
+    };
+    struct ObjectRef {
+        AccessDomain accessDomain;
+        unsigned long id;
+    };
+    struct lessObjectRef {
+        bool operator()( const ObjectRef& l, const ObjectRef& r ) const {
+            if ( l.accessDomain == r.accessDomain ) {
+                return l.id < r.id;
+            } else {
+                return l.accessDomain < r.accessDomain;
+            }
+        }
+        typedef ObjectRef first_argument_type;
+        typedef ObjectRef second_argument_type;
+        typedef bool result_type;
+    };
+
+    class Value {
+    public:
+        // TODO: Fix the memory leaking string pointers!
+        // Can not use default ctor/dtor because of the union types.
+        // TODO: Add null?
+        enum class Type
+            : uint8_t {
+                Boolean, Number, String, JSON
+        } type;
+        union U {
+            bool boolean;
+            double number;
+            std::string *string;
+            std::string *json;
+            U() :
+                    boolean( false ) {
+            }
+            U( bool b ) :
+                    boolean( b ) {
+            }
+            U( int i ) :
+                    number( i ) {
+            }
+            U( double d ) :
+                    number( d ) {
+            }
+            U( std::string *s ) :
+                    string( s ) {
+            }
+            ~U() {
+            }
+        } value;
+        Value() :
+                type( Type::Boolean ) {
+            this->value.boolean = false;
+        }
+        Value( Type type, bool value ) :
+                type( type ), value() {
+            this->value.boolean = value;
+        }
+        Value( Type type, int value ) :
+                Value( type, static_cast<double>( value ) ) {
+        }
+        Value( Type type, double value ) :
+                type( type ), value() {
+            this->value.number = value;
+        }
+        Value( bool b ) :
+            type( Type::Boolean ) {
+            this->value.boolean = b;
+        }
+        Value( int i ) :
+            type( Type::Number ) {
+            this->value.number = static_cast<double>( i );
+        }
+        Value( double d ) :
+            type( Type::Number ) {
+            this->value.number = d;
+        }
+        Value( const std::string& str ) :
+            type( Type::String ) {
+            this->value.string = new std::string( str );
+        }
+
+        Value( Type type, std::string *value ) :
+                Value( type, new std::string( *value ), true ) {
+        }
+        Value( Type type, std::string&& value ) :
+                Value( type, new std::string( value ), true ) {
+        }
+        Value( Type type, const char* value ) :
+                Value( type, new std::string( value ), true ) {
+        }
+
+        Value( const Value& rhs ) {
+            *this = rhs;
+        }
+        ~Value() {
+            switch ( type ) {
+            case Type::JSON:
+                delete value.json;
+                break;
+            case Type::String:
+                //value.string.~basic_string<char>();
+                delete value.string;
+                break;
+            case Type::Boolean:
+            case Type::Number:
+                break;
+            }
+        }
+        Value& operator=( const Value& v ) {
+            this->type = v.type;
+            switch ( v.type ) {
+            case Type::JSON:
+                this->value.json = new std::string( *( v.value.json ) );
+                break;
+            case Type::String:
+                this->value.string = new std::string( *( v.value.string ) );
+                break;
+            case Type::Boolean:
+                this->value.boolean = v.value.boolean;
+                break;
+            case Type::Number:
+                this->value.number = v.value.number;
+                break;
+            }
+            return *this;
+        }
+        Value& operator=( bool b ) {
+            this->type = Type::Boolean;
+            this->value.boolean = b;
+            return *this;
+        }
+        Value& operator=( const std::string& str ) {
+            this->type = Type::String;
+            this->value.string = new std::string( str );
+            return *this;
+        }
+        Value& operator=( double d ) {
+            this->type = Type::Number;
+            this->value.number = d;
+            return *this;
+        }
+        Value& operator=( int i ) {
+            this->type = Type::Number;
+            this->value.number = static_cast<double>( i );
+            return *this;
+        }
+    private:
+        Value( Type type, std::string* value, bool ) :
+                type( type ) {
+            if ( type == Type::String ) {
+                this->value.string = value;
+            } else if ( type == Type::JSON ) {
+                this->value.json = value;
+            } else {
+                // TODO: fix proper error handling.
+                throw new std::exception();
+            }
+        }
+    };
+
+    // TODO: split Object and attributes to allow for better reading.
+    struct Object {
+        AccessDomain accessDomain;
+        unsigned long id;
+        unsigned version;
+        ObjectRef parent;
+        std::map<std::string, Value> attributes;
+        ObjectStatus status;
+        ObjectAction action;
+    };
+    struct ObjectMeta {
+        AccessDomain accessDomain;
+        unsigned long id;
+        unsigned version;
+        ObjectRef parent;
+        ObjectStatus status;
+        ObjectAction action;
+    };
+
+    constexpr static unsigned RESERVED = 1023;
+    constexpr static unsigned long ALLOCATE_64_BIT = 1024 * 1024 * 1024;
+    constexpr static unsigned ROOT_OBJECT_ID = 0;
+    constexpr static unsigned USERS_OBJECT_ID = 1;
+
+    Database( Central *central, std::string path );
+    //Database( Central *central, std::string path, PrivateUserAccount* userAccount = nullptr, bool create = false, bool overwrite = false );
+
+    // Create new db
+    //Database( Central *central, std::string path, Manifest* manifest, unsigned localId );
+
+    // Init existing db
+    //Database( Central *central, std::string path, PrivateUserAccount* userAccount = nullptr );
+
+    virtual ~Database();
+
+    // TODO: Consider moving create and init to ctor as to better conform to RAII
+    void create( unsigned localId, Manifest* manifest ); // create new db
+    void init( PrivateUserAccount *userAccount = nullptr ); // initialize existing db
+    //void load(); // load from disk
+    void close();
+
+    /**
+     * Start a transaction that will perform changes to the database. The transaction will make changes
+     * to the normal access domain.
+     */
+    std::unique_ptr<Mist::Transaction> beginTransaction();
+
+    bool isOK(); // TODO: fix proper error handling instead!
+
+    void inviteUser( const UserAccount& user ); // TODO make some call to central, or the other way around?
+
+    /*
+     * Query interface
+     */
+
+    Object getObject( int accessDomain, long long id, bool includeDeleted = false ) const;
+    unsigned subscribeObject( std::function<void(Object)> cb, int accessDomain,
+            long long id, bool includeDeleted = false );
+    void unsubscribeObject( unsigned subscriberId );
+
+    std::vector<Object> query( const ObjectRef& parent, const std::string& select,
+            const std::string& filter, const std::string& sort, int maxVersion,
+            bool includeDeleted = false );
+
+    std::vector<Object> queryVersion( const ObjectRef& parent,
+            const std::string& select, const std::string& filter );
+
+    /*
+     * Streaming API
+     * Using the exchange format
+     */
+    void writeToDatabase( std::basic_streambuf<char>& sb );
+    void writeToDatabase( const char* data, std::size_t length );
+    void writeToDatabase( const std::string& data );
+
+    // TODO: serializer have to be reset after throw, change that!
+    void readTransaction( std::basic_streambuf<char>& sb,
+            const std::string& hash,
+            Connection* connection = nullptr ) const;
+    // Reading the transaction body is used for calculation the hash for the transaction
+    void readTransactionBody( std::basic_streambuf<char>& sb,
+            const std::string& hash,
+            Connection* connection = nullptr ) const;
+    void readTransactionBody( std::basic_streambuf<char>& sb,
+            unsigned version,
+            Connection* connection = nullptr ) const;
+    void readTransactionList( std::basic_streambuf<char>& sb ) const;
+    void readTransactionMetadata( std::basic_streambuf<char>& sb,
+            const std::string& hash ) const;
+    void readTransactionMetadataLastest( std::basic_streambuf<char>& sb ) const;
+    void readTransactionMetadataFrom( std::basic_streambuf<char>& sb,
+            const std::vector<std::string>& hashes ) const;
+
+    void readUser( std::basic_streambuf<char>& sb,
+            const std::string& userHash ) const;
+    void readUsers( std::basic_streambuf<char>& sb ) const;
+    void readUsersFrom( std::basic_streambuf<char>& sb,
+            const std::vector<std::string>& userHashes ) const;
+
+    /*
+     * Help methods for the streaming API
+     * TODO: Redo all of these to return Database::Meta instead!
+     */
+    Database::Transaction getTransactionMeta( unsigned version,
+            Connection* connection = nullptr ) const;
+    Database::Transaction getTransactionMeta( const std::string& hash,
+            Connection* connection = nullptr ) const;
+    Database::Transaction getTransactionMeta( const CryptoHelper::SHA3& hash,
+            Connection* connection = nullptr ) const;
+
+    std::vector<Database::Transaction> getTransactionLatest() const;
+    std::vector<Database::Transaction> getTransactionList() const;
+    std::vector<Database::Transaction> getTransactionsFrom(
+            const std::vector<std::string>& hashIds,
+            Connection* connection = nullptr ) const;
+
+    Database::Meta transactionToMeta( const Database::Transaction& tranaction,
+            Connection* connection = nullptr ) const;
+    static std::vector<Database::Meta> streamToMeta( std::basic_streambuf<char>& sb );
+
+protected:
+    // Friend Transaction and RemoteTransaction so they may call
+    friend class Mist::Central;
+    friend class Mist::RemoteTransaction;
+    friend class Mist::Transaction; // Consider redesigning this.
+    friend class Mist::Deserializer;
+    friend class Mist::Serializer;
+
+    using map_trans_f = std::function<void(const Database::Transaction&)>;
+    using map_meta_f = std::function<void(const Database::Meta&)>;
+    using map_obj_f = std::function<void(const Database::Object&)>;
+    using map_user_f = std::function<void(
+            const std::string&,
+            const std::string&,
+            const std::string&,
+            const std::string&)>;
+
+    void mapTransactions( map_trans_f fn,
+            Connection* connection = nullptr ) const;
+    void mapTransactionLatest( map_trans_f fn,
+            Connection* connection = nullptr ) const;
+    void mapTransactionsFrom( map_trans_f fn, const std::vector<std::string>& ids,
+            Connection* connection = nullptr ) const;
+    void mapObject( map_obj_f fn, const Database::Transaction& transaction,
+            Connection* connection = nullptr ) const;
+    void mapObjectId( map_obj_f fn, const long long id,
+            Connection* connection = nullptr ) const;
+    void mapParents( map_trans_f fn, const Database::Transaction& transaction,
+            Connection* connection = nullptr ) const;
+
+    bool haveAll( const std::vector<std::string>& transactionHashes,
+            Connection* connection = nullptr ) const;
+
+    /*
+     * Help methods for users
+     */
+    void mapUser( map_user_f fn, const std::string& userHash ) const;
+    void mapUsers( map_user_f fn ) const;
+    void mapUsersFrom( map_user_f fn, const std::vector<std::string>& userIds ) const;
+
+    std::shared_ptr<UserAccount> getUser( const std::string& userHash ) const;
+
+    /*
+     * Transactions
+     */
+    std::unique_ptr<Mist::RemoteTransaction> beginRemoteTransaction(
+            Database::AccessDomain accessDomain,
+            std::vector<Database::Transaction> parents,
+            Helper::Date timestamp,
+            CryptoHelper::SHA3 userHash,
+            CryptoHelper::SHA3 hash,
+            CryptoHelper::Signature signature );
+
+    /**
+     * Start a transaction that will perform changes to a specified access domain of the database.
+     */
+    std::unique_ptr<Mist::Transaction> beginTransaction( AccessDomain accessDomain );
+
+    std::unique_ptr<Connection> getIsolatedDbConnection() const;
+    CryptoHelper::SHA3 calculateTransactionHash( const Database::Transaction& transaction,
+            Connection* connection = nullptr ) const;
+    unsigned reorderTransaction( const Database::Transaction& tranasaction,
+            Connection* connection = nullptr );
+    CryptoHelper::Signature signTransaction( const CryptoHelper::SHA3& hash ) const;
+
+    void objectChanged( const ObjectRef& objectRef );
+    void rollback( Mist::RemoteTransaction *transaction );
+    void rollback( Mist::Transaction *transaction );
+    void commit( Mist::RemoteTransaction *transaction );
+    void commit( Mist::Transaction *transaction );
+
+    static Database::Transaction statementRowToTransaction( Database::Statement& stmt );
+    static Database::Object statementRowToObject( Database::Statement& stmt, std::map<std::string, Database::Value> attributes );
+    static Database::ObjectMeta statementRowToObjectMeta( Database::Statement& stmt );
+    static Database::Value statementRowToValue( Database::Statement& attribute );
+    //static UserAccount statementRowToUser( Database::Statement& user );
+
+    std::vector<CryptoHelper::SHA3> getParents( unsigned version,
+            Connection* connection = nullptr ) const;
+    std::vector<CryptoHelper::SHA3> getParents( CryptoHelper::SHA3 transactionHash,
+            Connection* connection = nullptr ) const;
+    /*// TODO
+    Database::Meta transactionToMeta( const Database::Transaction& transaction,
+            Connection* connection = nullptr ) const;
+    //*/
+
+    const std::string& getUserHash() { return userHash; }
+    Manifest *getManifest();
+private:
+
+    static bool dbExists( std::string filename );
+    //bool enableTransactionFiles{ true };
+
+    bool _isOK; // TODO: fix proper error handling instead.
+    Manifest* manifest;
+    Central *central;
+    std::string path;
+    Connection *db;
+    std::string userHash;
+    std::unique_ptr<Deserializer> deserializer;
+    std::unique_ptr<Serializer> serializer;
+    Mist::Query querier{};
+
+    std::map<long long,std::set<unsigned>> subscribeObjectIdSub{};
+    std::map<unsigned,long long> subscribeObjectSubId{};
+    std::map<unsigned,std::function<void(Object)>> subscriberCallback{};
+};
+
+// Database utils
+
+
+} /* namespace Mist */
+
+#endif /* SRC_DATABASE_H_ */
