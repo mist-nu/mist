@@ -1,3 +1,8 @@
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
 #include "conn/conn_impl.hpp"
 #include "conn/service_impl.hpp"
 

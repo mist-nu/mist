@@ -1,8 +1,7 @@
 /*
- * JSONstream.h
- *
- *  Created on: Nov 15, 2016
- *      Author: andreas
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
  */
 
 #ifndef INCLUDE_JSONSTREAM_H_

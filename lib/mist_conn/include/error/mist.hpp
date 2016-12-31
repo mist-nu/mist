@@ -1,3 +1,8 @@
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
 #ifndef __ERROR_MIST_HPP__
 #define __ERROR_MIST_HPP__
 

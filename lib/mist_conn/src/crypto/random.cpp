@@ -1,3 +1,8 @@
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
 #include "pk11pub.h"
 #include "nss.h"
 

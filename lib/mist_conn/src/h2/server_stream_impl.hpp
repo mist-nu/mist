@@ -1,3 +1,8 @@
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
 #ifndef __MIST_SRC_H2_SERVER_STREAM_IMPL_HPP__
 #define __MIST_SRC_H2_SERVER_STREAM_IMPL_HPP__
 

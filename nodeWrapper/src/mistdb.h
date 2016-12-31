@@ -1,3 +1,8 @@
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
 #ifndef __MIST_DB_NODE_ADDON__
 #define __MIST_DB_NODE_ADDON__
 

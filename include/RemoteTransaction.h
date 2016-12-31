@@ -1,8 +1,7 @@
 /*
- * RemoteTransaction.h
- *
- *  Created on: 18 Sep 2016
- *      Author: mattias
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
  */
 
 #ifndef SRC_REMOTETRANSACTION_H_

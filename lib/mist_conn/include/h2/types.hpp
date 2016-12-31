@@ -1,3 +1,8 @@
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
 #ifndef __MIST_HEADERS_H2_TYPES_HPP__
 #define __MIST_HEADERS_H2_TYPES_HPP__
 

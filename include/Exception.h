@@ -1,8 +1,7 @@
 /*
- * Exception.h
- *
- *  Created on: Oct 9, 2016
- *      Author: andreas
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
  */
 
 #ifndef SRC_EXCEPTION_H_

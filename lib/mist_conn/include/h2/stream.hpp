@@ -1,3 +1,8 @@
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
 #ifndef __MIST_INCLUDE_H2_STREAM_HPP__
 #define __MIST_INCLUDE_H2_STREAM_HPP__
 

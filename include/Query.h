@@ -1,3 +1,9 @@
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+
 #ifndef INCLUDE_QUERY_H_
 #define INCLUDE_QUERY_H_
 

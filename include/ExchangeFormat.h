@@ -1,8 +1,7 @@
 /*
- * Format.h
- *
- *  Created on: Nov 26, 2016
- *      Author: andreas
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
  */
 
 /* Exchange format, 3 repetitions means that there can be 0 or more such entries

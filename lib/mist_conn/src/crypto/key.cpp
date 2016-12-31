@@ -1,3 +1,8 @@
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
 #include "nspr.h"
 #include "prtypes.h"
 #include "prtime.h"
