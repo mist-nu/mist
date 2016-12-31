@@ -232,7 +232,8 @@ The clunky part from the install above.
 ```
 cd gtests
 ./init_build.sh
-./build_and_run_gtest.sh```
+./build_and_run_gtest.sh
+```
 
 ##### A more descriptive way
 Run the following to download googletest:
