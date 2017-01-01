@@ -1462,7 +1462,7 @@ void Mist::Central::RestRequest::entry( const std::string& path ) {
     } else if (eltCount == 0) {
         replyBadRequest();
     } else if (elts[0] == "transactions") {
-        transactions(elts);
+        transactions(*request.method(), elts);
     } else if (elts[0] == "databases") {
         databases(elts);
     } else if (elts[0] == "users") {
@@ -1473,79 +1473,163 @@ void Mist::Central::RestRequest::entry( const std::string& path ) {
 }
 
 void Mist::Central::RestRequest::transactions(
+        const std::string &method,
         const std::vector<std::string>& elts ) {
     auto eltCount = elts.size();
 
-    auto dbHash(elts[1]);
+    if (eltCount <= 1) {
+        replyBadRequest();
+        return;
+    }
+    CryptoHelper::SHA3 dbHash( elts[1] );
+    if (method == "HEAD") {
+        if (eltCount == 3) {
+            CryptoHelper::SHA3 trHash( elts[2] );
+            transactionMetadata( dbHash, trHash );
+        } else {
+            replyBadRequest();
+        }
+    } else if (method == "GET") {
+        if (eltCount == 2) {
+            transactionsAll( dbHash );
+        } else if (elts[2] == "latest") {
+            transactionsLatest( dbHash );
+        } else if (boost::starts_with( elts[2], "?from=" )) {
+            std::string from = elts[2].substr( 6 );
+            int last = 0, pos = 0;
+            std::vector<CryptoHelper::SHA3> res;
 
-    if (elts.size() == 1 || elts.size() == 2 && elts[1].size() == 0);
-    // TODO
+            pos = from.find( ",", last );
+            while (pos != std::string::npos) {
+                res.push_back( CryptoHelper::SHA3( from.substr( last, pos-last ) ) );
+                last = pos+1;
+            }
+            res.push_back( CryptoHelper::SHA3( from.substr( last, from.length() ) ) );
+            transactionsFrom( dbHash, res );
+        } else {
+            CryptoHelper::SHA3 trHash( elts[2] );
+            transaction( dbHash, trHash );
+        }
+    } else if (method == "POST") {
+        if (eltCount == 3) {
+            if (elts[2] == "new") {
+                // TODO Read transaction metadata from JSON body
+                transactionsNew( dbHash );
+            }
+        } else {
+            replyBadRequest();
+        }
+    } else {
+        replyBadMethod();
+    }
 }
-
 
 void Mist::Central::RestRequest::transaction(
         const CryptoHelper::SHA3& dbHash,
         const CryptoHelper::SHA3& trHash ) {
     if (central.hasDatabasePermission(keyHash, dbHash)) {
-	auto anchor(shared_from_this());
-	request.stream().submitResponse(200, {});
-	execOutStream(central.ioCtx, request.stream().response(), [this, anchor, dbHash, trHash](std::streambuf& os) {
-	    auto db(central.getDatabase(dbHash));
-	    db->readTransaction(os, trHash.toString());
+		auto anchor(shared_from_this());
+        auto db(central.getDatabase(dbHash));
+
+        if (db == nullptr) {
+            replyNotFound();
+            return;
+        }
+	    request.stream().submitResponse(200, {});
+	    execOutStream(central.ioCtx, request.stream().response(), [this, anchor, db, trHash](std::streambuf& os) {
+	        db->readTransaction(os, trHash.toString());
         });
     } else {
-	replyNotAuthorized();
+	    replyNotAuthorized();
     }
 }
 
 void Mist::Central::RestRequest::transactionMetadata(
         const CryptoHelper::SHA3& dbHash,
         const CryptoHelper::SHA3& trHash ) {
+    if (central.hasDatabasePermission(keyHash, dbHash)) {
+		auto anchor(shared_from_this());
+        auto db(central.getDatabase(dbHash));
 
-    //            void readTransactionMetadata( std::basic_streambuf<char>& sb,
-    //                    const std::string& hash ) const;
-
-    // TODO
+        if (db == nullptr) {
+            replyNotFound();
+            return;
+        }
+	    request.stream().submitResponse(200, {});
+	    execOutStream(central.ioCtx, request.stream().response(), [this, anchor, db, trHash](std::streambuf& os) {
+	        db->readTransactionMetadata(os, trHash.toString());
+        });
+    } else {
+	    replyNotAuthorized();
+    }
 }
 
 void Mist::Central::RestRequest::transactionsAll(
         const CryptoHelper::SHA3& dbHash ) {
+    if (central.hasDatabasePermission(keyHash, dbHash)) {
+		auto anchor(shared_from_this());
+        auto db(central.getDatabase(dbHash));
 
-//            void readTransactionList( std::basic_streambuf<char>& sb ) const;
-
-
-
-    // TODO
+        if (db == nullptr) {
+            replyNotFound();
+            return;
+        }
+	    request.stream().submitResponse(200, {});
+	    execOutStream(central.ioCtx, request.stream().response(), [this, anchor, db](std::streambuf& os) {
+	        db->readTransactionList(os);
+        });
+    } else {
+	    replyNotAuthorized();
+    }
 }
 
 void Mist::Central::RestRequest::transactionsLatest(
         const CryptoHelper::SHA3& dbHash ) {
+    if (central.hasDatabasePermission(keyHash, dbHash)) {
+		auto anchor(shared_from_this());
+        auto db(central.getDatabase(dbHash));
 
-//            void readTransactionMetadataLastest( std::basic_streambuf<char>& sb ) const;
-
-    // TODO
+        if (db == nullptr) {
+            replyNotFound();
+            return;
+        }
+	    request.stream().submitResponse(200, {});
+	    execOutStream(central.ioCtx, request.stream().response(), [this, anchor, db](std::streambuf& os) {
+	        db->readTransactionMetadataLastest(os);
+        });
+    } else {
+	    replyNotAuthorized();
+    }
 }
 
-void Mist::Central::RestRequest::transactionsRange(
+void Mist::Central::RestRequest::transactionsFrom(
         const CryptoHelper::SHA3& dbHash,
-        const CryptoHelper::SHA3& fromTrHash,
-        const CryptoHelper::SHA3& toTrHash ) {
+        const std::vector<CryptoHelper::SHA3>& fromTrHashes ) {
+    if (central.hasDatabasePermission(keyHash, dbHash)) {
+		auto anchor(shared_from_this());
+        auto db(central.getDatabase(dbHash));
 
-//            void readTransactionMetadataFrom( std::basic_streambuf<char>& sb,
+        if (db == nullptr) {
+            replyNotFound();
+            return;
+        }
+	    request.stream().submitResponse(200, {});
+	    execOutStream(central.ioCtx, request.stream().response(), [this, anchor, db, fromTrHashes](std::streambuf& os) {
+            std::vector<std::string> from;
 
-
-
-    // TODO
+            for (CryptoHelper::SHA3 trHash : fromTrHashes) {
+                from.push_back( trHash.toString() );
+            }
+	        db->readTransactionMetadataFrom(os, from);
+        });
+    } else {
+	    replyNotAuthorized();
+    }
 }
 
 void Mist::Central::RestRequest::transactionsNew(
         const CryptoHelper::SHA3& dbHash ) {
-    // TODO
-}
-
-void Mist::Central::RestRequest::transactionsHaveNew(
-        const CryptoHelper::SHA3& dbHash ) {
-    // TODO
+    // TODO Start syncing the transaction if we need the transaction
 }
 
 void Mist::Central::RestRequest::databases( const std::vector<std::string>& elts ) {
@@ -1590,8 +1674,8 @@ void Mist::Central::RestRequest::databasesAll() {
 }
 
 void Mist::Central::RestRequest::databaseInvite( const Mist::Database::Manifest &manifesth ) {
-
     // TODO
+    // Call callback set in startSync
 }
 
 void Mist::Central::RestRequest::users( const std::vector<std::string>& elts ) {

@@ -407,18 +407,16 @@ private:
 
         void entry( const std::string& path );
 
-        void transactions( const std::vector<std::string>& elts );
+        void transactions( const std::string &method, const std::vector<std::string>& elts );
         void transaction( const CryptoHelper::SHA3& dbHash,
             const CryptoHelper::SHA3& trHash );
         void transactionMetadata( const CryptoHelper::SHA3& dbHash,
             const CryptoHelper::SHA3& trHash );
         void transactionsAll( const CryptoHelper::SHA3& dbHash );
         void transactionsLatest( const CryptoHelper::SHA3& dbHash );
-        void transactionsRange( const CryptoHelper::SHA3& dbHash,
-            const CryptoHelper::SHA3& fromTrHash,
-            const CryptoHelper::SHA3& toTrHash );
+        void transactionsFrom( const CryptoHelper::SHA3& dbHash,
+            const std::vector<CryptoHelper::SHA3>& from );
         void transactionsNew( const CryptoHelper::SHA3& dbHash );
-        void transactionsHaveNew( const CryptoHelper::SHA3& dbHash );
 
         void databases( const std::vector<std::string>& elts );
         void databasesAll();
