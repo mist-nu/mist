@@ -77,7 +77,7 @@ TEST( RemoteCentral, CreateTransactions ) {
 
     // Add Object
     std::map<std::string, V> attributes;
-    attributes.emplace( "Hello", V( "world" ) );
+    attributes.emplace( "Hello", "world" );
     attributes.emplace( "Next", V( 2 ) );
     t->newObject( {}, attributes );
     t->commit();
@@ -86,26 +86,14 @@ TEST( RemoteCentral, CreateTransactions ) {
     // New transaction
     t = std::move( db->beginTransaction() );
     attributes.clear();
-    attributes.emplace( "Second", V( "test" ) );
+    attributes.emplace( "Second", "test" );
     t->newObject( {}, attributes );
     t->commit();
     t.reset();
 
-    // Get tranasaction list
-    std::stringstream json{};
-    db->readTransactionList( *json.rdbuf() );
-    JSON::Value value{ JSON::Deserialize::generate_json_value( json.str() ) };
-    std::string transaction1{ value.array.at( 0 ).object.at( "id" ).get_string() };
-    std::string transaction2{ value.array.at( 1 ).object.at( "id" ).get_string() };
-
-    // Read transaction as json to file
-    std::fstream fs( transaction_file, std::fstream::out | std::fstream::trunc | std::fstream::binary );
-    db->readTransaction( *fs.rdbuf(), transaction1 );
-    db->readTransaction( *fs.rdbuf(), transaction2 );
-    fs.close();
+    db->dump( central_remote + ".1" );
 
     // Shutdown
     db->close();
     central.close();
 }
-

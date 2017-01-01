@@ -556,7 +556,6 @@ Mist::Database* Mist::Central::createDatabase( std::string name ) {
             manifest->sign();
             this->databases.emplace(localId, new Mist::Database( this, path + "/" + std::to_string( localId ) + ".db" ) );
             Mist::Database* db = databases.at( localId );
-            db->create( localId, std::move( manifest ) );
             Helper::Database::Statement query( *settingsDatabase, "INSERT INTO Database (hash, localId, creator, name, manifest) VALUES (?, ?, ?, ?, ?)" );
             query.bind( 1, manifest->getHash().toString() );
             query.bind( 2, localId );
@@ -565,6 +564,7 @@ Mist::Database* Mist::Central::createDatabase( std::string name ) {
             query.bind( 5, manifest->toString() );
             query.exec();
             transaction.commit();
+            db->create( localId, std::move( manifest ) );
             return db;
         } else {
             // TODO: handle this
