@@ -486,7 +486,7 @@ std::vector<Token> Query::tokenize( std::string str )
 
 void Select::parse( std::string str )
 {
-    if (str.length() == 0) {
+    if ( trim( str ).empty() ) {
         all = true;
         return;
     }
@@ -1089,14 +1089,14 @@ void Query::parseQuery( int accessDomain, long long parent, std::string selectSt
             this->args.push_back( select.getFunctionAttribute() );
             int argIndex = this->args.size();
 
-            this->sqlQuery = "SELECT " + select.getFunctionName() + "( a.value ) "
+            this->sqlQuery = "SELECT " + select.getFunctionName() + "( a.value ) AS value "
                 + "FROM Object AS o, Attribute AS a "
                 + "WHERE o.accessDomain=" + printArg( 1 ) + " AND o.parent=" + printArg( 2 ) + " AND " + status + " ";
                 + "AND a.accessDomain=o.accessDomain AND a.id=o.id AND a.version=o.version AND a.name=" + printArg( argIndex ) + " "
                 + "AND a.type=" + std::to_string( static_cast<int>( Type::Number ) ) + " ";
             filter.makeSQL( *this, args, maxVersion, status, false );
         } else {
-            this->sqlQuery = "SELECT " + select.getFunctionName() + "( * ) "
+            this->sqlQuery = "SELECT " + select.getFunctionName() + "( * ) AS value "
                 + "FROM Object AS o "
                 + "WHERE o.accessDomain=" + printArg( 1 ) + " AND o.parent=" + printArg( 2 ) + " AND " + status + " ";
             filter.makeSQL( *this, args, maxVersion, status, false );
@@ -1127,12 +1127,6 @@ void Query::parseQuery( int accessDomain, long long parent, std::string selectSt
             this->sqlQuery += std::string( "ORDER BY aSort " ) + (sort.getDesc() ? "DESC" : "") + ", o.version, o.id";
         }
     }
-    /*
-    res.sort = sort;
-    res.filter = filter;
-    res.select = select;
-    return res;
-    //*/
 }
 
 void Query::parseVersionQuery( int accessDomain, long long parent, std::string selectStr, std::string filterStr, std::map<std::string,ArgumentVT> args, bool includeDeleted ) {
@@ -1160,14 +1154,14 @@ void Query::parseVersionQuery( int accessDomain, long long parent, std::string s
             this->args.push_back( select.getFunctionAttribute() );
             int argIndex = this->args.size();
 
-            this->sqlQuery = "SELECT " + select.getFunctionName() + "( a.value ) "
+            this->sqlQuery = "SELECT " + select.getFunctionName() + "( a.value ) AS value "
                 + "FROM Object AS o, Attribute AS a "
                 + "WHERE o.accessDomain=" + printArg( 1 ) + " AND o.id=" + printArg( 2 ) + " AND " + status + " ";
                 + "AND a.accessDomain=o.accessDomain AND a.id=o.id AND a.version=o.version AND a.name=" + printArg( argIndex ) + " "
                 + "AND a.type=" + std::to_string( static_cast<int>( Type::Number ) ) + " ";
             filter.makeSQL( *this, args, 0, status, true );
         } else {
-            this->sqlQuery = "SELECT " + select.getFunctionName() + "( * ) "
+            this->sqlQuery = "SELECT " + select.getFunctionName() + "( * ) AS value "
                 + "FROM Object AS o "
                 + "WHERE o.accessDomain=" + printArg( 1 ) + " AND o.parent=" + printArg( 2 ) + " AND " + status + " ";
             filter.makeSQL( *this, args, 0, status, true );
@@ -1190,11 +1184,6 @@ void Query::parseVersionQuery( int accessDomain, long long parent, std::string s
         filter.makeSQL( *this, args, 0, status, true );
         this->sqlQuery += "ORDER BY o.version, o.id, a.name ";
     }
-    /*
-    res.filter = filter;
-    res.select = select;
-    return res;
-    //*/
 }
 
 } /* namespace Mist */

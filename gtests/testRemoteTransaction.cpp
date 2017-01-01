@@ -34,7 +34,7 @@ using D = OpenDatabase;
 using ORef = D::ObjectRef;
 using AD = D::AccessDomain;
 using V = D::Value;
-using VT = D::Value::Type;
+using VT = D::Value::T;
 
 using RT = M::RemoteTransaction;
 using URT = std::unique_ptr<RT>;
@@ -248,7 +248,7 @@ TEST_F( RemoteTransactionTest, NewObjects1000 ) {
     ORef parent{rootParent };
     unsigned long id{ static_cast<unsigned long>(C::cryptoRandom()) } ;
     for ( int i{0}; i < 1000; ++i ) {
-        attr["test"].value.number = i;
+        attr["test"] = i;
         rt->newObject( id, parent, attr );
         older = old;
         old = parent;

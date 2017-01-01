@@ -15,6 +15,31 @@
 
 namespace Mist {
 
+void putAttribute( JSON::Serialize* s, const std::pair<std::string,Database::Value>& attribute ) {
+    s->put( attribute.first );
+    using T = Database::Value::T;
+    switch( attribute.second.t ) {
+    case T::NoType:
+    case T::Null:
+       s->put( nullptr );
+       break;
+    case T::Boolean:
+       s->put( attribute.second.b );
+       break;
+    case T::Number:
+       s->put( static_cast<long double>( attribute.second.n ) );
+       break;
+    case T::String:
+    case T::Json:
+       s->put( attribute.second.v );
+       break;
+    default:
+       // TODO: throw instread?
+       LOG( WARNING ) << "Unhandled case";
+       s->put( 0LL );
+       break;
+    }
+}
 
 enum class ExchangeState : int {
     Error = 0,
@@ -286,13 +311,8 @@ void Serializer::changed( const Database::Object& object ) const {
     s->start_object();
         s->put( "attributes" );
         s->start_object();
-        for( auto attr : object.attributes ) {
-           s->put( attr.first );
-           if ( Database::Value::Type::JSON == attr.second.type ) {
-               s->put( attr.second.value.json );
-           } else {
-               s->put( attr.second.value.string );
-           }
+        for( const auto& attr : object.attributes ) {
+           putAttribute( s.get(), attr );
         }
         s->close_object();
     s->close_object();
@@ -327,13 +347,8 @@ void Serializer::New( const Database::Object& object ) const {
         s->put( static_cast<long long>( object.parent.id ) ); // TODO: AD
         s->put( "attributes" );
         s->start_object();
-        for( auto attr : object.attributes ) {
-           s->put( attr.first );
-           if ( Database::Value::Type::JSON == attr.second.type ) {
-               s->put( attr.second.value.json );
-           } else {
-               s->put( attr.second.value.string );
-           }
+        for( const auto& attr : object.attributes ) {
+           putAttribute( s.get(), attr );
         }
         s->close_object();
     s->close_object();
@@ -644,7 +659,20 @@ void Deserializer::parseMetaData( E e ) {
             d->pop();
             if ( db ) {
                 // TODO: verification of the meta data
-                parents = db->getTransactionsFrom( parentIds );
+                //parents = db->getTransactionsFrom( parentIds );
+                parents.clear();
+                try {
+                    for ( const std::string& parent: parentIds ) {
+                        parents.push_back( db->getTransactionMeta( parent ) );
+                    }
+                } catch ( const Mist::Exception& e ) {
+                    if ( Error::ErrorCode::NotFound ==
+                            static_cast<Error::ErrorCode>( e.getErrorCode() ) ) {
+                        LOG( WARNING ) << "Parent not found when writing exchange format to db";
+                    } else {
+                        LOG( WARNING ) << "Failed to query db about transaction";
+                    }
+                }
                 startTransaction(); // TODO verify this
             }
             state.top() = S::ObjectsKeyword; // <------- Next state
@@ -1228,5 +1256,3 @@ void Deserializer::pop() {
 }
 
 } /* namespace Mist */
-
-

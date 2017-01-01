@@ -126,83 +126,61 @@ unsigned long Transaction::newObject( const Database::ObjectRef &parent, const s
     unsigned long newId{ allocateObjectId() }; // TODO: what happens if this id is generated somewhere else but it has not arrived here yet?
     LOG ( DBUG ) << "New object id: " << newId;
     Database::Statement query( *connection.get(), "INSERT INTO Object (accessDomain, id, version, status, parent, parentAccessDomain, transactionAction) "
-    		"VALUES (?, ?, ?, ?, ?, ?, ?)" );
-    // TODO: verify correct behavior when casting during the binding.
+            "VALUES (?, ?, ?, ?, ?, ?, ?)" );
     query << static_cast<int>( accessDomain )
             << static_cast<long long>( newId )
             << version
             << static_cast<int>( Database::ObjectStatus::Current )
             << static_cast<long long>( parent.id )
-    		<< static_cast<int>( parent.accessDomain )
-    		<< static_cast<int>( Database::ObjectAction::New );
+            << static_cast<int>( parent.accessDomain )
+            << static_cast<int>( Database::ObjectAction::New );
     if ( query.exec() == 0 ) { // TODO: zero-rows affected
         valid = false;
         LOG ( WARNING ) << "Could not insert new object: " << newId;
         throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
     }
 
-    // TODO: Review the loop, feels incorrect.
+    Database::Statement insertAttribute( *connection.get(),
+            "INSERT INTO Attribute (accessDomain, id, version, name, type, value) "
+            "VALUES (?, ?, ?, ?, ?, ?) " );
     for ( auto const & kv : attributes ) {
-        // TODO: Could attributes be implemented with a set instead? Seems like all info is contained within Value.
-
-        // TODO: What default values do we want?
-        Database::Value value;
-        value.type = Database::Value::Type::Number;
-        value.value.number = 0;
-
-        // TODO: Is this json object needed?
-        Database::Value json;
-        json.type = Database::Value::Type::JSON;
-        json.value.json = new std::string { };
-
-        // if ( kv.second.type == Database::Value::JSON) // TODO: would this be enough? and then use a set instead of a map?
-        if ( kv.first == "JSON" ) {
-            value = kv.second;
-            // TODO: Do something like: "NormalizedJSON.serialize( kv.second.value );" ?
-        } else {
-            value = kv.second;
-        }
-        Database::Statement query( *connection.get(), "INSERT INTO Attribute (accessDomain, id, version, name, value, json) VALUES (?, ?, ?, ?, ?, ?)" );
-        query << static_cast<int>( accessDomain )
+        insertAttribute << static_cast<int>( accessDomain )
                 << static_cast<long long>( newId )
                 << version
-                << kv.first;
-        switch ( value.type ) {
-        case Database::Value::Type::Boolean:
-            query.bind( 5, value.value.boolean );
+                << kv.first
+                << static_cast<int>( kv.second.t );
+        using T = Database::Value::T;
+        switch ( kv.second.t ){
+        case T::NoType:
             break;
-        case Database::Value::Type::JSON:
-            // TODO: maybe remove the if a few rows up?
-            query.bind( 6, *( value.value.json ) );
-            //query.bind( 5, value.value.json );
+        case T::Null:
             break;
-        case Database::Value::Type::Number:
-            query.bind( 5, value.value.number );
+        case T::Boolean:
+            insertAttribute << kv.second.b;
             break;
-        case Database::Value::Type::String:
-            query.bind( 5, *( value.value.string ) );
-            //query.bind( 5, value.value.string );
+        case T::Number:
+            insertAttribute << kv.second.n;
             break;
+        case T::String:
+            insertAttribute << kv.second.v;
+            break;
+        case T::Json:
+            insertAttribute << kv.second.v;
+            break;
+        default:
+            LOG( WARNING ) << "Attribute statement does not contain correct type.";
+            throw std::runtime_error( "Attribute statement does not contain correct type." );
         }
 
-        if ( query.exec() > 0 ) { // TODO: handle exec throws.
-            // OK
-            // TODO: handle throws from clear and reset
-            query.clearBindings();
-            query.reset();
+        if ( insertAttribute.exec() ) {
+            insertAttribute.clearBindings();
+            insertAttribute.reset();
         } else {
-            // TODO: query returned 0 rows, handle this better, check what SQLite error was set etc.
             valid = false;
             LOG ( WARNING ) << "Could not insert attributes into the database";
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
     }
-
-    // TODO: verify that the following is correct.
-    /*
-    db->objectChanged( parent );
-    db->objectChanged( accessDomain, newId );
-    //*/
 
     affectedObjects.insert( parent );
     affectedObjects.insert( { accessDomain, newId } );
@@ -222,14 +200,14 @@ unsigned long Transaction::newObject( const Database::ObjectRef &parent, const s
 void Transaction::moveObject( unsigned long id, const Database::ObjectRef &newParent ) {
     LOG( DBUG ) << "Move object " << id;
     if ( !valid ) {
-    	LOG( WARNING ) << "Current Transaction object is NOT valid.";
+        LOG( WARNING ) << "Current Transaction object is NOT valid.";
         valid = false;
         throw Mist::Exception( Mist::Error::ErrorCode::InvalidTransaction );
     }
     // TODO: ? "if ( db->validCrossAccessDomainParent( newParent.accessDomain, accessDomain) ) throw ...InvalidParent" ?
     if ( accessDomain == newParent.accessDomain && id == newParent.id ) {
         // TODO: should this be done?
-    	LOG( WARNING ) << "Invalid Parent, transaction no longer valid.";
+        LOG( WARNING ) << "Invalid Parent, transaction no longer valid.";
         valid = false;
         throw Mist::Exception( Mist::Error::ErrorCode::InvalidParent );
     }
@@ -242,14 +220,14 @@ void Transaction::moveObject( unsigned long id, const Database::ObjectRef &newPa
             "WHERE accessDomain=? AND id=? AND status <= ?" );
     query << (int) accessDomain << (long long) id << (int) Database::ObjectStatus::DeletedParent;
     if ( !query.executeStep() ) {
-    	LOG( WARNING ) << "Not Found, transaction no longer valid.";
+        LOG( WARNING ) << "Not Found, transaction no longer valid.";
         valid = false;
         throw Mist::Exception( Mist::Error::ErrorCode::NotFound );
     }
 
     if ( newParent.id == (unsigned long) query.getColumn( "parent" ).getInt64() && newParent.accessDomain == (Database::AccessDomain) query.getColumn( "parentAccessDomain" ).getInt() ) {
         // TODO: Nothing to move, it is already there. throw?
-    	LOG( DBUG ) << "NOOP";
+        LOG( DBUG ) << "NOOP";
         return;
     }
 
@@ -259,7 +237,7 @@ void Transaction::moveObject( unsigned long id, const Database::ObjectRef &newPa
             "WHERE accessDomain=? AND id=? AND status=?" );
 
     if ( newParent.id != db->ROOT_OBJECT_ID ) {
-    	parentQuery << (int) newParent.accessDomain << (long long) newParent.id << (int) Database::ObjectStatus::Current;
+        parentQuery << (int) newParent.accessDomain << (long long) newParent.id << (int) Database::ObjectStatus::Current;
         if ( parentQuery.executeStep() ) {
             Database::AccessDomain parentAccessDomain = (Database::AccessDomain) parentQuery.getColumn( "accessDomain" ).getInt();
             if ( parentAccessDomain != accessDomain ) {
@@ -268,7 +246,7 @@ void Transaction::moveObject( unsigned long id, const Database::ObjectRef &newPa
             }
             // TODO: skip access doamin check?
         } else { // Got 0 rows
-        	LOG( WARNING ) << "Not Found, transaction no longer valid";;
+            LOG( WARNING ) << "Not Found, transaction no longer valid";;
             valid = false;
             throw Mist::Exception( Mist::Error::ErrorCode::NotFound );
         }
@@ -277,9 +255,9 @@ void Transaction::moveObject( unsigned long id, const Database::ObjectRef &newPa
     if ( query.getColumn( "version" ).getUInt() != version ) {
         Database::Statement updateObj( *connection.get(), "UPDATE Object SET status=? WHERE accessDomain=? AND id=? AND version=?" );
         updateObj << (int) convertStatusToOld( { (Database::ObjectStatus) query.getColumn( "status" ).getUInt() } )
-        		<< (int) accessDomain << (long long) id << query.getColumn( "version" ).getUInt();
+                << (int) accessDomain << (long long) id << query.getColumn( "version" ).getUInt();
         if ( updateObj.exec() == 0 ) { // 0 rows affected.
-        	LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid.";
+            LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid.";
             valid = false;
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
@@ -287,20 +265,20 @@ void Transaction::moveObject( unsigned long id, const Database::ObjectRef &newPa
         Database::Statement insertObj( *connection.get(), "INSERT INTO Object (accessDomain, id, version, status, parentAccessDomain, parent, transactionAction) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?)" );
         insertObj << (int) accessDomain << (long long) id << version << (int) Database::ObjectStatus::Current << (int) newParent.accessDomain
-        		<< (long long) newParent.id << (int) Database::ObjectAction::Move;
+                << (long long) newParent.id << (int) Database::ObjectAction::Move;
         if ( insertObj.exec() == 0 ) { // 0 rows affected.
-        	LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid.";
+            LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid.";
             valid = false;
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
 
-        Database::Statement insertAttr( *connection.get(), "INSERT INTO Attribute (accessDomain, id, version, name, value, json) "
-                "SELECT accessDomain, id, ?, name, value, json "
+        Database::Statement insertAttr( *connection.get(), "INSERT INTO Attribute (accessDomain, id, version, name, type, value) "
+                "SELECT accessDomain, id, ?, name, type, value "
                 "FROM Attribute "
-                "WHERE accessDomain=? AND id=? AND version=?" );
+                "WHERE accessDomain=? AND id=? AND version=? " );
         insertAttr << version << (int) accessDomain << (long long) id << query.getColumn( "version" ).getUInt();
         if ( insertAttr.exec() == 0 ) { // 0 rows affected.
-        	LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid.";
+            LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid.";
             valid = false;
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
@@ -318,10 +296,10 @@ void Transaction::moveObject( unsigned long id, const Database::ObjectRef &newPa
                         Database::ObjectAction::MoveUpdate :
                         ( ( (Database::ObjectAction) query.getColumn( "transactionAction" ).getUInt() ) == Database::ObjectAction::Delete ?
                                 Database::ObjectAction::Move : (Database::ObjectAction) query.getColumn( "transactionAction" ).getUInt() ) )
-								<< (int) Database::ObjectStatus::Current << (int) newParent.accessDomain << (long long) newParent.id
-								<< (int) accessDomain << (long long) id << version;
+                                << (int) Database::ObjectStatus::Current << (int) newParent.accessDomain << (long long) newParent.id
+                                << (int) accessDomain << (long long) id << version;
         if ( updateObj.exec() == 0 ) { // 0 rows affected.
-        	LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid.";
+            LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid.";
             valid = false;
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
@@ -329,26 +307,21 @@ void Transaction::moveObject( unsigned long id, const Database::ObjectRef &newPa
         if ( ( (Database::ObjectAction) query.getColumn( "transactionAction" ).getUInt() ) == Database::ObjectAction::Delete ) {
             // TODO: return?
         } else {
-            Database::Statement insertAttr( *connection.get(), "INSERT INTO Attribute (accessDomain, id, version, name, value, json) "
-            		"SELECT accessDomain, id, version, name, value, json " //"SELECT accessDomain, id, ?, name, value, json "
+            Database::Statement insertAttr( *connection.get(),
+                    "INSERT INTO Attribute (accessDomain, id, version, name, type, value ) "
+                    "SELECT accessDomain, id, ?, name, type, value "
                     "FROM Attribute "
                     "WHERE accessDomain=? AND id=? AND version="
                     "(SELECT MAX(version) FROM Object WHERE accessDomain=? AND id=? AND status <= ? AND version < ?)" );
-            insertAttr << (int) accessDomain << (long long) id << (int) accessDomain << (long long) id
-            		<< (int) Database::ObjectStatus::DeletedParent << version;
+            insertAttr << version << (int) accessDomain << (long long) id << (int) accessDomain << (long long) id
+                    << (int) Database::ObjectStatus::DeletedParent << version;
             if ( insertAttr.exec() == 0 ) { // 0 rows affected.
-            	LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
+                LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
                 valid = false;
                 throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
             }
         }
-        // TODO: Verify the following!
         Database::ObjectRef oldParent { (Database::AccessDomain) parentQuery.getColumn( "parentAccessDomain" ).getUInt(), (unsigned long) parentQuery.getColumn( "parent" ).getInt64() };
-        /*
-        db->objectChanged( oldParent );
-        db->objectChanged( accessDomain, id );
-        db->objectChanged( newParent );
-        //*/
 
         affectedObjects.insert( oldParent );
         affectedObjects.insert( { accessDomain, id } );
@@ -367,7 +340,7 @@ void Transaction::moveObject( unsigned long id, const Database::ObjectRef &newPa
 void Transaction::updateObject( unsigned long id, const std::map<std::string, Database::Value> &attributes ) {
     LOG( DBUG ) << "Update object " << id;
     if ( !valid ) {
-    	LOG( WARNING ) << "Transaction no longer valid";
+        LOG( WARNING ) << "Transaction no longer valid";
         valid = false;
         throw Mist::Exception( Mist::Error::ErrorCode::InvalidTransaction );
     }
@@ -378,7 +351,7 @@ void Transaction::updateObject( unsigned long id, const std::map<std::string, Da
             "WHERE accessDomain=? AND id=? AND status < ?" );
     query << (int) accessDomain << (long long) id << (int) Database::ObjectStatus::DeletedParent;
     if ( query.executeStep() == 0 ) { // Got 0 rows
-    	LOG( WARNING ) << "Not Found, transaction no longer valid";
+        LOG( WARNING ) << "Not Found, transaction no longer valid";
         valid = false;
         throw Mist::Exception( Mist::Error::ErrorCode::NotFound );
     }
@@ -393,7 +366,7 @@ void Transaction::updateObject( unsigned long id, const std::map<std::string, Da
                 "WHERE accessDomain=? AND id=? AND status=?" );
         parentQuery << (int) Database::ObjectStatus::DeletedParent << (long long) obj.parent.id << (int) obj.status;
         if ( !parentQuery.executeStep() ) {
-        	LOG( WARNING ) << "Not Found, transaction no longer valid";
+            LOG( WARNING ) << "Not Found, transaction no longer valid";
             valid = false;
             throw Mist::Exception( Mist::Error::ErrorCode::NotFound );
         }
@@ -403,7 +376,7 @@ void Transaction::updateObject( unsigned long id, const std::map<std::string, Da
         Database::Statement updateObj( *connection.get(), "UPDATE Object SET status=? WHERE accessDomain=? AND id=? AND version=?" );
         updateObj << (int) convertStatusToOld( obj.status ) << (int) obj.accessDomain << (long long) obj.id << obj.version;
         if ( updateObj.exec() == 0 ) { // 0 rows affected
-        	LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
+            LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
             valid = false;
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
@@ -414,9 +387,9 @@ void Transaction::updateObject( unsigned long id, const std::map<std::string, Da
         Database::Statement insertObj( *connection.get(), "INSERT INTO Object (accessDomain, id, version, status, parent, parentAccessDomain, transactionAction) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?)" );
         insertObj << (int) obj.accessDomain << (long long) obj.id << obj.version << (int) obj.status << (long long) obj.parent.id
-        		<< (int) obj.parent.accessDomain << (int) obj.action;
+                << (int) obj.parent.accessDomain << (int) obj.action;
         if ( insertObj.exec() == 0 ) { // 0 rows affected.
-        	LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
+            LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
             valid = false;
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
@@ -427,10 +400,11 @@ void Transaction::updateObject( unsigned long id, const std::map<std::string, Da
          *     Move -> Update attributes and make into UpdateMove
          *     Delete -> Replace with Update
          */
-        Database::Statement deleteAttr( *connection.get(), "DELETE FROM Attribute WHERE accessDomain=? AND id=? AND version=?" );
+        Database::Statement deleteAttr( *connection.get(),
+                "DELETE FROM Attribute WHERE accessDomain=? AND id=? AND version=?" );
         deleteAttr << (int) obj.accessDomain << (long long) obj.id << obj.version;
         if ( deleteAttr.exec() == 0 ) { // 0 rows affected.
-        	LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
+            LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
             valid = false;
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
@@ -440,7 +414,7 @@ void Transaction::updateObject( unsigned long id, const std::map<std::string, Da
             Database::Statement updateObj( *connection.get(), "UPDATE Object SET transactionAction=? WHERE accessDomain=? AND id=? AND version=?" );
             updateObj << (int) obj.action << (int) obj.accessDomain << (long long) obj.id << obj.version;
             if ( updateObj.exec() == 0 ) { // 0 rows affected.
-            	LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
+                LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
                 valid = false;
                 throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
             }
@@ -451,72 +425,55 @@ void Transaction::updateObject( unsigned long id, const std::map<std::string, Da
             Database::Statement updateObj( *connection.get(), "UPDATE Object SET transactionAction=?, status=? WHERE accessDomain=? AND id=? AND version=?" );
             updateObj << (int) obj.action << (int) obj.status << (int) obj.accessDomain << (long long) obj.id << obj.version;
             if ( updateObj.exec() == 0 ) { // 0 rows affected.
-            	LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
+                LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
                 valid = false;
                 throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
             }
         }
     }
 
-    Database::Statement queryInsertIntoAttribute( *connection.get(), "INSERT INTO Attribute (accessDomain, id, version, name, value, json) VALUES (?, ?, ?, ?, ?, ?)" );
-    // TODO: verify that this does what it's supposed to.
+    Database::Statement insertIntoAttribute( *connection.get(),
+            "INSERT INTO Attribute (accessDomain, id, version, name, type, value) "
+            "VALUES (?, ?, ?, ?, ?, ?)" );
     for ( auto const & kv : attributes ) {
-        // TODO: Could attributes be implemented with a set instead? Seems like all info is contained within Value.
-
-        // TODO: What default values do we want?
-        Database::Value value;
-        value.type = Database::Value::Type::Number;
-        value.value.number = 0;
-
-        // if ( kv.second.type == Database::Value::JSON) // TODO: would this be enough? and then use a set instead of a map?
-        if ( kv.first == "JSON" ) {
-            value = kv.second;
-            // TODO: Do something like: "NormalizedJSON.serialize( kv.second.value );" ?
-        } else {
-            value = kv.second;
+        insertIntoAttribute <<
+                static_cast<int>( obj.accessDomain ) <<
+                static_cast<long long>( obj.id ) <<
+                obj.version <<
+                kv.first <<
+                static_cast<int>( kv.second.t );
+        using T = Database::Value::T;
+        switch ( kv.second.t ){
+        case T::NoType:
+            break;
+        case T::Null:
+            break;
+        case T::Boolean:
+            insertIntoAttribute << kv.second.b;
+            break;
+        case T::Number:
+            insertIntoAttribute << kv.second.n;
+            break;
+        case T::String:
+            insertIntoAttribute << kv.second.v;
+            break;
+        case T::Json:
+            insertIntoAttribute << kv.second.v;
+            break;
+        default:
+            LOG( WARNING ) << "Attribute statement does not contain correct type.";
+            throw std::runtime_error( "Attribute statement does not contain correct type." );
         }
 
-        queryInsertIntoAttribute.bind( 1, (int) obj.accessDomain );
-        queryInsertIntoAttribute.bind( 2, (long long) obj.id );
-        queryInsertIntoAttribute.bind( 3, obj.version );
-        queryInsertIntoAttribute.bind( 4, kv.first ); // Same as "query.bind( 4, value.type );" ?
-        switch ( value.type ) {
-        case Database::Value::Type::Boolean:
-            queryInsertIntoAttribute.bind( 5, value.value.boolean );
-            break;
-        case Database::Value::Type::JSON:
-            // TODO: maybe remove the if a few rows up?
-            queryInsertIntoAttribute.bind( 5, *( value.value.json ) );
-            //queryInsertIntoAttribute.bind( 5, value.value.json );
-            break;
-        case Database::Value::Type::Number:
-            queryInsertIntoAttribute.bind( 5, value.value.number );
-            break;
-        case Database::Value::Type::String:
-            queryInsertIntoAttribute.bind( 5, *( value.value.string ) );
-            //queryInsertIntoAttribute.bind( 5, value.value.string );
-            break;
-        }
-        queryInsertIntoAttribute.bind( 6, *( value.value.json ) );
-        //queryInsertIntoAttribute.bind( 6, value.value.json );
-        //query.bind( 6, "" ); // TODO
-        if ( queryInsertIntoAttribute.exec() > 0 ) { // TODO: handle exec throws.
-            // OK
-            // TODO: handle throws from clear and reset
-            queryInsertIntoAttribute.clearBindings();
-            queryInsertIntoAttribute.reset();
+        if ( insertIntoAttribute.exec() ) {
+            insertIntoAttribute.clearBindings();
+            insertIntoAttribute.reset();
         } else {
-            // TODO: query returned 0 rows, handle this better, check what SQLite error was set etc.
-        	LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
+            LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
             valid = false;
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
     }
-
-    /*
-    db->objectChanged( obj.parent );
-    db->objectChanged( obj.accessDomain, obj.id );
-    //*/
 
     affectedObjects.insert( obj.parent );
     affectedObjects.insert( { obj.accessDomain, obj.id } );
@@ -543,7 +500,7 @@ void Transaction::deleteObject( unsigned long id ) {
             "WHERE accessDomain=? AND id=? AND status < ?" );
     query << (int) accessDomain << (long long) id << (int) Database::ObjectStatus::DeletedParent;
     if ( query.executeStep() == 0 ) { // 0 rows
-    	LOG( WARNING ) << "Not Found, transaction no longer valid";
+        LOG( WARNING ) << "Not Found, transaction no longer valid";
         valid = false;
         throw Mist::Exception( Mist::Error::ErrorCode::NotFound );
     }
@@ -562,13 +519,13 @@ void Transaction::deleteObject( unsigned long id ) {
             "WHERE accessDomain=? AND parentAccessDomain=? AND parent=? AND status=?" );
     queryChild << (int) obj.accessDomain << (int) obj.accessDomain << (long long) obj.id << (int) Database::ObjectStatus::Current;
     if ( queryChild.executeStep() == 0 ) { // 0 rows
-    	LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
+        LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
         valid = false;
         throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
     }
 
     if ( queryChild.getColumn( "count" ).getInt() > 0 ) {
-    	LOG( WARNING ) << "Not Empty, transaction no longer valid";
+        LOG( WARNING ) << "Not Empty, transaction no longer valid";
         valid = false;
         throw Mist::Exception( Mist::Error::ErrorCode::NotEmpty );
     }
@@ -577,17 +534,17 @@ void Transaction::deleteObject( unsigned long id ) {
         Database::Statement updateObj( *connection.get(), "UPDATE Object SET status=? WHERE accessDomain=? AND id=? AND version=? " );
         updateObj << (int) convertStatusToOld( obj.status ) << (int) obj.accessDomain << (long long) obj.id << obj.version;
         if ( updateObj.exec() == 0 ) { // 0 rows
-        	LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
+            LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
             valid = false;
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
 
         Database::Statement insertIntoObj( *connection.get(), "INSERT INTO Object (accessDomain, id, version, status, transactionAction) "
-        		"VALUES (?, ?, ?, ?, ?)" );
+                "VALUES (?, ?, ?, ?, ?)" );
         insertIntoObj << (int) obj.accessDomain << (long long) obj.id << version << (int) Database::ObjectStatus::Deleted
-        		<< (int) Database::ObjectAction::Delete;
+                << (int) Database::ObjectAction::Delete;
         if ( insertIntoObj.exec() == 0 ) { // 0 rows
-        	LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
+            LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
             valid = false;
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
@@ -601,7 +558,7 @@ void Transaction::deleteObject( unsigned long id ) {
         Database::Statement deleteAttr( *connection.get(), "DELETE FROM Attribute WHERE accessDomain=? AND id=? AND version=?" );
         deleteAttr << (int) obj.accessDomain << (long long) obj.id << obj.version;
         if ( deleteAttr.exec() == 0 ) { // 0 rows
-        	LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
+            LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
             valid = false;
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
@@ -610,7 +567,7 @@ void Transaction::deleteObject( unsigned long id ) {
             Database::Statement deleteObj( *connection.get(), "DELETE FROM Object WHERE accessDomain=? AND id=? AND version=?" );
             deleteObj << (int) obj.accessDomain << (long long) obj.id << version;
             if ( deleteObj.exec() == 0 ) { // 0 rows
-            	LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
+                LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
                 valid = false;
                 throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
             }
@@ -620,9 +577,9 @@ void Transaction::deleteObject( unsigned long id ) {
                     "WHERE accessDomain=? AND id=? AND version="
                     "(SELECT MAX(version) FROM Object WHERE accessDomain=? AND id=? AND status <= ? AND version < ?" );
             queryParent << (int) obj.accessDomain << (long long) obj.id << (int) obj.accessDomain << (long long) obj.id
-            		<< (int) Database::ObjectStatus::OldDeletedParent << version;
+                    << (int) Database::ObjectStatus::OldDeletedParent << version;
             if ( queryParent.executeStep() == 0 ) {
-            	LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
+                LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
                 valid = false;
                 throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
             }
@@ -630,10 +587,10 @@ void Transaction::deleteObject( unsigned long id ) {
             Database::Statement updateObj( *connection.get(), "UPDATE Object SET status=?, transactionAction=?, parentAccessDomain=?, parent=? "
                     "WHERE accessDomain=? AND id=? AND version=?" );
             updateObj << (int) Database::ObjectStatus::Deleted << (int) Database::ObjectAction::Delete
-            		<< queryParent.getColumn( "parentAccessDomain" ).getUInt() << (long long) queryParent.getColumn( "parent" ).getInt64()
-					<< (int) obj.accessDomain << (long long) obj.id << version;
+                    << queryParent.getColumn( "parentAccessDomain" ).getUInt() << (long long) queryParent.getColumn( "parent" ).getInt64()
+                    << (int) obj.accessDomain << (long long) obj.id << version;
             if ( updateObj.exec() == 0 ) {
-            	LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
+                LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
                 valid = false;
                 throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
             }
@@ -641,9 +598,9 @@ void Transaction::deleteObject( unsigned long id ) {
             Database::Statement updateObj( *connection.get(), "UPDATE Object SET status=?, transactionAction=? "
                     "WHERE accessDomain=? AND id=? AND version=?" );
             updateObj << (int) Database::ObjectStatus::Deleted << (int) Database::ObjectAction::Delete
-            		<< (int) obj.accessDomain << (long long) obj.id << version;
+                    << (int) obj.accessDomain << (long long) obj.id << version;
             if ( updateObj.exec() == 0 ) {
-            	LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
+                LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
                 valid = false;
                 throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
             }
@@ -660,45 +617,45 @@ void Transaction::deleteObject( unsigned long id ) {
 }
 
 void Transaction::commit() {
-	if ( !valid ) {
-		LOG( WARNING ) << "Current Transaction object is NOT valid.";
-		throw Mist::Exception( Mist::Error::ErrorCode::InvalidTransaction );
-	}
+    if ( !valid ) {
+        LOG( WARNING ) << "Current Transaction object is NOT valid.";
+        throw Mist::Exception( Mist::Error::ErrorCode::InvalidTransaction );
+    }
     valid = false;
     LOG( DBUG ) << "Commit";
 
-	Database::Statement insertTransaction( *connection.get(),
-	        "INSERT INTO 'Transaction' (accessDomain, version, timestamp, userHash, hash, signature) "
-			"VALUES (?, ?, DATETIME('NOW'), ?, NULL, NULL)" );
-	// TODO: Setup a trigger during db creation instead of directly calling datetime here?
-	// TODO: verify all the above null-values
-	// TODO is it okay to set the timestamp like above?
-	try {
-	    insertTransaction << static_cast<int>( accessDomain ) << version << db->getUserHash();
+    Database::Statement insertTransaction( *connection.get(),
+            "INSERT INTO 'Transaction' (accessDomain, version, timestamp, userHash, hash, signature) "
+            "VALUES (?, ?, DATETIME('NOW'), ?, NULL, NULL)" );
+    // TODO: Setup a trigger during db creation instead of directly calling datetime here?
+    // TODO: verify all the above null-values
+    // TODO is it okay to set the timestamp like above?
+    try {
+        insertTransaction << static_cast<int>( accessDomain ) << version << db->getUserHash();
         if ( insertTransaction.exec() == 0 ) {
             LOG( WARNING ) << "Unexpected Database Error";
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
-	} catch (...) {
+    } catch (...) {
         LOG( WARNING ) << "Unexpected Database Error";
         throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
-	}
+    }
 
-	Database::Statement selectParents( *connection.get(),
-	        "SELECT accessDomain, t.version AS version, timestamp, userHash, hash, signature "
-			"FROM 'Transaction' AS t "
-			"LEFT OUTER JOIN TransactionParent tp "
-				"ON t.accessDomain=tp.parentAccessDomain AND t.version=tp.parentVersion "
-			"WHERE tp.version IS NULL AND t.version!=? AND t.accessDomain=?" );
-	// TODO: if the "access domain" concepts gets implemented
-	// link the transaction with other access domains if this transaction creates or moves objects
-	// so they get a parent from the other access domain
+    Database::Statement selectParents( *connection.get(),
+            "SELECT accessDomain, t.version AS version, timestamp, userHash, hash, signature "
+            "FROM 'Transaction' AS t "
+            "LEFT OUTER JOIN TransactionParent tp "
+                "ON t.accessDomain=tp.parentAccessDomain AND t.version=tp.parentVersion "
+            "WHERE tp.version IS NULL AND t.version!=? AND t.accessDomain=?" );
+    // TODO: if the "access domain" concepts gets implemented
+    // link the transaction with other access domains if this transaction creates or moves objects
+    // so they get a parent from the other access domain
 
-	Database::Statement insertTransactionParent( *connection.get(),
-	        "INSERT INTO TransactionParent (version, parentAccessDomain, parentVersion) "
-					"VALUES (?, ?, ?)" );
-	try {
-	    selectParents << version << static_cast<int>( accessDomain );
+    Database::Statement insertTransactionParent( *connection.get(),
+            "INSERT INTO TransactionParent (version, parentAccessDomain, parentVersion) "
+                    "VALUES (?, ?, ?)" );
+    try {
+        selectParents << version << static_cast<int>( accessDomain );
         while ( selectParents.executeStep() ) {
             insertTransactionParent << version
                     << static_cast<int>( accessDomain )
@@ -710,21 +667,21 @@ void Transaction::commit() {
             insertTransactionParent.clearBindings();
             insertTransactionParent.reset();
         }
-	} catch (...) {
+    } catch (...) {
         LOG( WARNING ) << "Unexpected Database Error";
         throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
-	}
+    }
 
-	Database::Transaction thisMeta;
-	try {
-	    thisMeta = db->getTransactionMeta( version, connection.get() );
-	} catch (...) {
+    Database::Transaction thisMeta;
+    try {
+        thisMeta = db->getTransactionMeta( version, connection.get() );
+    } catch (...) {
         LOG( WARNING ) << "Database Error: failed to get transaction meta data.";
         throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
-	}
+    }
 
     // Calculate the transaction hash
-	CryptoHelper::SHA3 hash;
+    CryptoHelper::SHA3 hash;
     try {
         hash = db->calculateTransactionHash( thisMeta, connection.get() );
         LOG( DBUG ) << "Meta: version: " << thisMeta.version << " hash: " << thisMeta.hash.toString();
@@ -744,11 +701,11 @@ void Transaction::commit() {
     }
 
     // Update the database with the this users hash, transaction hash and signature
-	Database::Statement updateTransaction( *connection.get(),
-	        "UPDATE 'Transaction' "
-	        "SET hash=?, signature=? "
-	        "WHERE version=?" );
-	try {
+    Database::Statement updateTransaction( *connection.get(),
+            "UPDATE 'Transaction' "
+            "SET hash=?, signature=? "
+            "WHERE version=?" );
+    try {
         updateTransaction << hash.toString() << signature.toString() << version;
         if ( updateTransaction.exec() == 0 ) {
             // 0 rows affected
@@ -757,28 +714,28 @@ void Transaction::commit() {
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
         thisMeta.hash = hash;
-	} catch (...) {
+    } catch (...) {
         LOG( WARNING ) << "Unexpected Database Error";
         throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
-	}
-	//*/
+    }
+    //*/
 
-	try {
-	    version = db->reorderTransaction( thisMeta, connection.get() );
-	} catch (...) {
+    try {
+        version = db->reorderTransaction( thisMeta, connection.get() );
+    } catch (...) {
         LOG( WARNING ) << "Reordering failed.";
         throw;
-	}
+    }
 
-	// TODO: some sort of lock here,
-	// to prevent changes to the database before "objectChanged" has finished
-	try {
-	    transaction->commit();
-	} catch (...) {
-	    LOG( WARNING ) << "Commit failed.";
+    // TODO: some sort of lock here,
+    // to prevent changes to the database before "objectChanged" has finished
+    try {
+        transaction->commit();
+    } catch (...) {
+        LOG( WARNING ) << "Commit failed.";
         throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
-	}
-	db->commit( this );
+    }
+    db->commit( this );
     LOG( DBUG ) << "Transaction commited.";
 
     for( const Database::ObjectRef& oref : affectedObjects ) {

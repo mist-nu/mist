@@ -5,6 +5,7 @@
  *      Author: mattias
  */
 
+#include <fstream>
 #include <string>
 
 #include "Central.h"
@@ -32,23 +33,28 @@ Database::~Database() {
     if ( db != nullptr ) {
         delete db;
     }
-    if ( manifest != nullptr ) {
-        delete manifest;
-        manifest = nullptr;
-    }
 }
 
 bool Database::isOK() {
     return _isOK;
 }
 
-void Database::create( unsigned localId, Manifest* manifest ) {
-	LOG ( DBUG ) << "Creating database";
+void Database::create( unsigned localId, std::unique_ptr<Manifest> manifest ) {
+    LOG ( DBUG ) << "Creating database";
     // TODO: Do something with manifest?
     if ( db != nullptr ) {
         _isOK = false;
         throw std::runtime_error( "Database already set." );
     }
+
+    if ( manifest ) {
+        if( manifest->verify() ) {
+            this->manifest = std::move( manifest );
+        } else {
+            throw std::runtime_error( "Manifest verification failed" );
+        }
+    }
+
 
     //Connection( path, Helper::Database::OPEN_READONLY );
     bool alreadyExists = true;
@@ -68,23 +74,22 @@ void Database::create( unsigned localId, Manifest* manifest ) {
     //try {
         db = new Connection( path, Helper::Database::OPEN_CREATE | Helper::Database::OPEN_READWRITE );
 
-        //*
         // Make sure the db is in WAL-mode so that multiple readers can read at the same time as one writer is writing.
         int rc = db->exec( "PRAGMA journal_mode=WAL;" );
         if ( rc == Helper::Database::OK ) {
             // TODO: check if db is WAL here, can avoid unnecessary dtor ctor calls.
             delete db;
-            db = new Connection( path, Helper::Database::OPEN_CREATE | Helper::Database::OPEN_READWRITE );
+            db = new Connection( path, Helper::Database::OPEN_READWRITE );
         } else {
             // TODO: figure out why it failed.
             _isOK = false;
         }
-        //*/
 
         Helper::Database::Transaction transaction( *db );
         //db->exec( "CREATE TABLE AccessDomain (hash TEXT, localId INTEGER, parent INTEGER, creator INTEGER, name TEXT)" );
         db->exec( "CREATE TABLE Object (accessDomain INTEGER, id INTEGER, version INTEGER, status INTEGER, parent INTEGER, parentAccessDomain INTEGER, transactionAction INTEGER)" );
-        db->exec( "CREATE TABLE Attribute (accessDomain INTEGER, id INTEGER, version INTEGER, name TEXT, value, json TEXT)" ); // TODO: set datatype on value
+        //db->exec( "CREATE TABLE Attribute (accessDomain INTEGER, id INTEGER, version INTEGER, name TEXT, value, json TEXT)" ); // TODO: set datatype on value
+        db->exec( "CREATE TABLE Attribute (accessDomain INTEGER, id INTEGER, version INTEGER, name TEXT, type INTEGER, value)" );
         db->exec( "CREATE TABLE 'Transaction' (accessDomain INTEGER, version INTEGER, timestamp DATETIME, userHash TEXT, hash TEXT, signature TEXT)" );
         db->exec( "CREATE TABLE TransactionParent (version INTEGER, parentAccessDomain INTEGER, parentVersion INTEGER)" );
         db->exec( "CREATE TABLE Renumber (accessDomain INTEGER, version INTEGER, oldId INTEGER, newId INTEGER)" );
@@ -97,15 +102,16 @@ void Database::create( unsigned localId, Manifest* manifest ) {
      //*/
 }
 
-void Database::init( PrivateUserAccount *userAccount ) {
-	LOG ( DBUG ) << "Initializing database";
+void Database::init( std::unique_ptr<Manifest> manifest ) {
+    LOG ( DBUG ) << "Initializing database";
     try {
+        if ( manifest ) {
+            // TODO: verify manifest
+            this->manifest = std::move( manifest );
+        }
         if ( db == nullptr ) { // TODO: what to do if this.create() have been called?
             db = new Connection( path, Helper::Database::OPEN_READWRITE );
         }
-        //Helper::Database::Transaction transaction( *db );
-        // TODO: get default access domain, access domain index and settings.
-        // Helper::Database::Transactions automatically does a roll-back if it is destroyed (goes out of scope) and has not been committed.
     } catch ( Helper::Database::Exception &e ) {
         // TODO: handle errors.
         _isOK = false;
@@ -125,11 +131,26 @@ void Database::load() {
 //*/
 
 void Database::close() {
-	LOG ( DBUG ) << "Closing database";
+    LOG ( DBUG ) << "Closing database";
     if ( db != nullptr ) {
         delete db;
         db = nullptr;
     }
+}
+
+void Database::dump( const std::string& filename ) {
+    LOG( INFO ) << "Dumping database to exchange format.";
+    if( manifest ) {
+        std::fstream fs( filename + ".manifest", std::fstream::out | std::fstream::trunc | std::fstream::binary );
+        fs << manifest->toString();
+        fs.close();
+    }
+    std::fstream fs ( filename + ".json", std::fstream::out | std::fstream::trunc | std::fstream::binary );
+    mapTransactions( [this, &fs](const Database::Transaction& trans) -> void {
+        this->readTransaction( *fs.rdbuf(), trans.hash.toString() );
+        fs.put( '\n' );
+    } );
+    fs.close();
 }
 
 std::unique_ptr<Mist::Transaction> Database::beginTransaction() {
@@ -345,7 +366,8 @@ void Database::mapTransactions( map_trans_f fn,
     }
     Database::Statement all( *conn,
             "SELECT accessDomain, version, timestamp, userHash, hash, signature "
-            " FROM 'Transaction' ");
+            "FROM 'Transaction' "
+            "ORDER BY version ");
     while( all.executeStep() ) {
         fn( statementRowToTransaction( all ) );
     }
@@ -445,7 +467,8 @@ void Database::mapObject( map_obj_f fn, const Database::Transaction& transaction
             "WHERE version=? ");
     object << transaction.version;
     Database::Statement attribute( *conn,
-            "SELECT accessDomain, id, version, name, value, json "
+            //"SELECT accessDomain, id, version, name, value, json "
+            "SELECT accessDomain, id, version, name, type, value "
             "FROM Attribute "
             "WHERE version=?" );
     while( object.executeStep() ) {
@@ -475,7 +498,7 @@ void Database::mapObjectId( map_obj_f fn, const long long id,
             "WHERE id=? ");
     object << id;
     Database::Statement attribute( *conn,
-            "SELECT accessDomain, id, version, name, value, json "
+            "SELECT accessDomain, id, version, name, type, value "
             "FROM Attribute "
             "WHERE version=?" );
     while( object.executeStep() ) {
@@ -516,7 +539,7 @@ bool Database::haveAll( const std::vector<std::string>& transactionHashes ,
     haveAllQuery.pop_back(); // Remove last comma
     haveAllQuery += ") ";
 
-    int count{};
+    unsigned count{};
     Database::Statement countAll( *conn, haveAllQuery );
     while( countAll.executeStep() ) {
         ++count;
@@ -725,18 +748,13 @@ void Database::mapUsersFrom( map_user_f fn, const std::vector<std::string>& user
 }
 
 void Database::inviteUser( const UserAccount& user ) {
-    using T = Database::Value::Type;
     std::map<std::string, Database::Value> attribute{};
 
     Database::Value id, name, permission, publicKey;
-    id.type = T::String;
-    id.value.string = new std::string( user.getPublicKeyHash().toString() );
-    name.type = T::String;
-    name.value.string = new std::string( user.getName() );
-    permission.type = T::String;
-    permission.value.string = new std::string( user.getPermission().toString() );
-    publicKey.type = T::String;
-    publicKey.value.string = new std::string( user.getPublicKey().toString() );
+    id = user.getPublicKeyHash().toString();
+    name = user.getName();
+    permission = user.getPermission().toString();
+    publicKey = user.getPublicKey().toString();
 
     attribute.emplace( "id", id );
     attribute.emplace( "name", name );
@@ -757,7 +775,7 @@ Database::Object Database::getObject( int accessDomain, long long id, bool inclu
     object << accessDomain << id;
 
     Database::Statement attribute( *db,
-            "SELECT accessDomain, id, version, name, value, json "
+            "SELECT accessDomain, id, version, name, type, value "
             "FROM Attribute "
             "WHERE accessDomain=? AND id=? " );
 
@@ -780,6 +798,27 @@ Database::Object Database::getObject( int accessDomain, long long id, bool inclu
     } else {
         LOG( DBUG ) << "Object not found";
         throw Exception( Error::ErrorCode::NotFound );
+    }
+}
+
+Database::Value Database::queryRowToValue( SQLite::Statement& query ) {
+    Value::T type{ static_cast<Database::Value::T>( query.getColumn( "type" ).getInt() ) };
+    switch( type ) {
+    case Value::T::NoType:
+        return {};
+    case Value::T::Null:
+        return { nullptr };
+    case Value::T::Boolean:
+        return static_cast<bool>( query.getColumn( "value" ).getUInt() );
+    case Value::T::Number:
+        return query.getColumn( "value" ).getDouble();
+    case Value::T::String:
+        return query.getColumn( "value" ).getString();
+    case Value::T::Json:
+        return { query.getColumn( "value" ).getString(), true };
+    default:
+        LOG( WARNING ) << "Unhandled case, this needs to be fixed in the source code!";
+        throw std::logic_error( "Unhandled case" );
     }
 }
 
@@ -814,6 +853,128 @@ void Database::unsubscribeObject( unsigned subId ) {
     } catch ( const std::out_of_range& ) {
         LOG( DBUG ) << "Tried to remove non-subscriber";
     }
+}
+
+Database::QueryResult Database::query( int accessDomain, long long id, const std::string& select,
+        const std::string& filter, const std::string& sort,
+        const std::map<std::string, ArgumentVT>& args,
+        int maxVersion, bool includeDeleted ) {
+    querier.parseQuery( accessDomain, id, select, filter, sort, args, maxVersion, includeDeleted );
+
+    Database::Statement dbQuery( *db, querier.getSqlQuery() );
+    for ( const std::pair<std::string,ArgumentVT>& arg : args ) {
+        dbQuery << arg.first;
+        switch ( arg.second.type() ) {
+        case Type::Typeless:
+            dbQuery << nullptr;
+            break;
+        case Type::Null:
+            dbQuery << "null";
+            break;
+        case Type::Boolean:
+            dbQuery << arg.second.boolValue();
+            break;
+        case Type::Number:
+            dbQuery << arg.second.numberValue();
+            break;
+        case Type::String:
+            dbQuery << arg.second.stringValue();
+            break;
+        case Type::JSON:
+            dbQuery << arg.second.stringValue();
+            break;
+        }
+    }
+    QueryResult result;
+    if ( querier.isFunctionCall() ) {
+        try {
+            if ( !dbQuery.executeStep() ) {
+                LOG( DBUG ) << "Query failed";
+                // TODO: what should happen when the query fails?
+                throw Exception( Error::ErrorCode::NotFound );
+            }
+        } catch ( const SQLite::Exception& e ) {
+            LOG( WARNING ) << "Unexpected database error";
+            throw Exception( e.what(), Error::ErrorCode::UnexpectedDatabaseError );
+        }
+        result.isFunctionCall = true;
+        result.functionName = querier.getFunctionName();
+        result.functionAttribute = querier.getFunctionAttribute();
+        result.functionValue = dbQuery.getColumn( "value" ).getDouble();
+    } else {
+        if( dbQuery.executeStep() ) {
+            result.id = dbQuery.getColumn( "id" ).getInt64();
+            result.version = dbQuery.getColumn( "version" ).getInt64();
+            result.attributes.emplace( dbQuery.getColumn( "name" ).getString(), queryRowToValue( dbQuery ) );
+        } else {
+            LOG( DBUG ) << "No results";
+            throw Exception( Error::ErrorCode::NotFound );
+        }
+        while ( dbQuery.executeStep() ) {
+            result.attributes.emplace( dbQuery.getColumn( "name" ).getString(), queryRowToValue( dbQuery ) );
+        }
+    }
+    return result;
+}
+
+Database::QueryResult Database::queryVersion( int accessDomain, long long id, const std::string& select,
+        const std::string& filter, const std::map<std::string, ArgumentVT>& args, bool includeDeleted ) {
+    querier.parseVersionQuery( accessDomain, id, select, filter, args, includeDeleted );
+
+    Database::Statement dbQuery( *db, querier.getSqlQuery() );
+    for ( const std::pair<std::string,ArgumentVT>& arg : args ) {
+        dbQuery << arg.first;
+        switch ( arg.second.type() ) {
+        case Type::Typeless:
+            dbQuery << nullptr;
+            break;
+        case Type::Null:
+            dbQuery << "null";
+            break;
+        case Type::Boolean:
+            dbQuery << arg.second.boolValue();
+            break;
+        case Type::Number:
+            dbQuery << arg.second.numberValue();
+            break;
+        case Type::String:
+            dbQuery << arg.second.stringValue();
+            break;
+        case Type::JSON:
+            dbQuery << arg.second.stringValue();
+            break;
+        }
+    }
+    QueryResult result;
+    if ( querier.isFunctionCall() ) {
+        try {
+            if ( !dbQuery.executeStep() ) {
+                LOG( DBUG ) << "Query failed";
+                // TODO: what should happen when the query fails?
+                throw Exception( Error::ErrorCode::NotFound );
+            }
+        } catch ( const SQLite::Exception& e ) {
+            LOG( WARNING ) << "Unexpected database error";
+            throw Exception( e.what(), Error::ErrorCode::UnexpectedDatabaseError );
+        }
+        result.isFunctionCall = true;
+        result.functionName = querier.getFunctionName();
+        result.functionAttribute = querier.getFunctionAttribute();
+        result.functionValue = dbQuery.getColumn( "value" ).getDouble();
+    } else {
+        if( dbQuery.executeStep() ) {
+            result.id = dbQuery.getColumn( "id" ).getInt64();
+            result.version = dbQuery.getColumn( "version" ).getInt64();
+            result.attributes.emplace( dbQuery.getColumn( "name" ).getString(), queryRowToValue( dbQuery ) );
+        } else {
+            LOG( DBUG ) << "No results";
+            throw Exception( Error::ErrorCode::NotFound );
+        }
+        while ( dbQuery.executeStep() ) {
+            result.attributes.emplace( dbQuery.getColumn( "name" ).getString(), queryRowToValue( dbQuery ) );
+        }
+    }
+    return result;
 }
 
 std::unique_ptr<Mist::RemoteTransaction> Database::beginRemoteTransaction(
@@ -873,22 +1034,22 @@ std::unique_ptr<Mist::RemoteTransaction> Database::beginRemoteTransaction(
 }
 
 std::unique_ptr<Mist::Transaction> Database::beginTransaction( AccessDomain accessDomain ) {
-	LOG ( DBUG ) << "Begin transaction";
+    LOG ( DBUG ) << "Begin transaction";
     // TODO: Is this completely wrong?
-	if(!_isOK) {
+    if(!_isOK) {
         LOG ( WARNING ) << "Invalid database state: Can not begin transaction";
-		throw std::runtime_error( "Invalid database state: Can not begin transaction" );
-	}
-	//Helper::Database::Transaction newVersion( *db );
-	Database::Statement getVersion(*db, "SELECT IFNULL(MAX(version),0)+1 AS newVersion "
-			"FROM 'Transaction'");
-	if ( !getVersion.executeStep() ) {
-		_isOK = false;
+        throw std::runtime_error( "Invalid database state: Can not begin transaction" );
+    }
+    //Helper::Database::Transaction newVersion( *db );
+    Database::Statement getVersion(*db, "SELECT IFNULL(MAX(version),0)+1 AS newVersion "
+            "FROM 'Transaction'");
+    if ( !getVersion.executeStep() ) {
+        _isOK = false;
         LOG ( WARNING ) << "Invalid database state: Can not begin transaction";
-		throw std::runtime_error( "Invalid database state: Can not begin transaction" );
-	}
-	//Transaction* transaction{ new Transaction( this, accessDomain, query.getColumn("newVersion").getUInt() ) };
-	//newVersion.commit();
+        throw std::runtime_error( "Invalid database state: Can not begin transaction" );
+    }
+    //Transaction* transaction{ new Transaction( this, accessDomain, query.getColumn("newVersion").getUInt() ) };
+    //newVersion.commit();
     return std::unique_ptr<Mist::Transaction>(
         new Mist::Transaction(
             this,
@@ -1138,7 +1299,7 @@ void Database::rollback( Mist::RemoteTransaction* transaction ) {
 
 void Database::rollback( Mist::Transaction* transaction ) {
     // TODO
-	LOG ( DBUG ) << "TODO: Transaction rollback";
+    LOG ( DBUG ) << "TODO: Transaction rollback";
 }
 
 void Database::commit( Mist::RemoteTransaction* transaction ) {
@@ -1148,7 +1309,7 @@ void Database::commit( Mist::RemoteTransaction* transaction ) {
 
 void Database::commit( Mist::Transaction* transaction ) {
     // TODO
-	LOG ( DBUG ) << "TODO: Transaction commit";
+    LOG ( DBUG ) << "TODO: Transaction commit";
 }
 
 std::vector<CryptoHelper::SHA3> Database::getParents( unsigned version,
@@ -1278,22 +1439,25 @@ Database::ObjectMeta Database::statementRowToObjectMeta( Database::Statement& ob
 
 Database::Value Database::statementRowToValue( Database::Statement& attribute ) {
     try {
-        if ( !attribute.isColumnNull( "value" ) ) {
-            Value ret{};
-            ret.type = Value::Type::String;
-            ret.value.string = new std::string( attribute.getColumn( "value" ).getString() );
-            return ret;
-        } else if ( !attribute.isColumnNull( "json" ) ) {
-            Value ret{};
-            ret.type = Value::Type::JSON;
-            ret.value.json = new std::string( attribute.getColumn( "json" ).getString() );
-            return ret;
-        } else {
-            LOG( WARNING ) << "Attribute statement does not contain correct columns.";
-            throw std::runtime_error( "Attribute statement does not contain correct columns." );
+        Value::T type{ static_cast<Value::T>( attribute.getColumn( "type" ).getInt() ) };
+        switch( type ) {
+        case Value::T::NoType:
+            return {};
+        case Value::T::Null:
+            return { nullptr };
+        case Value::T::Boolean:
+            return { static_cast<bool>( attribute.getColumn( "value" ).getInt() ) };
+        case Value::T::Number:
+            return { attribute.getColumn( "value" ).getDouble() };
+        case Value::T::String:
+            return { attribute.getColumn( "value" ).getString() };
+        case Value::T::Json:
+            return { attribute.getColumn( "value" ).getString(), true };
+        default:
+            LOG( WARNING ) << "Attribute statement does not contain correct type.";
+            throw std::runtime_error( "Attribute statement does not contain correct type." );
         }
     } catch( const SQLite::Exception& e ) {
-        // TODO correct error handling
         LOG( WARNING ) << "Statement is not a correct attribute statement.";
         throw std::runtime_error( "Statement is not a correct attribute statement." );
     }
@@ -1316,25 +1480,25 @@ bool Database::dbExists( std::string filename ) {
     return exists;
 }
 
-Database::Manifest::Manifest( Central* central, std::string name, Helper::Date created, CryptoHelper::PublicKey creator, CryptoHelper::Signature signature, CryptoHelper::SHA3 hash ) :
-    name( name ), created( created ), creator( creator ), hash( hash ), signature( signature ), central( central ) {
+Database::Manifest::Manifest( Signer signer, Verifier verifier, std::string name, Helper::Date created, CryptoHelper::PublicKey creator, CryptoHelper::Signature signature, CryptoHelper::SHA3 hash ) :
+    name( name ), created( created ), creator( creator ), hash( hash ), signature( signature ), signer( signer ), verifier( verifier ) {
 }
 
 void Database::Manifest::sign() {
-    if ( !central )
+    if ( !signer )
         return;
     CryptoHelper::SHA3Hasher hasher{};
     hasher.update( inner() );
     hash = hasher.finalize();
-    signature = central->sign( hash );
+    signature = signer( hash );
 }
 
 bool Database::Manifest::verify() const {
-    if ( !central ) {
+    if ( !verifier ) {
         LOG( WARNING ) << "Manifest does not have a pointer to Central and can not verify the manifest.";
         throw std::runtime_error( "Manifest does not have a pointer to Central and can not verify the manifest." );
     }
-    return central->verify( creator, hash, signature );
+    return verifier( creator, hash, signature );
 }
 
 std::string Database::Manifest::inner() const {
@@ -1351,7 +1515,7 @@ std::string Database::Manifest::toString() const {
             + R"("})";
 }
 
-Database::Manifest Database::Manifest::fromString( const std::string& serialized, Central* central ) {
+Database::Manifest Database::Manifest::fromString( const std::string& serialized, Signer signer, Verifier verifier ) {
     JSON::Value json{ JSON::Deserialize::generate_json_value( serialized ) };
 
     std::string name{ json.at( "manifest" ).at( "name" ).get_string() };
@@ -1360,11 +1524,31 @@ Database::Manifest Database::Manifest::fromString( const std::string& serialized
     CryptoHelper::Signature signature { CryptoHelper::Signature::fromString( json.at( "signature" ).get_string() ) };
     CryptoHelper::SHA3 hash { CryptoHelper::SHA3::fromString( json.at( "hash" ).get_string() ) };
 
-    return Manifest( central, name, created, creator, signature, hash );
+    return Manifest( signer, verifier, name, created, creator, signature, hash );
 }
 
 Database::Manifest *Database::getManifest() {
-    return manifest;
+    return manifest.get();
+}
+
+bool Database::Value::operator<( const Value& rhs ) {
+    if ( t == rhs.t ) {
+        switch( t ){
+        case T::NoType:
+        case T::Null:
+            return false;
+        case T::Boolean:
+            return b < rhs.b;
+        case T::Number:
+            return n < rhs.n;
+        case T::String:
+        case T::Json:
+            return v.compare( rhs.v ) < 0;
+        }
+    } else {
+        return static_cast<int>( t ) < static_cast<int>( rhs.t );
+    }
+    return false;
 }
 
 } /* namespace Mist */

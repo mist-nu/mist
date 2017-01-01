@@ -6,15 +6,6 @@
 
 #include <exception>
 
-// Logger
-/*
-#include <memory>
-#include <g3log/g3log.hpp>
-#include <g3log/logworker.hpp>
-#include <g3log/std2_make_unique.hpp>
-#include "Helper.h"
-//*/
-
 #include <gtest/gtest.h> // Google test framework
 
 #include "Exception.h"
@@ -31,24 +22,10 @@ namespace FS = M::Helper::filesystem;
 using ORef = M::Database::ObjectRef;
 using AD = M::Database::AccessDomain;
 using V = M::Database::Value;
-using VT = M::Database::Value::Type;
-
-
-/*
-std::unique_ptr<g3::LogWorker> logWorker;
-std::unique_ptr<g3::SinkHandle<g3::FileSink>> logHandle;
-
-TEST(InitTransactionTest, InitLogger) {
-	const std::string dir = "./log/";
-	const std::string file = "testTransactions";
-	logWorker = g3::LogWorker::createLogWorker();
-	logHandle = logWorker->addDefaultLogger(file, dir);
-	g3::initializeLogging(logWorker.get());
-}
-//*/
+using VT = M::Database::Value::T;
 
 void removeTestDb( const FS::path &p ) {
-	LOG ( INFO ) << "Removing db: " << p;
+    LOG ( INFO ) << "Removing db: " << p;
     if ( FS::exists( p ) ) {
         ASSERT_TRUE( FS::is_regular( p ) );
         FS::remove( p );
@@ -99,58 +76,62 @@ public:
 };
 
 TEST_F(TransactionTest, NewObjects) {
-	LOG( INFO ) << "Testing new objects";
+    LOG( INFO ) << "Testing new objects";
 
     std::unique_ptr<M::Transaction> t{ nullptr };
     ASSERT_NO_THROW( t = std::move( db.beginTransaction( AD::Normal ) ) );
 
     ORef o_A { AD::Normal, 0 };
     std::map<std::string, V> m_A {
-        { "name", V( VT::String, "A" ) },
-        { "test1", V( VT::Number, 17 ) },
-        { "test2", V( VT::String, "test" ) }
+        { "name", V( "A" ) },
+        { "test1", V( 17 ) },
+        { "test2", V( "test" ) }
     };
     ASSERT_NO_THROW( id_A = t->newObject( o_A, m_A ) );
 
     ORef o_B { AD::Normal, id_A };
     // TODO: fix the JSON here when the "JSON Normalizer" is done.
     std::map<std::string, V> m_B {
-        { "name", V( VT::String, "B" ) },
-        { "test3", V( VT::JSON, "{'test':17}" ) },
-        { "test4", V( VT::Boolean, true ) }
+        { "name", V( "B" ) },
+        { "test3", V( "{'test':17}", true ) },
+        { "test4", V(  true ) }
     };
     ASSERT_NO_THROW( id_B = t->newObject( o_B, m_B ) );
 
     ORef o_C { AD::Normal, id_B };
-    std::map<std::string, V> m_C { { "name", V( VT::String, "C" ) } };
+    std::map<std::string, V> m_C { { "name", V( "C" ) } };
     ASSERT_NO_THROW( id_C = t->newObject( o_C, m_C ) );
 
     try {
         t->commit();
     } catch ( const M::Exception& e ) {
+        t.reset();
         LOG( WARNING ) << "Mist exception: " << e.what();
         FAIL() << "Mist ex: " << e.what();
     } catch ( const SQLite::Exception& e ) {
+        t.reset();
         LOG( WARNING ) << "SQLite exception: " << e.what();
         FAIL() << "SQL ex: " << e.what();
     } catch ( const std::runtime_error& e ) {
+        t.reset();
         LOG( WARNING ) << "Runtime error: " << e.what();
         FAIL() << "Runtime error: " << e.what();
     }
+    t.reset();
 }
 
-TEST_F( TransactionTest, Create1000NewObjects) {
-    LOG( INFO ) << "Create 1000 new object for to see time consumption";
+TEST_F( TransactionTest, Create100NewObjects) {
+    LOG( INFO ) << "Create 100 new object for to see time consumption";
 
     std::unique_ptr<M::Transaction> t{ nullptr };
     t = std::move( db.beginTransaction( AD::Normal ) );
 
     unsigned long prevId = 0;
-    for(int i = 0; i < 1000; ++i) {
+    for(int i = 0; i < 100; ++i) {
         ORef o { AD::Normal, prevId };
         std::map<std::string, V> m {
-            { std::string( "name" + std::to_string( i ) ), V( VT::String, std::string( "A" + std::to_string( i ) ) ) },
-            { std::string( "test" + std::to_string( i ) ), V( VT::Number, i ) }
+            { std::string( "name" + std::to_string( i ) ), V( "A" + std::to_string( i ) ) },
+            { std::string( "test" + std::to_string( i ) ), V( i ) }
         };
         prevId = t->newObject( o, m );
     }
@@ -158,14 +139,14 @@ TEST_F( TransactionTest, Create1000NewObjects) {
 }
 
 TEST_F( TransactionTest, TODO_UpdateObjects) {
-	LOG( INFO ) << "Testing update objects";
+    LOG( INFO ) << "Testing update objects";
     // TODO: The .ts file seems to only use transaction.moveObject,
     // and not transaction.updateObject.
     // Figure out these test cases later, when the rest have been done.
 }
 
 TEST_F( TransactionTest, MoveObjects ) {
-	LOG( INFO ) << "Testing move objects";
+    LOG( INFO ) << "Testing move objects";
 
     std::unique_ptr<M::Transaction> t{ nullptr };
     //try {
@@ -194,19 +175,19 @@ TEST_F( TransactionTest, MoveObjects ) {
 }
 
 TEST_F( TransactionTest, DeleteObjects ) {
-	LOG( INFO ) << "Testing delete objects";
+    LOG( INFO ) << "Testing delete objects";
 
     std::unique_ptr<M::Transaction> t{ nullptr };
-	//try {
-	    t = std::move( db.beginTransaction( AD::Normal ) );
-		EXPECT_ANY_THROW( t->deleteObject(id_A) ); // TODO: Should this throw?
-		t.reset();
+    //try {
+        t = std::move( db.beginTransaction( AD::Normal ) );
+        EXPECT_ANY_THROW( t->deleteObject(id_A) ); // TODO: Should this throw?
+        t.reset();
 
-		t = std::move( db.beginTransaction( AD::Normal ) );
-		t->deleteObject( id_B );
-		t->commit();
+        t = std::move( db.beginTransaction( AD::Normal ) );
+        t->deleteObject( id_B );
+        t->commit();
     /*
-	} catch ( M::Exception const & e ) {
+    } catch ( M::Exception const & e ) {
         FAIL() << e.getErrorCode();
     } catch (...) {
         FAIL();
@@ -214,5 +195,8 @@ TEST_F( TransactionTest, DeleteObjects ) {
     //*/
 }
 
+TEST_F( TransactionTest, DumpDb ) {
+    db.dump( p.string() );
 }
 
+}

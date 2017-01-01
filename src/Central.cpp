@@ -535,26 +535,28 @@ Mist::Database* Mist::Central::getDatabase( unsigned localId ) {
         return iter->second;
     } else {
         Mist::Database* db = new Mist::Database(this, path + "/" + std::to_string(localId) + ".db");
-        db->init();
+        db->init(); // TODO: get manifest send it as an argument here
         databases.insert(std::make_pair(localId, db));
         return db;
     }
 }
 
 Mist::Database* Mist::Central::createDatabase( std::string name ) {
-    // TODO: verify that we have initiated this object first.
-    Mist::Database::Manifest* manifest = new Mist::Database::Manifest( this, name, Helper::Date::now(), getPublicKey() ); // TODO: figure out where this should get deleted
-    manifest->sign();
-    //manifest->sign( new Mist::CryptoHelper::PrivateKey() ); // TODO: fix this! ( memory leak )
     Helper::Database::Transaction transaction( *settingsDatabase );
     Helper::Database::Statement query( *settingsDatabase, "SELECT IFNULL(MAX(localId),0)+1 AS localId FROM Database" );
     try {
         if ( query.executeStep() ) {
             unsigned localId = query.getColumn( "localId" );
             // TODO: check if the file '${localID}.db' exists.
-            // TODO: fix this memory leak
-            Mist::Database* db = new Mist::Database( this, path + "/" + std::to_string( localId ) + ".db" );
-            db->create( localId, manifest );
+            using namespace std::placeholders;
+            std::unique_ptr<Database::Manifest> manifest( new Database::Manifest(
+                    std::bind( &Central::sign, this, _1 ),
+                    std::bind( &Central::verify, this, _1, _2, _3),
+                    name, Helper::Date::now(), getPublicKey() ) );
+            manifest->sign();
+            this->databases.emplace(localId, new Mist::Database( this, path + "/" + std::to_string( localId ) + ".db" ) );
+            Mist::Database* db = databases.at( localId );
+            db->create( localId, std::move( manifest ) );
             Helper::Database::Statement query( *settingsDatabase, "INSERT INTO Database (hash, localId, creator, name, manifest) VALUES (?, ?, ?, ?, ?)" );
             query.bind( 1, manifest->getHash().toString() );
             query.bind( 2, localId );
@@ -563,14 +565,6 @@ Mist::Database* Mist::Central::createDatabase( std::string name ) {
             query.bind( 5, manifest->toString() );
             query.exec();
             transaction.commit();
-            //*
-            // TODO: The following lines can be discarded in favor for something else
-            db->close();
-            delete db;
-            db = new Mist::Database( this, path + "/" + std::to_string( localId ) + ".db" );
-            db->init();
-            // TODO: add db to this->databases map
-            //*/
             return db;
         } else {
             // TODO: handle this
@@ -597,18 +591,12 @@ std::vector<Mist::Database::Manifest> Mist::Central::listDatabases() {
             /* name */
             std::string name(query.getColumn("name").getString());
 
-            /* manifest */
-            Helper::Date created;
-            CryptoHelper::PublicKey creator;
-            CryptoHelper::Signature signature;
-            CryptoHelper::SHA3 hash;
-            {
-                //Mist::NormalizedJSON json;
-                //json.parse(query.getColumn("manifest").getString());
-                /* TODO: Make use of the manifest */
-            }
-
-            manifests.emplace_back( this, name, created, creator, signature, hash);
+            using namespace std::placeholders;
+            manifests.push_back(
+                    Database::Manifest::fromString( query.getColumn( "manifest" ).getString(),
+                            std::bind( &Central::sign, this, _1),
+                            std::bind( &Central::verify, this, _1, _2, _3) )
+            );
         } catch (Helper::Database::Exception& e) {
             // TODO: column error on manifest
             continue;

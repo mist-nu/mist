@@ -150,6 +150,7 @@ public:
     Select() = default;
     void parse( std::string str );
     bool getAll() const { return all; }
+    bool isFunctionCall() const { return !functionName.empty(); }
     const std::string& getFunctionName() const { return functionName; }
     const std::string& getFunctionAttribute() const { return functionAttribute; }
     const std::vector<std::string>& getAttributes() const { return attributes; }
@@ -302,6 +303,11 @@ public:
             bool includeDeleted );
     std::string getSqlQuery() { return sqlQuery; }
     std::vector<ArgumentVT> getArgs() { return args; }
+
+    bool isFunctionCall() const { return select.isFunctionCall(); }
+    std::string getFunctionName() const { return select.getFunctionName(); }
+    std::string getFunctionAttribute() const { return select.getFunctionAttribute(); }
+    std::vector<std::string> getAttributes() const { return select.getAttributes(); }
 };
 
 } /* namespace Mist */

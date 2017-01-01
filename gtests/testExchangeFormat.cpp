@@ -49,7 +49,7 @@ using D = OpenDatabase;
 using ORef = D::ObjectRef;
 using AD = D::AccessDomain;
 using V = D::Value;
-using VT = D::Value::Type;
+using VT = D::Value::T;
 
 using RT = M::RemoteTransaction;
 using URT = std::unique_ptr<RT>;
@@ -131,7 +131,7 @@ TEST(InitExchangeFormatTest, Strings ) {
                     R"("accessDomain":2,)"
                     R"("timestamp":"2000-01-01 00:00",)"
                     R"("user":"22",)"
-                    R"("parents":{"10":true},)"
+                    R"("parents":{"MTA="},)"
                     R"("version":"1.0")"
                 R"(},)"
                 R"("objects":{)"

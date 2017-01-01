@@ -59,20 +59,27 @@ public:
         CryptoHelper::SHA3 hash;
         CryptoHelper::Signature signature;
 
-        Central* central;
+        using Signer = std::function<CryptoHelper::Signature(const CryptoHelper::SHA3&)>;
+        using Verifier = std::function<bool(const CryptoHelper::PublicKey& key,
+                const CryptoHelper::SHA3& hash,
+                const CryptoHelper::Signature& sig)>;
+        Signer signer;
+        Verifier verifier;
 
         std::string inner() const;
 
     public:
-        Manifest( Central* central, std::string name, Helper::Date created, CryptoHelper::PublicKey creator,
-                CryptoHelper::Signature signature = {}, CryptoHelper::SHA3 hash = {} );
+        Manifest( Signer signer, Verifier verifier, std::string name,
+                Helper::Date created, CryptoHelper::PublicKey creator,
+                CryptoHelper::Signature signature = {},
+                CryptoHelper::SHA3 hash = {} );
         virtual ~Manifest() = default;
         CryptoHelper::SHA3 getHash() const { return hash; }
         CryptoHelper::PublicKey getCreator() const { return creator; }
         void sign();
         bool verify() const;
         std::string toString() const;
-        static Manifest fromString( const std::string& serialized, Central* central );
+        static Manifest fromString( const std::string& serialized, Signer signer, Verifier verifier );
     };
 
     enum class AccessDomain
@@ -139,145 +146,18 @@ public:
 
     class Value {
     public:
-        // TODO: Fix the memory leaking string pointers!
-        // Can not use default ctor/dtor because of the union types.
-        // TODO: Add null?
-        enum class Type
-            : uint8_t {
-                Boolean, Number, String, JSON
-        } type;
-        union U {
-            bool boolean;
-            double number;
-            std::string *string;
-            std::string *json;
-            U() :
-                    boolean( false ) {
-            }
-            U( bool b ) :
-                    boolean( b ) {
-            }
-            U( int i ) :
-                    number( i ) {
-            }
-            U( double d ) :
-                    number( d ) {
-            }
-            U( std::string *s ) :
-                    string( s ) {
-            }
-            ~U() {
-            }
-        } value;
-        Value() :
-                type( Type::Boolean ) {
-            this->value.boolean = false;
-        }
-        Value( Type type, bool value ) :
-                type( type ), value() {
-            this->value.boolean = value;
-        }
-        Value( Type type, int value ) :
-                Value( type, static_cast<double>( value ) ) {
-        }
-        Value( Type type, double value ) :
-                type( type ), value() {
-            this->value.number = value;
-        }
-        Value( bool b ) :
-            type( Type::Boolean ) {
-            this->value.boolean = b;
-        }
-        Value( int i ) :
-            type( Type::Number ) {
-            this->value.number = static_cast<double>( i );
-        }
-        Value( double d ) :
-            type( Type::Number ) {
-            this->value.number = d;
-        }
-        Value( const std::string& str ) :
-            type( Type::String ) {
-            this->value.string = new std::string( str );
-        }
-
-        Value( Type type, std::string *value ) :
-                Value( type, new std::string( *value ), true ) {
-        }
-        Value( Type type, std::string&& value ) :
-                Value( type, new std::string( value ), true ) {
-        }
-        Value( Type type, const char* value ) :
-                Value( type, new std::string( value ), true ) {
-        }
-
-        Value( const Value& rhs ) {
-            *this = rhs;
-        }
-        ~Value() {
-            switch ( type ) {
-            case Type::JSON:
-                delete value.json;
-                break;
-            case Type::String:
-                //value.string.~basic_string<char>();
-                delete value.string;
-                break;
-            case Type::Boolean:
-            case Type::Number:
-                break;
-            }
-        }
-        Value& operator=( const Value& v ) {
-            this->type = v.type;
-            switch ( v.type ) {
-            case Type::JSON:
-                this->value.json = new std::string( *( v.value.json ) );
-                break;
-            case Type::String:
-                this->value.string = new std::string( *( v.value.string ) );
-                break;
-            case Type::Boolean:
-                this->value.boolean = v.value.boolean;
-                break;
-            case Type::Number:
-                this->value.number = v.value.number;
-                break;
-            }
-            return *this;
-        }
-        Value& operator=( bool b ) {
-            this->type = Type::Boolean;
-            this->value.boolean = b;
-            return *this;
-        }
-        Value& operator=( const std::string& str ) {
-            this->type = Type::String;
-            this->value.string = new std::string( str );
-            return *this;
-        }
-        Value& operator=( double d ) {
-            this->type = Type::Number;
-            this->value.number = d;
-            return *this;
-        }
-        Value& operator=( int i ) {
-            this->type = Type::Number;
-            this->value.number = static_cast<double>( i );
-            return *this;
-        }
-    private:
-        Value( Type type, std::string* value, bool ) :
-                type( type ) {
-            if ( type == Type::String ) {
-                this->value.string = value;
-            } else if ( type == Type::JSON ) {
-                this->value.json = value;
-            } else {
-                // TODO: fix proper error handling.
-                throw new std::exception();
-            }
-        }
+        enum class T { NoType, Null, Boolean, Number, String, Json } t;
+        bool b;
+        double n;
+        std::string v;
+        Value() : t( T::NoType ),b(),n(),v() {}
+        Value( std::nullptr_t ) : t( T::NoType ),b(),n(),v() {}
+        Value( bool b ) : t( T::Boolean ),b(b),n(),v() {}
+        Value( double n ) : t( T::Number), b(),n(n),v() {}
+        Value( int i ) : t( T::Number ), b(),n(i),v() {}
+        Value( const char* c, bool json = false ) : Value( std::string( c), json ) {}
+        Value( const std::string& v, bool json = false ) : t( json? T::Json: T::String ),b(),n(),v(v) {}
+        bool operator<(const Value& rhs );
     };
 
     // TODO: split Object and attributes to allow for better reading.
@@ -305,21 +185,14 @@ public:
     constexpr static unsigned USERS_OBJECT_ID = 1;
 
     Database( Central *central, std::string path );
-    //Database( Central *central, std::string path, PrivateUserAccount* userAccount = nullptr, bool create = false, bool overwrite = false );
-
-    // Create new db
-    //Database( Central *central, std::string path, Manifest* manifest, unsigned localId );
-
-    // Init existing db
-    //Database( Central *central, std::string path, PrivateUserAccount* userAccount = nullptr );
-
     virtual ~Database();
 
     // TODO: Consider moving create and init to ctor as to better conform to RAII
-    void create( unsigned localId, Manifest* manifest ); // create new db
-    void init( PrivateUserAccount *userAccount = nullptr ); // initialize existing db
+    void create( unsigned localId, std::unique_ptr<Manifest> manifest ); // create new db
+    void init( std::unique_ptr<Manifest> manifest = nullptr ); // initialize existing db
     //void load(); // load from disk
     void close();
+    void dump( const std::string& filename );
 
     /**
      * Start a transaction that will perform changes to the database. The transaction will make changes
@@ -335,17 +208,29 @@ public:
      * Query interface
      */
 
+    struct QueryResult {
+        bool isFunctionCall{};
+        std::string functionName{};
+        std::string functionAttribute{};
+        double functionValue{};
+        unsigned long id{};
+        unsigned long version{};
+        std::map<std::string,Value> attributes{};
+    };
+
     Object getObject( int accessDomain, long long id, bool includeDeleted = false ) const;
     unsigned subscribeObject( std::function<void(Object)> cb, int accessDomain,
             long long id, bool includeDeleted = false );
     void unsubscribeObject( unsigned subscriberId );
 
-    std::vector<Object> query( const ObjectRef& parent, const std::string& select,
-            const std::string& filter, const std::string& sort, int maxVersion,
-            bool includeDeleted = false );
+    QueryResult query( int accessDomain, long long id, const std::string& select,
+            const std::string& filter, const std::string& sort,
+            const std::map<std::string, ArgumentVT>& args,
+            int maxVersion, bool includeDeleted = false );
 
-    std::vector<Object> queryVersion( const ObjectRef& parent,
-            const std::string& select, const std::string& filter );
+    QueryResult queryVersion( int accessDomain, long long id, const std::string& select,
+            const std::string& filter, const std::map<std::string, ArgumentVT>& args,
+            bool includeDeleted = false );
 
     /*
      * Streaming API
@@ -476,15 +361,12 @@ protected:
     static Database::ObjectMeta statementRowToObjectMeta( Database::Statement& stmt );
     static Database::Value statementRowToValue( Database::Statement& attribute );
     //static UserAccount statementRowToUser( Database::Statement& user );
+    static Database::Value queryRowToValue( Database::Statement& query );
 
     std::vector<CryptoHelper::SHA3> getParents( unsigned version,
             Connection* connection = nullptr ) const;
     std::vector<CryptoHelper::SHA3> getParents( CryptoHelper::SHA3 transactionHash,
             Connection* connection = nullptr ) const;
-    /*// TODO
-    Database::Meta transactionToMeta( const Database::Transaction& transaction,
-            Connection* connection = nullptr ) const;
-    //*/
 
     const std::string& getUserHash() { return userHash; }
     Manifest *getManifest();
@@ -494,7 +376,7 @@ private:
     //bool enableTransactionFiles{ true };
 
     bool _isOK; // TODO: fix proper error handling instead.
-    Manifest* manifest;
+    std::unique_ptr<Manifest> manifest;
     Central *central;
     std::string path;
     Connection *db;

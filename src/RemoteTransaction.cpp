@@ -61,15 +61,6 @@ void RemoteTransaction::init() {
         Database::Statement query( *connection.get(), q );
         while ( query.executeStep() ) {
             rows.push_back( Database::statementRowToTransaction( query ) );
-            /*
-            rows.push_back( {
-                Database::AccessDomain( (Database::AccessDomain) query.getColumn( "accessDomain" ).getUInt() ),
-                        query.getColumn( "version" ).getUInt(),
-                        Helper::Date( query.getColumn( "timestamp" ).getString() ),
-                        CryptoHelper::SHA3( query.getColumn( "userHash" ).getString() ),
-                        CryptoHelper::SHA3( query.getColumn( "hash" ).getString() ),
-                        CryptoHelper::Signature( query.getColumn( "signature" ).getString() ) } );
-            //*/
         }
 
         if ( rows.size() != parents.size() ) {
@@ -199,45 +190,49 @@ void RemoteTransaction::newObject( unsigned long id, const Database::ObjectRef& 
     }
 
     // Insert the objects attributes
-    Database::Statement queryInsertIntoAttribute( *connection.get(),
-            "INSERT INTO Attribute (accessDomain, id, version, name, value, json) "
+    Database::Statement insertIntoAttribute( *connection.get(),
+            "INSERT INTO Attribute (accessDomain, id, version, name, type, value) "
             "VALUES (?, ?, ?, ?, ?, ?)" );
     for ( auto const & kv : attributes ) {
-        Database::Value value { kv.second };
-        // TODO: verify the behavior of this code-block.
-        // TODO: value.value.json = NormalizedJSON.serialize( value.value ); ?
-
-        queryInsertIntoAttribute.bind( 1, (unsigned) accessDomain );
-        queryInsertIntoAttribute.bind( 2, (long long) id );
-        queryInsertIntoAttribute.bind( 3, version );
-        queryInsertIntoAttribute.bind( 4, kv.first );
-        //*
-        switch ( kv.second.type ) {
-        case Database::Value::Type::Boolean:
-            queryInsertIntoAttribute.bind( 5, kv.second.value.boolean );
+        insertIntoAttribute <<
+                static_cast<int>( accessDomain ) <<
+                static_cast<long long>( id ) <<
+                version <<
+                kv.first <<
+                static_cast<int>( kv.second.t );
+        using T = Database::Value::T;
+        switch ( kv.second.t ){
+        case T::NoType:
             break;
-        case Database::Value::Type::JSON:
-            queryInsertIntoAttribute.bind( 6, *( kv.second.value.json ) );
+        case T::Null:
             break;
-        case Database::Value::Type::Number:
-            queryInsertIntoAttribute.bind( 5, kv.second.value.number );
+        case T::Boolean:
+            insertIntoAttribute << kv.second.b;
             break;
-        case Database::Value::Type::String:
-            queryInsertIntoAttribute.bind( 5, *( kv.second.value.string ) );
+        case T::Number:
+            insertIntoAttribute << kv.second.n;
             break;
+        case T::String:
+            insertIntoAttribute << kv.second.v;
+            break;
+        case T::Json:
+            insertIntoAttribute << kv.second.v;
+            break;
+        default:
+            LOG( WARNING ) << "Attribute statement does not contain correct type.";
+            throw std::runtime_error( "Attribute statement does not contain correct type." );
         }
 
-        if ( queryInsertIntoAttribute.exec() > 0 ) {
-            queryInsertIntoAttribute.reset();
-            queryInsertIntoAttribute.clearBindings();
+        if ( insertIntoAttribute.exec() ) {
+            insertIntoAttribute.reset();
+            insertIntoAttribute.clearBindings();
         } else {
-            // TODO: query affected 0 rows, handle it.
+            LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
             valid = false;
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
     }
 
-    // TODO: call object changed on this->db, the same way as in the local transactions?
     affectedObjects.insert( parent );
     affectedObjects.insert( { accessDomain, id } );
 }
@@ -315,16 +310,15 @@ void RemoteTransaction::moveObject( unsigned long id, Database::ObjectRef newPar
     if ( queryObject.executeStep() != 0 ) {
         Database::Statement queryAttribute( *connection.get(),
                 // TODO: wrong query?
-                "INSERT INTO Attribute (accessDomain, id, version, name, value, json) "
-                "SELECT accessDomain, id, ?, name, value, json "
+                "INSERT INTO Attribute (accessDomain, id, version, name, type, value) "
+                "SELECT accessDomain, id, ?, name, type, value "
                 "FROM Attribute "
                 "WHERE accessDomain=? AND id=? AND version=?" );
         queryAttribute.bind( 1, version );
         queryAttribute.bind( 2, (unsigned) accessDomain );
         queryAttribute.bind( 3, queryObject.getColumn( "version" ).getInt64() );
-        //*
         queryAttribute.exec();
-        /*/
+        /*
         if ( queryAttribute.exec() == 0 ) {
             // TODO: query failed, handle it.
             valid = false;
@@ -460,53 +454,56 @@ void RemoteTransaction::updateObject( unsigned long id, std::map<std::string, Da
         }
     }
 
-    Database::Statement queryInsertIntoAttribute( *connection.get(),
-            "INSERT INTO Attribute (accessDomain, id, version, name, value, json) "
+    Database::Statement insertIntoAttribute( *connection.get(),
+            "INSERT INTO Attribute (accessDomain, id, version, name, type, value) "
             "VALUES (?, ?, ?, ?, ?, ?)" );
     for ( auto const & kv : attributes ) {
-        Database::Value value { kv.second };
-        // TODO: verify the behavior of this code-block.
-        // TODO: value.value.json = NormalizedJSON.serialize( value.value ); ?
-
-        queryInsertIntoAttribute.bind( 1, (unsigned) accessDomain );
-        queryInsertIntoAttribute.bind( 2, (long long) id );
-        queryInsertIntoAttribute.bind( 3, version );
-        queryInsertIntoAttribute.bind( 4, kv.first );
-        switch ( kv.second.type ) {
-        case Database::Value::Type::Boolean:
-            queryInsertIntoAttribute.bind( 5, kv.second.value.boolean );
+        insertIntoAttribute <<
+                static_cast<int>( accessDomain ) <<
+                static_cast<long long>( id ) <<
+                version <<
+                kv.first <<
+                static_cast<int>( kv.second.t );
+        using T = Database::Value::T;
+        switch ( kv.second.t ){
+        case T::NoType:
             break;
-        case Database::Value::Type::JSON:
-            queryInsertIntoAttribute.bind( 6, *( kv.second.value.json ) );
-            //queryInsertIntoAttribute.bind( 5, kv.second.value.json );
+        case T::Null:
             break;
-        case Database::Value::Type::Number:
-            queryInsertIntoAttribute.bind( 5, kv.second.value.number );
+        case T::Boolean:
+            insertIntoAttribute << kv.second.b;
             break;
-        case Database::Value::Type::String:
-            queryInsertIntoAttribute.bind( 5, *( kv.second.value.string ) );
-            //queryInsertIntoAttribute.bind( 5, kv.second.value.string );
+        case T::Number:
+            insertIntoAttribute << kv.second.n;
             break;
+        case T::String:
+            insertIntoAttribute << kv.second.v;
+            break;
+        case T::Json:
+            insertIntoAttribute << kv.second.v;
+            break;
+        default:
+            LOG( WARNING ) << "Attribute statement does not contain correct type.";
+            throw std::runtime_error( "Attribute statement does not contain correct type." );
         }
 
-        if ( queryInsertIntoAttribute.exec() > 0 ) {
-            queryInsertIntoAttribute.clearBindings();
-            queryInsertIntoAttribute.reset();
+        if ( insertIntoAttribute.exec() ) {
+            insertIntoAttribute.reset();
+            insertIntoAttribute.clearBindings();
         } else {
-            // TODO: query affected 0 rows, handle it.
+            LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
             valid = false;
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
     }
 
-    // TODO: call object changed on this->db, the same way as in the local transactions?
     affectedObjects.insert( parent );
     affectedObjects.insert( { accessDomain, id } );
 }
 
 void RemoteTransaction::deleteObject( unsigned long id ) {
     if ( !valid ) {
-        // TODO: This check is NOT in the original .ts, should it be removed?
+        LOG( WARNING ) << "Invalid transaction, can not delete object";
         throw Mist::Exception( Mist::Error::ErrorCode::InvalidTransaction );
     }
 

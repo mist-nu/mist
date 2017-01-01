@@ -155,7 +155,6 @@ if (test)
     testConn.cpp
     testCentral.cpp
     testExchangeFormat.cpp
-    testCentralToCentralTransaction.cpp
   )
   # Standard linking to gtest stuff.
   target_link_libraries(testAll ${Boost_LIBRARIES} gtest_main mist mist_conn)
