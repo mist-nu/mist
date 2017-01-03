@@ -1,5 +1,11 @@
-#ifndef __MIST_HEADERS_H2_UTIL_HPP__
-#define __MIST_HEADERS_H2_UTIL_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include <cstddef>
 #include <functional>
@@ -65,5 +71,3 @@ std::vector<nghttp2_nv> makeHeaderNv(const header_map &headers);
 
 } // namespace h2
 } // namespace mist
-
-#endif

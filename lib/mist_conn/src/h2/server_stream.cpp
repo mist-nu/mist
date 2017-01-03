@@ -21,52 +21,61 @@ namespace h2
 /*
 * ServerRequest
 */
+MistConnApi
 ServerRequest::ServerRequest(std::shared_ptr<ServerStreamImpl> impl)
   : _impl(impl)
 {}
 
+MistConnApi
 ServerStream
 ServerRequest::stream()
 {
   return ServerStream(_impl);
 }
 
+MistConnApi
 const header_map&
 ServerRequest::headers() const
 {
   return _impl->request().headers();
 }
 
+MistConnApi
 const boost::optional<std::uint64_t>&
 ServerRequest::contentLength() const
 {
   return _impl->request().contentLength();
 }
 
+MistConnApi
 const boost::optional<std::string>&
 ServerRequest::method() const
 {
   return _impl->request().method();
 }
 
+MistConnApi
 const boost::optional<std::string>&
 ServerRequest::path() const
 {
   return _impl->request().path();
 }
 
+MistConnApi
 const boost::optional<std::string>&
 ServerRequest::scheme() const
 {
   return _impl->request().scheme();
 }
 
+MistConnApi
 const boost::optional<std::string>&
 ServerRequest::authority() const
 {
   return _impl->request().authority();
 }
 
+MistConnApi
 void
 ServerRequest::setOnData(data_callback cb)
 {
@@ -92,58 +101,68 @@ ServerRequestImpl::onData(const std::uint8_t* data, std::size_t length)
 /*
 * ServerResponse
 */
+MistConnApi
 ServerResponse::ServerResponse(std::shared_ptr<ServerStreamImpl> impl)
   : _impl(impl)
 {}
 
+MistConnApi
 ServerStream
 ServerResponse::stream()
 {
   return ServerStream(_impl);
 }
 
+MistConnApi
 void
 ServerResponse::setOnRead(generator_callback cb)
 {
   _impl->setOnRead(std::move(cb));
 }
 
+MistConnApi
 void
 ServerResponse::end()
 {
   _impl->end();
 }
 
+MistConnApi
 void
 ServerResponse::end(const std::string& buffer)
 {
   _impl->end(buffer);
 }
 
+MistConnApi
 void
 ServerResponse::end(const std::vector<std::uint8_t>& buffer)
 {
   _impl->end(buffer);
 }
 
+MistConnApi
 boost::system::error_code
 ServerResponse::submitTrailers(header_map headers)
 {
   return _impl->submitTrailers(std::move(headers));
 }
 
+MistConnApi
 const header_map&
 ServerResponse::headers() const
 {
   return _impl->response().headers();
 }
 
+MistConnApi
 const boost::optional<std::uint64_t>&
 ServerResponse::contentLength() const
 {
   return _impl->response().contentLength();
 }
 
+MistConnApi
 const boost::optional<std::uint16_t>&
 ServerResponse::statusCode() const
 {
@@ -157,28 +176,33 @@ ServerResponse::statusCode() const
 /*
 * ServerStream
 */
+MistConnApi
 ServerStream::ServerStream(std::shared_ptr<ServerStreamImpl> impl)
   : _impl(std::move(impl))
 {}
 
+MistConnApi
 ServerSession
 ServerStream::session()
 {
   return ServerSession(_impl->session());
 }
 
+MistConnApi
 ServerRequest
 ServerStream::request()
 {
   return ServerRequest(_impl);
 }
 
+MistConnApi
 ServerResponse
 ServerStream::response()
 {
   return ServerResponse(_impl);
 }
 
+MistConnApi
 boost::system::error_code
 ServerStream::submitResponse(std::uint16_t statusCode,
   const header_map& headers, generator_callback cb)
@@ -186,24 +210,28 @@ ServerStream::submitResponse(std::uint16_t statusCode,
   return _impl->submitResponse(statusCode, headers, std::move(cb));
 }
 
+MistConnApi
 void
 ServerStream::setOnClose(close_callback cb)
 {
   _impl->setOnClose(std::move(cb));
 }
 
+MistConnApi
 void
 ServerStream::close(boost::system::error_code ec)
 {
   _impl->close(ec);
 }
 
+MistConnApi
 void
 ServerStream::resume()
 {
   _impl->resume();
 }
 
+MistConnApi
 boost::system::error_code
 ServerStream::submitTrailers(const header_map& trailers)
 {

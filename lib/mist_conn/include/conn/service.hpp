@@ -1,5 +1,11 @@
-#ifndef __MIST_HEADERS_CONN_SERVICE_HPP__
-#define __MIST_HEADERS_CONN_SERVICE_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include <memory>
 #include <string>
@@ -17,7 +23,7 @@ namespace mist
 class ConnectContext;
 class ServiceImpl;
 
-class Service
+class MistConnApi Service
 {
 public:
 
@@ -58,5 +64,3 @@ private:
 };
 
 } // namespace mist
-
-#endif

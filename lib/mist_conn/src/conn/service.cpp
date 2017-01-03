@@ -7,22 +7,26 @@ namespace mist
 /*
 * Service
 */
+MistConnApi
 Service::Service(ServiceImpl& impl)
   : _impl(impl)
 {}
 
+MistConnApi
 void
 Service::setOnPeerConnectionStatus(peer_connection_status_callback cb)
 {
   _impl.setOnPeerConnectionStatus(std::move(cb));
 }
 
+MistConnApi
 void
 Service::setOnPeerRequest(peer_request_callback cb)
 {
   _impl.setOnPeerRequest(std::move(cb));
 }
 
+MistConnApi
 void
 Service::submitRequest(Peer& peer, std::string method, std::string path,
   peer_submit_callback cb)
@@ -31,12 +35,14 @@ Service::submitRequest(Peer& peer, std::string method, std::string path,
     std::move(path), std::move(cb));
 }
 
+MistConnApi
 void
 Service::setOnWebSocket(peer_websocket_callback cb)
 {
   _impl.setOnWebSocket(std::move(cb));
 }
 
+MistConnApi
 void
 Service::openWebSocket(Peer& peer, std::string path,
   peer_websocket_callback cb)

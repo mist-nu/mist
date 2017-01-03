@@ -31,13 +31,15 @@ class mist_error_category : public boost::system::error_category
   }
 } instance;
 
-}
+} // namespace
 
+MistConnApi
 const boost::system::error_category &mist_category() noexcept
 {
   return instance;
 }
 
+MistConnApi
 boost::system::error_code make_mist_error(mist_error ev)
 {
   return boost::system::error_code(ev, mist_category());

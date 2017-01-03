@@ -1,5 +1,11 @@
-#ifndef __MEMORY_NGHTTP2_HPP__
-#define __MEMORY_NGHTTP2_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include "memory/base.hpp"
 
@@ -34,5 +40,3 @@ struct c_deleter<nghttp2_option>
     nghttp2_option_del(ptr);
   }
 };
-
-#endif

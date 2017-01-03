@@ -196,7 +196,8 @@
                         ],
                         "libraries+": [
                             "-llibboost_filesystem>(BOOST_BUILDSTRING)",
-                            "-llibboost_random>(BOOST_BUILDSTRING)"
+                            "-llibboost_random>(BOOST_BUILDSTRING)",
+                            "-lg3logger",
                         ],
                         'msvs_settings': {
                             "VCCLCompilerTool": {
@@ -266,10 +267,10 @@
                         },
                         "libraries+": [
                             "-L/usr/local/lib"
-			],
+                        ],
                         "include_dirs+": [
                             "/usr/local/include"
-			]
+                        ]
                     }
                 ],
                 [ 'OS!="win"',
@@ -306,7 +307,7 @@
             "type": "<(library)",
             "cflags_cc": [ "-frtti -fexceptions -std=c++11" ],
             "defines": [
-                "_BUILD_NODE_MODULE",
+                "BUILDING_MIST_CONN",
             ],
             "cflags_cc": [
                 "-fexceptions",
@@ -382,7 +383,14 @@
                 "-std=gnu++0x"
             ],
             'conditions': [
-                [ "OS==\"mac\"",
+                [ '"<(library)"=="shared_library"',
+                    {
+                        "defines+" : [
+                            "MIST_CONN_SHARED",
+                        ],
+                    }
+                ],
+                [ 'OS=="mac"',
                     {
                         "xcode_settings": {
                             "MACOSX_DEPLOYMENT_TARGET": "10.9",
@@ -398,8 +406,7 @@
                         ]
                     }
                 ],
-                [
-                    'OS!="win"', {
+                [ 'OS!="win"', {
                         'variables': {
                         },
                         "include_dirs+": [

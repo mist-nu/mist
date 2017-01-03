@@ -1,5 +1,11 @@
-#ifndef __MIST_INCLUDE_IO_TCP_SOCKET_HPP__
-#define __MIST_INCLUDE_IO_TCP_SOCKET_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include <algorithm>
 #include <array>
@@ -159,5 +165,3 @@ private:
 
 } // namespace io
 } // namespace mist
-
-#endif

@@ -201,7 +201,7 @@ Mist::CryptoHelper::PublicKey::hash() const {
 namespace
 {
 char nibbleToHexadecimal(int c) {
-    return c < 10 ? '0' + c : 'a' + c - 10;
+    return c < 10 ? '0' + c : 'A' + c - 10;
 }
 std::string hashToFingerprint(const std::vector<std::uint8_t> hash)
 {

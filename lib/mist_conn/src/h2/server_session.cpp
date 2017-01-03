@@ -27,6 +27,7 @@ namespace h2
 /*
  * ServerSession
  */
+MistConnApi
 ServerSession::ServerSession(std::shared_ptr<io::Socket> socket)
   : _impl(std::make_shared<ServerSessionImpl>(socket))
 {
@@ -34,40 +35,47 @@ ServerSession::ServerSession(std::shared_ptr<io::Socket> socket)
     start();
 }
 
+MistConnApi
 ServerSession::ServerSession(std::shared_ptr<ServerSessionImpl> impl)
   : _impl(impl)
 {}
 
+MistConnApi
 void
 ServerSession::setOnRequest(server_request_callback cb)
 {
   _impl->setOnRequest(std::move(cb));
 }
 
+MistConnApi
 void
 ServerSession::shutdown()
 {
   _impl->shutdown();
 }
 
+MistConnApi
 void
 ServerSession::start()
 {
     _impl->start();
 }
 
+MistConnApi
 void
 ServerSession::stop()
 {
     _impl->stop();
 }
 
+MistConnApi
 bool
 ServerSession::isStopped() const
 {
   return _impl->isStopped();
 }
 
+MistConnApi
 void
 ServerSession::setOnError(error_callback cb)
 {

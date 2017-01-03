@@ -1,5 +1,11 @@
-#ifndef __MIST_INCLUDE_IO_FILE_DESCRIPTOR_HPP__
-#define __MIST_INCLUDE_IO_FILE_DESCRIPTOR_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include <boost/optional.hpp>
 
@@ -11,7 +17,7 @@ namespace mist
 namespace io
 {
 
-class FileDescriptor
+class MistConnApi FileDescriptor
 {
 public:
 
@@ -25,5 +31,3 @@ public:
 
 } // namespace io
 } // namespace mist
-
-#endif

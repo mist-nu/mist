@@ -1,5 +1,11 @@
-#ifndef __MIST_INCLUDE_IO_ADDRESS_HPP__
-#define __MIST_INCLUDE_IO_ADDRESS_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include <cstddef>
 #include <string>
@@ -12,7 +18,7 @@ namespace io
 
 class AddressImpl;
 
-class Address
+class MistConnApi Address
 {
 public:
   Address();
@@ -32,5 +38,3 @@ public:
 
 } // namespace io
 } // namespace mist
-
-#endif

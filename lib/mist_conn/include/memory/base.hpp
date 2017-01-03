@@ -1,5 +1,11 @@
-#ifndef __MIST_HEADERS_MEMORY_BASE_HPP__
-#define __MIST_HEADERS_MEMORY_BASE_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include <memory>
 
@@ -56,5 +62,3 @@ template<typename T, typename D>
 c_shared_ptr<T> to_shared(T* ptr, D deleter) {
   return c_shared_ptr<T>(ptr, deleter);
 }
-
-#endif

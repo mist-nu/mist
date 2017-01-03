@@ -1,5 +1,11 @@
-#ifndef __MIST_INCLUDE_CRYPTO_KEYGEN_HPP__
-#define __MIST_INCLUDE_CRYPTO_KEYGEN_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include <string>
 #include <vector>
@@ -21,24 +27,24 @@ enum class ValidityTimeUnit {
   Sec, Min, Hour, Day, Month, Year
 };
 
-std::string
+MistConnApi std::string
 createP12TestRsaPrivateKeyAndCert(io::SSLContext& ctx,
   const std::string& password, const std::string& subject, int size,
   ValidityTimeUnit validityUnit, int validityNumber);
 
-std::string publicKeyDerToPem(const std::vector<std::uint8_t>& publicKey);
+MistConnApi std::string
+publicKeyDerToPem(const std::vector<std::uint8_t>& publicKey);
 
-std::vector<std::uint8_t> publicKeyPemToDer(const std::string& publicKey);
+MistConnApi std::vector<std::uint8_t>
+publicKeyPemToDer(const std::string& publicKey);
 
-std::vector<std::uint8_t> base64Decode(const std::string& src);
+MistConnApi std::vector<std::uint8_t> base64Decode(const std::string& src);
 
-std::string base64Encode(const std::vector<std::uint8_t>& src);
+MistConnApi std::string base64Encode(const std::vector<std::uint8_t>& src);
 
-std::vector<std::uint8_t> stringToBuffer(const std::string& src);
+MistConnApi std::vector<std::uint8_t> stringToBuffer(const std::string& src);
 
-std::string bufferToString(const std::vector<std::uint8_t>& src);
+MistConnApi std::string bufferToString(const std::vector<std::uint8_t>& src);
 
 } // namespace crypto
 } // namespace mist
-
-#endif

@@ -1,5 +1,11 @@
-#ifndef __MIST_HEADERS_TOR_TOR_HPP__
-#define __MIST_HEADERS_TOR_TOR_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include <cstddef>
 #include <functional>
@@ -57,7 +63,8 @@ private:
 
 };
 
-class TorController : public std::enable_shared_from_this<TorController>
+class TorController
+  : public std::enable_shared_from_this<TorController>
 {
 public:
 
@@ -156,5 +163,3 @@ private:
 
 } // namespace tor
 } // namespace mist
-
-#endif

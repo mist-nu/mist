@@ -155,20 +155,15 @@ Database::Value toDatabaseValue(v8::Local<v8::Value> val)
 {
   using val_t = Database::Value;
   if (val->IsBoolean()) {
-    return val_t(Database::Value::Type::Boolean,
-		 Nan::To<bool>(val).FromJust());
+    return val_t(Nan::To<bool>(val).FromJust());
   } else if (val->IsString() || val->IsSymbol()) {
-    return val_t(Database::Value::Type::String,
-		 *Nan::Utf8String(val));
+    return val_t(*Nan::Utf8String(val));
   } else if (val->IsInt32()) {
-    return val_t(Database::Value::Type::Number,
-		 static_cast<double>(Nan::To<std::int32_t>(val).FromJust()));
+    return val_t(static_cast<double>(Nan::To<std::int32_t>(val).FromJust()));
   } else if (val->IsUint32()) {
-    return val_t(Database::Value::Type::Number,
-		 static_cast<double>(Nan::To<std::uint32_t>(val).FromJust()));
+    return val_t(static_cast<double>(Nan::To<std::uint32_t>(val).FromJust()));
   } else if (val->IsNumber()) {
-    return val_t(Database::Value::Type::Number,
-		 Nan::To<double>(val).FromJust());
+    return val_t(Nan::To<double>(val).FromJust());
   } else {
     return val_t();
   }
@@ -176,13 +171,14 @@ Database::Value toDatabaseValue(v8::Local<v8::Value> val)
 
 v8::Local<v8::Value> fromDatabaseValue(Database::Value val)
 {
-  if (val.type == Database::Value::Type::Boolean) {
-    return Nan::New(val.value.boolean);
-  } else if (val.type == Database::Value::Type::Number) {
-    return Nan::New(val.value.number);
-  } else if (val.type == Database::Value::Type::String) {
-    return Nan::New(*val.value.string).ToLocalChecked();
-  } else if (val.type == Database::Value::Type::JSON) {
+  if (val.t == Database::Value::T::Boolean) {
+    return Nan::New(val.b);
+  } else if (val.t == Database::Value::T::Number) {
+    return Nan::New(val.n);
+  } else if (val.t == Database::Value::T::String) {
+    return Nan::New(val.v).ToLocalChecked();
+  } else if (val.t == Database::Value::T::Json) {
+    // TODO: Convert from Json
     return v8::Local<v8::Value>();
   } else {
     return v8::Local<v8::Value>();

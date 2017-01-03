@@ -15,8 +15,10 @@ namespace mist
 namespace crypto
 {
 
+MistConnApi
 Hasher::~Hasher() {}
 
+MistConnApi
 std::vector<std::uint8_t>
 Hasher::finalize(const std::uint8_t* begin, const std::uint8_t* end)
 {
@@ -111,21 +113,25 @@ std::unique_ptr<Hasher> hash_nss(SECOidTag hashOIDTag)
 
 } // namespace
 
+MistConnApi
 std::unique_ptr<Hasher> hash_md5()
 {
   return hash_nss(SEC_OID_MD5);
 }
 
+MistConnApi
 std::unique_ptr<Hasher> hash_sha3_256()
 {
   return hash_sha3(256);
 }
 
+MistConnApi
 std::unique_ptr<Hasher> hash_sha3_384()
 {
   return hash_sha3(384);
 }
 
+MistConnApi
 std::unique_ptr<Hasher> hash_sha3_512()
 {
   return hash_sha3(512);

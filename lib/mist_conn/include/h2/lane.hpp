@@ -1,5 +1,11 @@
-#ifndef __MIST_HEADERS_H2_REQUEST_HPP__
-#define __MIST_HEADERS_H2_REQUEST_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include <cstddef>
 #include <string>
@@ -97,5 +103,3 @@ public:
 
 }
 }
-
-#endif

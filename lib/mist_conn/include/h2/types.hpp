@@ -1,5 +1,11 @@
-#ifndef __MIST_HEADERS_H2_TYPES_HPP__
-#define __MIST_HEADERS_H2_TYPES_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include <cstddef>
 #include <functional>
@@ -40,5 +46,3 @@ using server_request_callback = std::function<void(ServerRequest)>;
 
 } // namespace h2
 } // namespace mist
-
-#endif

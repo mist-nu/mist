@@ -1,5 +1,11 @@
-#ifndef __MIST_INCLUDE_IO_IO_CONTEXT_HPP__
-#define __MIST_INCLUDE_IO_IO_CONTEXT_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include <functional>
 #include <list>
@@ -56,7 +62,7 @@ class FileDescriptor;
 class IOContextImpl;
 class TCPSocket;
 
-class IOContext
+class MistConnApi IOContext
 {
 public:
 
@@ -87,5 +93,3 @@ public:
 
 } // namespace io
 } // namespace mist
-
-#endif

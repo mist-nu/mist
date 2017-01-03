@@ -78,8 +78,7 @@ ServerResponseWrap::_write(const Nan::FunctionCallbackInfo<v8::Value>& info)
 }
 
 mist::h2::generator_callback::result_type
-ServerResponseWrap::onRead(std::uint8_t *data, std::size_t length,
-  std::uint32_t *flags)
+ServerResponseWrap::onRead(std::uint8_t *data, std::size_t length)
 {
   if (_dataToWrite && !_lengthToWrite) {
     _dataToWrite = nullptr;
@@ -90,7 +89,7 @@ ServerResponseWrap::onRead(std::uint8_t *data, std::size_t length,
       Nan::Callback cb(Nan::New(_callback));
       cb();
     });
-    return 0;
+    return boost::none;
   }
 
   std::size_t actualLength = std::min(length, _lengthToWrite);

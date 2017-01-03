@@ -103,13 +103,15 @@ class nghttp2_error_category : public boost::system::error_category
   }
 } instance;
 
-}
+} // namespace
 
+MistConnApi
 const boost::system::error_category &nghttp2_category() noexcept
 {
   return instance;
 }
 
+MistConnApi
 boost::system::error_code make_nghttp2_error(std::uint32_t ev)
 {
   return boost::system::error_code(static_cast<nghttp2_error>(ev),

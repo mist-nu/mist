@@ -124,36 +124,41 @@ PeerDb::remove(Peer& peer)
 /*
  * ConnectContext
  */
-
+MistConnApi
 ConnectContext::ConnectContext(io::SSLContext& sslCtx,
   authenticate_peer_callback cb)
   : _impl(std::make_shared<ConnectContextImpl>(sslCtx, std::move(cb)))
 {}
 
+MistConnApi
 io::IOContext&
 ConnectContext::ioCtx()
 {
   return _impl->ioCtx();
 }
 
+MistConnApi
 io::SSLContext&
 ConnectContext::sslCtx()
 {
   return _impl->sslCtx();
 }
 
+MistConnApi
 boost::system::error_code
 ConnectContext::connectPeerDirect(Peer& peer, const io::Address& addr)
 {
   return _impl->connectPeerDirect(peer, addr);
 }
 
+MistConnApi
 boost::system::error_code
 ConnectContext::connectPeerTor(Peer& peer)
 {
   return _impl->connectPeerTor(peer);
 }
 
+MistConnApi
 Peer&
 ConnectContext::addAuthenticatedPeer(
   const std::vector<std::uint8_t>& derPublicKey)
@@ -161,12 +166,14 @@ ConnectContext::addAuthenticatedPeer(
   return _impl->addAuthenticatedPeer(derPublicKey);
 }
 
+MistConnApi
 std::uint16_t
 ConnectContext::serveDirect(io::port_range_list directIncomingPort)
 {
   return _impl->serveDirect(directIncomingPort);
 }
 
+MistConnApi
 void
 ConnectContext::startServeTor(io::port_range_list torIncomingPort,
   io::port_range_list torOutgoingPort, io::port_range_list controlPort,
@@ -176,30 +183,35 @@ ConnectContext::startServeTor(io::port_range_list torIncomingPort,
     std::move(executableName), std::move(workingDir));
 }
 
+MistConnApi
 void
 ConnectContext::onionAddress(std::function<void(const std::string&)> cb)
 {
   _impl->onionAddress(std::move(cb));
 }
 
+MistConnApi
 void
 ConnectContext::exec()
 {
   _impl->exec();
 }
 
+MistConnApi
 Service&
 ConnectContext::newService(std::string name)
 {
   return _impl->newService(std::move(name));
 }
 
+MistConnApi
 std::uint16_t
 ConnectContext::directConnectPort() const
 {
   return _impl->directConnectPort();
 }
 
+MistConnApi
 void
 ConnectContext::openSSLSocket(const io::Address& addr,
     std::function<void(std::shared_ptr<io::Socket>,
@@ -208,6 +220,7 @@ ConnectContext::openSSLSocket(const io::Address& addr,
     _impl->openSSLSocket(addr, std::move(cb));
 }
 
+MistConnApi
 void
 ConnectContext::submitRequest(const io::Address& addr,
     std::string method, std::string path, std::string authority,
@@ -415,7 +428,7 @@ ConnectContextImpl::incomingDirectConnection(
     }
   });
 }
-  
+
 void
 ConnectContextImpl::incomingTorConnection(
   std::shared_ptr<io::SSLSocket> socket)

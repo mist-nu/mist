@@ -1,5 +1,11 @@
-#ifndef __MIST_INCLUDE_IO_SSL_CONTEXT_HPP__
-#define __MIST_INCLUDE_IO_SSL_CONTEXT_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include <string>
 #include <memory>
@@ -15,7 +21,7 @@ namespace io
 class SSLSocket;
 class SSLContextImpl;
 
-class SSLContext
+class MistConnApi SSLContext
 {
 public:
 
@@ -38,10 +44,8 @@ public:
     std::size_t length) const;
 
   bool verify(const std::vector<std::uint8_t>& derPublicKey,
-	      const std::uint8_t* hashData,
-	      std::size_t hashLength,
-	      const std::uint8_t* signData,
-	      std::size_t signLength) const;
+    const std::uint8_t* hashData, std::size_t hashLength,
+    const std::uint8_t* signData, std::size_t signLength) const;
 
   IOContext& ioCtx();
 
@@ -55,5 +59,3 @@ public:
 
 } // namespace io
 } // namespace mist
-
-#endif

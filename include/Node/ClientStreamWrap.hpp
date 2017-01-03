@@ -11,10 +11,10 @@ namespace Mist
 {
 namespace Node
 {
-  
+
 /*****************************************************************************
-* ClientRequest, ClientResponse, ClientStream
-*****************************************************************************/
+ * ClientRequest, ClientResponse, ClientStream
+ *****************************************************************************/
 
 class ClientStreamWrap
   : public NodeWrapSingleton<ClientStreamWrap, mist::h2::ClientStream>
@@ -57,7 +57,8 @@ public:
 private:
 
   void _write(const Nan::FunctionCallbackInfo<v8::Value>& info);
-  ssize_t onRead(std::uint8_t* data, std::size_t length, std::uint32_t* flags);
+  mist::h2::generator_callback::result_type
+    onRead(std::uint8_t* data, std::size_t length);
   void setOnResponse(const Nan::FunctionCallbackInfo<v8::Value>& info);
   void setOnPush(const Nan::FunctionCallbackInfo<v8::Value>& info);
   void headers(const Nan::FunctionCallbackInfo<v8::Value>& info);

@@ -22,82 +22,96 @@ namespace h2
 /*
  * ClientRequest
  */
+MistConnApi
 ClientRequest::ClientRequest(std::shared_ptr<ClientStreamImpl> impl)
   : _impl(impl)
 {}
 
+MistConnApi
 ClientStream
 ClientRequest::stream()
 {
   return ClientStream(_impl);
 }
 
+MistConnApi
 void
 ClientRequest::setOnResponse(client_response_callback cb)
 {
   _impl->request().setOnResponse(std::move(cb));
 }
 
+MistConnApi
 void
 ClientRequest::setOnPush(client_request_callback cb)
 {
   _impl->request().setOnPush(std::move(cb));
 }
 
+MistConnApi
 void
 ClientRequest::setOnRead(generator_callback cb)
 {
   _impl->setOnRead(std::move(cb));
 }
 
+MistConnApi
 void
 ClientRequest::end()
 {
   _impl->end();
 }
 
+MistConnApi
 void
 ClientRequest::end(const std::string& data)
 {
   _impl->end(data);
 }
 
+MistConnApi
 void
 ClientRequest::end(const std::vector<std::uint8_t>& data)
 {
   _impl->end(data);
 }
 
+MistConnApi
 const header_map&
 ClientRequest::headers() const
 {
   return _impl->request().headers();
 }
 
+MistConnApi
 const boost::optional<std::uint64_t>&
 ClientRequest::contentLength() const
 {
   return _impl->request().contentLength();
 }
 
+MistConnApi
 const boost::optional<std::string>&
 ClientRequest::method() const
 {
   return _impl->request().method();
 }
 
+MistConnApi
 const boost::optional<std::string>&
 ClientRequest::path() const
 {
   return _impl->request().path();
 }
 
+MistConnApi
 const boost::optional<std::string>&
 ClientRequest::scheme() const
 {
   return _impl->request().scheme();
 }
 
+MistConnApi
 const boost::optional<std::string>&
 ClientRequest::authority() const
 {
@@ -148,35 +162,40 @@ ClientRequestImpl::submitTrailers(header_map headers)
 /*
  * ClientResponse
  */
-
+MistConnApi
 ClientResponse::ClientResponse(std::shared_ptr<ClientStreamImpl> impl)
   : _impl(impl)
 {}
 
+MistConnApi
 ClientStream
 ClientResponse::stream()
 {
   return ClientStream(_impl);
 }
 
+MistConnApi
 void
 ClientResponse::setOnData(data_callback cb)
 {
   _impl->response().setOnData(std::move(cb));
 }
 
+MistConnApi
 const header_map&
 ClientResponse::headers() const
 {
   return _impl->response().headers();
 }
 
+MistConnApi
 const boost::optional<std::uint64_t>&
 ClientResponse::contentLength() const
 {
   return _impl->response().contentLength();
 }
 
+MistConnApi
 const boost::optional<std::uint16_t>&
 ClientResponse::statusCode() const
 {
@@ -206,46 +225,54 @@ ClientResponseImpl::onData(const std::uint8_t* data, std::size_t length)
 /*
 * ClientStream
 */
+MistConnApi
 ClientStream::ClientStream(std::shared_ptr<ClientStreamImpl> impl)
   : _impl(impl)
 {}
 
+MistConnApi
 ClientSession
 ClientStream::session()
 {
   return ClientSession(_impl->session());
 }
 
+MistConnApi
 ClientRequest
 ClientStream::request()
 {
   return ClientRequest(_impl);
 }
 
+MistConnApi
 ClientResponse
 ClientStream::response()
 {
   return ClientResponse(_impl);
 }
 
+MistConnApi
 void
 ClientStream::setOnClose(close_callback cb)
 {
   _impl->setOnClose(std::move(cb));
 }
 
+MistConnApi
 void
 ClientStream::close(boost::system::error_code ec)
 {
   _impl->close(std::move(ec));
 }
 
+MistConnApi
 void
 ClientStream::resume()
 {
   _impl->resume();
 }
 
+MistConnApi
 boost::system::error_code
 ClientStream::submitTrailers(const header_map& trailers)
 {

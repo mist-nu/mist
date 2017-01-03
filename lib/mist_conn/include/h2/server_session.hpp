@@ -1,5 +1,11 @@
-#ifndef __MIST_INCLUDE_H2_SERVER_SESSION_HPP__
-#define __MIST_INCLUDE_H2_SERVER_SESSION_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include <memory>
 
@@ -15,7 +21,7 @@ namespace h2
 
 class ServerSessionImpl;
 
-class ServerSession : public Session
+class MistConnApi ServerSession : public Session
 {
 public:
 
@@ -48,5 +54,3 @@ public:
 
 } // namespace h2
 } // namespace mist
-
-#endif

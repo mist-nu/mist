@@ -1,5 +1,11 @@
-#ifndef __MIST_INCLUDE_IO_SOCKET_HPP__
-#define __MIST_INCLUDE_IO_SOCKET_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include <cstddef>
 #include <functional>
@@ -10,7 +16,8 @@ namespace mist
 {
 namespace io
 {
-class Socket
+
+class MistConnApi Socket
 {
 public:
 
@@ -37,5 +44,3 @@ public:
 
 } // namespace io
 } // namespace mist
-
-#endif

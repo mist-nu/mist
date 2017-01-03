@@ -26,6 +26,7 @@ namespace h2
 /*
  * ClientSession
  */
+MistConnApi
 ClientSession::ClientSession(std::shared_ptr<io::Socket> socket)
   : _impl(std::make_shared<ClientSessionImpl>(socket))
 {
@@ -33,10 +34,12 @@ ClientSession::ClientSession(std::shared_ptr<io::Socket> socket)
     start();
 }
 
+MistConnApi
 ClientSession::ClientSession(std::shared_ptr<ClientSessionImpl> impl)
   : _impl(impl)
 {}
 
+MistConnApi
 ClientRequest
 ClientSession::submitRequest(std::string method, std::string path,
   std::string scheme, std::string authority, header_map headers,
@@ -48,30 +51,35 @@ ClientSession::submitRequest(std::string method, std::string path,
   return ClientRequest(strm);
 }
 
+MistConnApi
 void
 ClientSession::shutdown()
 {
   _impl->shutdown();
 }
 
+MistConnApi
 void
 ClientSession::start()
 {
     _impl->start();
 }
 
+MistConnApi
 void
 ClientSession::stop()
 {
     _impl->stop();
 }
 
+MistConnApi
 bool
 ClientSession::isStopped() const
 {
   return _impl->isStopped();
 }
 
+MistConnApi
 void
 ClientSession::setOnError(error_callback cb)
 {

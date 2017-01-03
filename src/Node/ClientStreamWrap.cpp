@@ -44,7 +44,8 @@ ClientRequestWrap::ClientRequestWrap(mist::h2::ClientRequest& _self)
     _inWrite(false), _lengthToWrite(0), _dataToWrite(nullptr)
 {
   using namespace std::placeholders;
-  self().setOnRead(std::bind(&ClientRequestWrap::onRead, this, _1, _2, _3));
+  mist::h2::generator_callback::result_type
+    onRead(std::uint8_t* data, std::size_t length);
 }
 
 v8::Local<v8::FunctionTemplate>
@@ -53,15 +54,15 @@ ClientRequestWrap::Init()
   v8::Local<v8::FunctionTemplate> tpl = defaultTemplate(ClassName());
 
   Nan::SetPrototypeMethod(tpl, "setOnResponse",
-			  Method<&ClientRequestWrap::setOnResponse>);
+    Method<&ClientRequestWrap::setOnResponse>);
   Nan::SetPrototypeMethod(tpl, "setOnPush",
-			  Method<&ClientRequestWrap::setOnPush>);
+    Method<&ClientRequestWrap::setOnPush>);
   Nan::SetPrototypeMethod(tpl, "headers",
-			  Method<&ClientRequestWrap::headers>);
+    Method<&ClientRequestWrap::headers>);
   Nan::SetPrototypeMethod(tpl, "_write",
-			  Method<&ClientRequestWrap::_write>);
+    Method<&ClientRequestWrap::_write>);
   Nan::SetPrototypeMethod(tpl, "stream",
-			  Method<&ClientRequestWrap::stream>);
+    Method<&ClientRequestWrap::stream>);
 
   constructor().Reset(Nan::GetFunction(tpl).ToLocalChecked());
 
@@ -90,8 +91,7 @@ ClientRequestWrap::_write(const Nan::FunctionCallbackInfo<v8::Value>& info)
 }
 
 mist::h2::generator_callback::result_type
-ClientRequestWrap::onRead(std::uint8_t* data, std::size_t length,
-  std::uint32_t* flags)
+ClientRequestWrap::onRead(std::uint8_t* data, std::size_t length)
 {
   if (_dataToWrite && !_lengthToWrite) {
     _dataToWrite = nullptr;
@@ -102,7 +102,7 @@ ClientRequestWrap::onRead(std::uint8_t* data, std::size_t length,
       Nan::Callback cb(Nan::New(_callback));
       cb();
     });
-    return 0;
+    return boost::none;
   }
 
   std::size_t actualLength = std::min(length, _lengthToWrite);

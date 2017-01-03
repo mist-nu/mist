@@ -1,5 +1,11 @@
-#ifndef __ERROR_MIST_HPP__
-#define __ERROR_MIST_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include <boost/system/error_code.hpp>
 
@@ -25,11 +31,9 @@ typedef enum {
 
 } mist_error;
 
-const boost::system::error_category &mist_category() noexcept;
+MistConnApi const boost::system::error_category &mist_category() noexcept;
 
 /* Creates a boost::system::error_code with the given error value */
-boost::system::error_code make_mist_error(mist_error ev);
+MistConnApi boost::system::error_code make_mist_error(mist_error ev);
 
 }
-
-#endif

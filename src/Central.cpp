@@ -882,14 +882,20 @@ void Mist::Central::addAddressLookupServer( const std::string& address, std::uin
               boost::system::error_code ec)
         {
             if (!ec) {
+                //std::cerr << "Submitting onion address " << onionAddress
+                //    << " to " << address << std::endl;
                 request->end(R"([{"address":")" + onionAddress + "\""
                   + R"(,"port":443)"
-                  + R"(,"type":"onion")"
+                  + R"(,"type":"tor")"
                   + R"(}])");
-                request->setOnResponse([](mist::h2::ClientResponse response)
+                request->setOnResponse([request, address](mist::h2::ClientResponse response)
                 {
-                  // TODO: Figure out error states here
+                    //std::cerr << "Got response from " << address << std::endl;
+                    // TODO: Figure out error states here
                 });
+            } else {
+                //std::cerr << "Could not connect to " << address
+                //    << ": " << ec.message() << std::endl;
             }
         });
     });

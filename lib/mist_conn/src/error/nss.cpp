@@ -913,16 +913,19 @@ class nss_error_category : public boost::system::error_category
 
 } // namespace
 
+MistConnApi
 const boost::system::error_category &nss_category() noexcept
 {
   return instance;
 }
 
+MistConnApi
 boost::system::error_code make_nss_error(PRErrorCode ev)
 {
   return boost::system::error_code(ev, nss_category());
 }
 
+MistConnApi
 boost::system::error_code make_nss_error()
 {
   return boost::system::error_code(PR_GetError(), nss_category());

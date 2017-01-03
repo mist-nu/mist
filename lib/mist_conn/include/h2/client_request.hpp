@@ -1,5 +1,11 @@
-#ifndef __MIST_HEADERS_H2_CLIENT_REQUEST_HPP__
-#define __MIST_HEADERS_H2_CLIENT_REQUEST_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include <cstddef>
 #include <memory>
@@ -18,7 +24,7 @@ namespace h2
 class ClientStream;
 class ClientStreamImpl;
 
-class ClientRequest
+class MistConnApi ClientRequest
 {
 public:
 
@@ -56,5 +62,3 @@ public:
 
 } // namespace h2
 } // namespace mist
-
-#endif

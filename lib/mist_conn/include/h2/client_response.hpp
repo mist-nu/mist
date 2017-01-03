@@ -1,5 +1,11 @@
-#ifndef __MIST_INCLUDE_H2_CLIENT_RESPONSE_HPP__
-#define __MIST_INCLUDE_H2_CLIENT_RESPONSE_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include <cstddef>
 #include <memory>
@@ -16,7 +22,7 @@ namespace h2
 class ClientStream;
 class ClientStreamImpl;
 
-class ClientResponse
+class MistConnApi ClientResponse
 {
 public:
 
@@ -44,5 +50,3 @@ public:
 
 }
 }
-
-#endif

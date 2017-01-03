@@ -1,5 +1,11 @@
-#ifndef __MIST_INCLUDE_CRYPTO_HASH_HPP__
-#define __MIST_INCLUDE_CRYPTO_HASH_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include <cstddef>
 #include <memory>
@@ -11,7 +17,7 @@ namespace mist
 namespace crypto
 {
 
-class Hasher
+class MistConnApi Hasher
 {
 public:
   virtual ~Hasher();
@@ -22,15 +28,13 @@ public:
     const std::uint8_t* end);
 };
 
-std::unique_ptr<Hasher> hash_md5();
+MistConnApi std::unique_ptr<Hasher> hash_md5();
 
-std::unique_ptr<Hasher> hash_sha3_256();
+MistConnApi std::unique_ptr<Hasher> hash_sha3_256();
 
-std::unique_ptr<Hasher> hash_sha3_384();
+MistConnApi std::unique_ptr<Hasher> hash_sha3_384();
 
-std::unique_ptr<Hasher> hash_sha3_512();
+MistConnApi std::unique_ptr<Hasher> hash_sha3_512();
 
 } // namespace crypto
 } // namespace mist
-
-#endif

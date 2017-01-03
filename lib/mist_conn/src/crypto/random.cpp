@@ -13,6 +13,7 @@ namespace mist
 namespace crypto
 {
 
+MistConnApi
 std::uint64_t getRandomUInt53()
 {
   std::uint64_t rand = 0;
@@ -21,11 +22,12 @@ std::uint64_t getRandomUInt53()
     BOOST_THROW_EXCEPTION(boost::system::system_error(make_nss_error(), "Unable to generate random number"));
   return rand % 0x20000000000000;
 }
-  
+
+MistConnApi
 double getRandomDouble53()
 {
   return static_cast<double>(getRandomUInt53());
 }
-  
+
 } // namespace crypto
 } // namespace mist

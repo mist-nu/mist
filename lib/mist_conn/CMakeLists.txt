@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 2.8.12)
 set(PROJECT_NAME MistConn)
 project(${PROJECT_NAME})
 
+add_definitions(-DBUILDING_MIST_CONN)
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 if(CMAKE_COMPILER_IS_GNUCXX)

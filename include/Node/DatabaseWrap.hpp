@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Node/Module.hpp"
+#include "Node/DatabaseWrap.hpp"
 #include "Database.h"
 
 namespace Mist

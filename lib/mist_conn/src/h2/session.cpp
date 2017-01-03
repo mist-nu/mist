@@ -53,6 +53,7 @@ std::string frameName(std::uint8_t type)
 /*
  * Session
  */
+MistConnApi
 Session::~Session() {}
 
 /*

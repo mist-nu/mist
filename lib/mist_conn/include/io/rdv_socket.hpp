@@ -1,5 +1,11 @@
-#ifndef __MIST_HEADERS_IO_RDV_SOCKET_HPP__
-#define __MIST_HEADERS_IO_RDV_SOCKET_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include <cstddef>
 
@@ -13,7 +19,7 @@ namespace mist
 namespace io
 {
 
-class RdvSocket : public FileDescriptor
+class MistConnApi RdvSocket : public FileDescriptor
 {
 public:
 
@@ -48,5 +54,3 @@ public:
 
 } // namespace io
 } // namespace mist
-
-#endif

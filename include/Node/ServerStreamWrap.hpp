@@ -103,7 +103,7 @@ public:
     _inWrite(false), _lengthToWrite(0), _dataToWrite(nullptr)
   {
     using namespace std::placeholders;
-    self().setOnRead(std::bind(&ServerResponseWrap::onRead, this, _1, _2, _3));
+    self().setOnRead(std::bind(&ServerResponseWrap::onRead, this, _1, _2));
   }
 
   static v8::Local<v8::FunctionTemplate> Init()
@@ -125,7 +125,8 @@ public:
 private:
 
   void _write(const Nan::FunctionCallbackInfo<v8::Value>& info);
-  ssize_t onRead(std::uint8_t* data, std::size_t length, std::uint32_t* flags);
+  mist::h2::generator_callback::result_type
+    onRead(std::uint8_t* data, std::size_t length);
   void headers(const Nan::FunctionCallbackInfo<v8::Value>& info);
   void stream(const Nan::FunctionCallbackInfo<v8::Value>& info);
 

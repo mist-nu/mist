@@ -24,46 +24,54 @@ namespace mist
 /*
 * Peer
 */
+MistConnApi
 Peer::Peer(PeerImpl& impl)
   : _impl(impl)
 {}
 
+MistConnApi
 const std::vector<std::uint8_t>&
 Peer::derPublicKey() const
 {
   return _impl.derPublicKey();
 }
 
+MistConnApi
 const std::vector<std::uint8_t>&
 Peer::publicKeyHash() const
 {
   return _impl.publicKeyHash();
 }
 
+MistConnApi
 const Peer::address_list&
 Peer::addresses() const
 {
   return _impl.addresses();
 }
 
+MistConnApi
 void
 Peer::addAddress(PeerAddress address)
 {
   _impl.addAddress(address);
 }
 
+MistConnApi
 bool
 Peer::authenticated() const
 {
   return _impl.authenticated();
 }
 
+MistConnApi
 void
 Peer::setAuthenticated(bool authenticated)
 {
   _impl.setAuthenticated(authenticated);
 }
 
+MistConnApi
 bool
 Peer::verify(const std::uint8_t* hashData, std::size_t hashLength,
   const std::uint8_t* signData, std::size_t signLength) const

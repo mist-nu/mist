@@ -20,6 +20,7 @@ namespace h2
 /*
  * Stream
  */
+MistConnApi
 Stream::~Stream() {}
 
 /*

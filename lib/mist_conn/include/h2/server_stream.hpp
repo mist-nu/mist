@@ -1,5 +1,11 @@
-#ifndef __MIST_INCLUDE_H2_SERVER_STREAM_HPP__
-#define __MIST_INCLUDE_H2_SERVER_STREAM_HPP__
+/*
+ * (c) 2016 VISIARC AB
+ * 
+ * Free software licensed under GPLv3.
+ */
+#pragma once
+
+#include "mist_conn_api.hpp"
 
 #include <cstddef>
 #include <memory>
@@ -19,7 +25,7 @@ class ServerRequest;
 class ServerResponse;
 class ServerStreamImpl;
 
-class ServerStream : public Stream
+class MistConnApi ServerStream : public Stream
 {
 public:
 
@@ -57,5 +63,3 @@ public:
 
 } // namespace h2
 } // namespace mist
-
-#endif

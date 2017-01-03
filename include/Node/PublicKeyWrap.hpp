@@ -32,6 +32,7 @@ public:
   void hash(const Nan::FunctionCallbackInfo<v8::Value>& info);
   void toString(const Nan::FunctionCallbackInfo<v8::Value>& info);
   void toDer(const Nan::FunctionCallbackInfo<v8::Value>& info);
+  void md5Fingerprint(const Nan::FunctionCallbackInfo<v8::Value>& info);
 
 };
 
