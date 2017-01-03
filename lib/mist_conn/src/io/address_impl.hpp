@@ -30,7 +30,7 @@ public:
   static AddressImpl fromIpAddr(const std::string& ip, std::uint16_t port);
   static AddressImpl fromAny(const std::string& str, std::uint16_t port);
 
-  std::string AddressImpl::toString() const;
+  std::string toString() const;
 
   const PRNetAddr* prAddr() const;
   PRNetAddr* prAddr();
