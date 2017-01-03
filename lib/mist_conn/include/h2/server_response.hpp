@@ -1,13 +1,10 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #ifndef __MIST_INCLUDE_H2_SERVER_RESPONSE_HPP__
 #define __MIST_INCLUDE_H2_SERVER_RESPONSE_HPP__
 
 #include <cstddef>
 #include <memory>
+#include <string>
+#include <vector>
 
 #include <boost/optional.hpp>
 
@@ -28,8 +25,9 @@ public:
   ServerStream stream();
 
   void setOnRead(generator_callback cb);
-
   void end();
+  void end(const std::string& buffer);
+  void end(const std::vector<std::uint8_t>& buffer);
 
   boost::system::error_code submitTrailers(header_map headers);
 

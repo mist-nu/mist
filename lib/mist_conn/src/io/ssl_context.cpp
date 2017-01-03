@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -422,29 +417,24 @@ SSLContextImpl::initializeTLS(SSLSocket& sock)
   if (SSL_OptionSet(sslfd, SSL_REQUEST_CERTIFICATE, PR_TRUE) != SECSuccess)
     BOOST_THROW_EXCEPTION(boost::system::system_error(make_nss_error(),
       "Unable to modify SSL_REQUEST_CERTIFICATE option"));
-      
+
   /* Require certificate */
   if (SSL_OptionSet(sslfd, SSL_REQUIRE_CERTIFICATE , PR_TRUE) != SECSuccess)
     BOOST_THROW_EXCEPTION(boost::system::system_error(make_nss_error(),
       "Unable to modify SSL_REQUIRE_CERTIFICATE option"));
-  
-  /* Disable SSLv2 */
-  /* This doesn't work in windows... why? */
-  //if (SSL_OptionSet(sslfd, SSL_ENABLE_SSL2, PR_FALSE) != SECSuccess)
-  //  BOOST_THROW_EXCEPTION(boost::system::system_error(make_nss_error(),
-  //    "Unable to modify SSL_ENABLE_SSL2 option"));
-      
+
   /* Disable SSLv3 */
   if (SSL_OptionSet(sslfd, SSL_ENABLE_SSL3, PR_FALSE) != SECSuccess)
     BOOST_THROW_EXCEPTION(boost::system::system_error(make_nss_error(),
       "Unable to modify SSL_ENABLE_SSL3 option"));
-      
+
   /* Enable TLS */
   if (SSL_OptionSet(sslfd, SSL_ENABLE_TLS, PR_TRUE) != SECSuccess)
     BOOST_THROW_EXCEPTION(boost::system::system_error(make_nss_error(),
       "Unable to modify SSL_ENABLE_TLS option"));
 
-  /* TODO: Require latest TLS version */
+  /* Require latest TLS version */
+  // TODO: TLS v1.3
   {
     SSLVersionRange sslverrange = {
       SSL_LIBRARY_VERSION_TLS_1_2, SSL_LIBRARY_VERSION_TLS_1_2
@@ -453,19 +443,20 @@ SSLContextImpl::initializeTLS(SSLSocket& sock)
       BOOST_THROW_EXCEPTION(boost::system::system_error(make_nss_error(),
         "Unable to set SSL version"));
   }
-  
+
   /* Disable session cache */
   if (SSL_OptionSet(sslfd, SSL_NO_CACHE, PR_TRUE) != SECSuccess)
     BOOST_THROW_EXCEPTION(boost::system::system_error(make_nss_error(),
       "Unable to modify SSL_NO_CACHE option"));
 
   /* Enable ALPN */
-  if (SSL_OptionSet(sslfd, SSL_ENABLE_NPN, PR_TRUE) != SECSuccess)
+  if (SSL_OptionSet(sslfd, SSL_ENABLE_ALPN, PR_TRUE) != SECSuccess)
     BOOST_THROW_EXCEPTION(boost::system::system_error(make_nss_error(),
       "Unable to modify SSL_ENABLE_NPN option"));
 
   /* Disable NPN */
-  if (SSL_OptionSet(sslfd, SSL_ENABLE_ALPN, PR_TRUE) != SECSuccess)
+  // TODO:
+  if (SSL_OptionSet(sslfd, SSL_ENABLE_NPN, PR_TRUE) != SECSuccess)
     BOOST_THROW_EXCEPTION(boost::system::system_error(make_nss_error(),
       "Unable to modify SSL_ENABLE_ALPN option"));
 
@@ -477,7 +468,7 @@ SSLContextImpl::initializeTLS(SSLSocket& sock)
       BOOST_THROW_EXCEPTION(boost::system::system_error(make_nss_error(),
         "Unable to set protocol negotiation"));
   }
-  
+
   /* Client certificate and key callback */
   {
     auto rv = SSL_AuthCertificateHook(sslfd,
@@ -487,7 +478,7 @@ SSLContextImpl::initializeTLS(SSLSocket& sock)
       SSLSocket &socket = *static_cast<SSLSocket*>(arg);
       return socket.sslCtx()._impl->authCertificate(socket, checkSig, isServer);
     }, &sock);
-    
+
     if (rv != SECSuccess)
       BOOST_THROW_EXCEPTION(boost::system::system_error(make_nss_error(),
         "Unable to set AuthCertificateHook"));

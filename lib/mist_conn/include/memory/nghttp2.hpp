@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #ifndef __MEMORY_NGHTTP2_HPP__
 #define __MEMORY_NGHTTP2_HPP__
 

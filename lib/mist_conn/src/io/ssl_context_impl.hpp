@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #ifndef __MIST_SRC_IO_SSL_CONTEXT_IMPL_HPP__
 #define __MIST_SRC_IO_SSL_CONTEXT_IMPL_HPP__
 

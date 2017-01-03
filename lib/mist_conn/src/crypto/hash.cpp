@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #include <array>
 #include <cstddef>
 #include <string>

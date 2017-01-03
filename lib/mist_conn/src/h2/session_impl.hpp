@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #ifndef __MIST_HEADERS_H2_SESSION_HPP__
 #define __MIST_HEADERS_H2_SESSION_HPP__
 
@@ -168,6 +163,9 @@ protected:
 
   virtual int onStreamClose(std::int32_t stream_id,
     std::uint32_t error_code) = 0;
+
+  virtual ssize_t onRead(std::int32_t stream_id, std::uint8_t* data,
+    std::size_t length, std::uint32_t* flags) = 0;
 
 };
 

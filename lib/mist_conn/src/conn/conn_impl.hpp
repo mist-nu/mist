@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #ifndef __MIST_HEADERS_CONN_HPP__
 #define __MIST_HEADERS_CONN_HPP__
 
@@ -116,10 +111,13 @@ public:
   Service& newService(std::string name);
 
   void openSSLSocket(const io::Address& addr,
-    std::function<void(std::shared_ptr<io::Socket>)> cb);
+    std::function<void(std::shared_ptr<io::Socket>,
+        boost::system::error_code)> cb);
 
   void submitRequest(const io::Address& addr, std::string method,
-    std::string path, std::function<void(boost::optional<h2::ClientRequest>)> cb);
+    std::string path, std::string authority, mist::h2::header_map headers,
+    std::function<void(boost::optional<h2::ClientRequest>,
+      boost::system::error_code)> cb);
 
 private:
 

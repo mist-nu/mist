@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #include <cassert>
 #include <cstddef>
 #include <list>
@@ -183,6 +178,18 @@ ClientSessionImpl::onStreamClose(std::int32_t stream_id,
   if (!stream)
     return 0;
   return (*stream)->onStreamClose(error_code);
+}
+
+ssize_t
+ClientSessionImpl::onRead(std::int32_t stream_id, std::uint8_t* data,
+  std::size_t length, std::uint32_t* flags)
+{
+  auto stream = findStream<ClientStreamImpl>(stream_id);
+  if (!stream) {
+    *flags |= NGHTTP2_ERR_EOF;
+    return 0;
+  }
+  return (*stream)->onRead(data, length, flags);
 }
 
 } // namespace h2

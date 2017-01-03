@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #include <cstddef>
 #include <string>
 
@@ -35,11 +30,10 @@ WebSocket::WebSocket()
 }
 
 generator_callback::result_type
-WebSocket::generator(std::uint8_t* data, std::size_t length,
-  std::uint32_t* flags)
+WebSocket::generator(std::uint8_t* data, std::size_t length)
 {
   if (_w.state == Write::State::Off)
-    return NGHTTP2_ERR_DEFERRED;
+    return boost::none;
 
   // Write
   std::size_t nwrite;
@@ -151,7 +145,7 @@ ClientWebSocket::start(ClientSession session, std::string authority,
 
     using namespace std::placeholders;
     auto request = session.submitRequest("GET", path, "wss", authority,
-      headers, std::bind(&WebSocket::generator, this, _1, _2, _3));
+      headers, std::bind(&WebSocket::generator, this, _1, _2));
     stream = request.stream();
   }
 
@@ -191,7 +185,7 @@ ServerWebSocket::start(ServerRequest request)
 
     using namespace std::placeholders;
     stream->submitResponse(101, headers,
-      std::bind(&WebSocket::generator, this, _1, _2, _3));
+      std::bind(&WebSocket::generator, this, _1, _2));
   }
 
   _stream = std::unique_ptr<Stream>(new ServerStream(*stream));

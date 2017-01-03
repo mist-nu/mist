@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #include <cstddef>
 #include <functional>
 #include <iostream>
@@ -207,16 +202,21 @@ ConnectContext::directConnectPort() const
 
 void
 ConnectContext::openSSLSocket(const io::Address& addr,
-    std::function<void(std::shared_ptr<io::Socket>)> cb)
+    std::function<void(std::shared_ptr<io::Socket>,
+        boost::system::error_code)> cb)
 {
     _impl->openSSLSocket(addr, std::move(cb));
 }
 
 void
-ConnectContext::submitRequest(const io::Address& addr, std::string method,
-    std::string path, std::function<void(boost::optional<h2::ClientRequest>)> cb)
+ConnectContext::submitRequest(const io::Address& addr,
+    std::string method, std::string path, std::string authority,
+    mist::h2::header_map headers,
+    std::function<void(boost::optional<h2::ClientRequest>,
+        boost::system::error_code)> cb)
 {
-    _impl->submitRequest(addr, method, path, std::move(cb));
+    _impl->submitRequest(addr, std::move(method), std::move(path),
+        std::move(authority), std::move(headers), std::move(cb));
 }
 
 /*
@@ -439,44 +439,48 @@ ConnectContextImpl::incomingTorConnection(
 
 void
 ConnectContextImpl::openSSLSocket(const io::Address& addr,
-  std::function<void(std::shared_ptr<io::Socket>)> cb)
+  std::function<void(std::shared_ptr<io::Socket>,
+      boost::system::error_code)> cb)
 {
   std::shared_ptr<io::SSLSocket> socket = _sslCtx.openSocket();
   socket->connect(addr,
     [cb, socket](boost::system::error_code ec)
   {
-    if (ec) {
-      cb(nullptr);
-    } else {
+    if (!ec) {
       socket->handshake(
         /* Handshake done */
         [cb, socket](boost::system::error_code ec)
       {
         if (ec)
-          cb(nullptr);
+          cb(nullptr, ec);
         else
-          cb(socket);
+          cb(socket, boost::system::error_code());
       },
         /* Authenticate  */
         [](CERTCertificate*) -> bool { return true;  });
+    } else {
+        cb(nullptr, ec);
     }
   });
 }
 
 void
-ConnectContextImpl::submitRequest(const io::Address& addr, std::string method,
-  std::string path, std::function<void(boost::optional<h2::ClientRequest>)> cb)
+ConnectContextImpl::submitRequest(const io::Address& addr,
+    std::string method, std::string path, std::string authority,
+    mist::h2::header_map headers,
+    std::function<void(boost::optional<h2::ClientRequest>,
+      boost::system::error_code)> cb)
 {
   openSSLSocket(addr,
-      [method, path, cb](std::shared_ptr<io::Socket> socket)
+      [=](std::shared_ptr<io::Socket> socket, boost::system::error_code ec)
   {
-      if (socket) {
+      if (!ec) {
           auto session = h2::ClientSession(std::move(socket));
-          auto request = session.submitRequest(method, path, "https", "mist",
-              mist::h2::header_map(), nullptr);
-          cb(request);
+          auto request = session.submitRequest(method, path, "https",
+              authority, headers, nullptr);
+          cb(request, boost::system::error_code());
       } else {
-          cb(boost::none);
+          cb(boost::none, ec);
       }
   });
 }

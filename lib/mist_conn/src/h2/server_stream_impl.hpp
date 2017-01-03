@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #ifndef __MIST_SRC_H2_SERVER_STREAM_IMPL_HPP__
 #define __MIST_SRC_H2_SERVER_STREAM_IMPL_HPP__
 
@@ -65,25 +60,14 @@ private:
 
 class ServerResponseImpl : public ResponseLane
 {
-public:
-
-  void setOnRead(generator_callback cb);
-
 private:
 
   friend class ServerStreamImpl;
-
-  generator_callback _onRead;
-
-  bool _eof;
 
 protected:
 
   //boost::optional<ServerRequest> push(boost::system::error_code &ec,
   //  std::string method, std::string path, header_map headers);
-
-  generator_callback::result_type onRead(std::uint8_t* data,
-    std::size_t length, std::uint32_t* flags);
 
 };
 
@@ -107,8 +91,6 @@ public:
     header_map headers, generator_callback cb);
 
   boost::system::error_code submitTrailers(header_map headers);
-
-  void end();
 
 private:
 
@@ -135,9 +117,6 @@ protected:
     std::size_t len) override;
 
   virtual int onStreamClose(std::uint32_t errorCode) override;
-
-  virtual generator_callback::result_type onRead(std::uint8_t* data,
-    std::size_t length, std::uint32_t* flags) override;
 
 };
 

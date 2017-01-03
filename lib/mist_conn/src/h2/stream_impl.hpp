@@ -1,13 +1,9 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #ifndef __MIST_SRC_H2_STREAM_STREAM_IMPL_HPP__
 #define __MIST_SRC_H2_STREAM_STREAM_IMPL_HPP__
 
 #include <cstddef>
 #include <memory>
+#include <mutex>
 #include <string>
 
 #include <boost/optional.hpp>
@@ -51,11 +47,18 @@ public:
 
   void setOnClose(close_callback cb);
 
+  void setOnRead(generator_callback cb);
+  void end();
+  void end(const std::string& buffer);
+  void end(const std::vector<std::uint8_t>& buffer);
+
   void close(boost::system::error_code ec);
 
   void resume();
 
 private:
+
+  std::recursive_mutex mux;
 
   friend class SessionImpl;
 
@@ -69,6 +72,8 @@ private:
   std::int32_t _streamId;
 
   close_callback _onClose;
+
+  generator_callback _onRead;
 
 protected:
 
@@ -89,8 +94,8 @@ protected:
 
   virtual int onStreamClose(std::uint32_t errorCode) = 0;
 
-  virtual generator_callback::result_type onRead(std::uint8_t* data,
-    std::size_t length, std::uint32_t* flags) = 0;
+  ssize_t onRead(std::uint8_t* data, std::size_t length,
+    std::uint32_t* flags);
 
 };
 

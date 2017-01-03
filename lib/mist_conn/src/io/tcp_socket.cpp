@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #include <algorithm>
 #include <cassert>
 #include <iostream>
@@ -127,6 +122,9 @@ TCPSocket::process(PRInt16 inFlags, PRInt16 outFlags)
         //std::cerr << "Socket Open PR_POLL_WRITE" << std::endl;
         writeReady();
       }
+      // TODO: writeReady may trigger callbacks that close the socket...
+      if (_state == State::Closed)
+          return;
       if (outFlags & PR_POLL_READ) {
         //std::cerr << "Socket Open PR_POLL_READ" << std::endl;
         readReady();

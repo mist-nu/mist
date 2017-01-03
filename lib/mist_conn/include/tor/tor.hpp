@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #ifndef __MIST_HEADERS_TOR_TOR_HPP__
 #define __MIST_HEADERS_TOR_TOR_HPP__
 

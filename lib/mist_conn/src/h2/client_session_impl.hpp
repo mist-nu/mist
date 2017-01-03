@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #ifndef __MIST_SRC_H2_CLIENT_SESSION_IMPL_HPP__
 #define __MIST_SRC_H2_CLIENT_SESSION_IMPL_HPP__
 
@@ -78,6 +73,9 @@ protected:
 
   virtual int onStreamClose(std::int32_t stream_id,
     std::uint32_t error_code) override;
+
+  virtual ssize_t onRead(std::int32_t stream_id, std::uint8_t* data,
+    std::size_t length, std::uint32_t* flags) override;
 
 };
 

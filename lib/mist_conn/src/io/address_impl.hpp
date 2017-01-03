@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #ifndef __MIST_SRC_IO_ADDRESS_IMPL_HPP__
 #define __MIST_SRC_IO_ADDRESS_IMPL_HPP__
 
@@ -34,6 +29,8 @@ public:
     std::uint16_t port);
   static AddressImpl fromIpAddr(const std::string& ip, std::uint16_t port);
   static AddressImpl fromAny(const std::string& str, std::uint16_t port);
+
+  std::string AddressImpl::toString() const;
 
   const PRNetAddr* prAddr() const;
   PRNetAddr* prAddr();

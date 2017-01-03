@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #ifndef __MIST_INCLUDE_H2_WEBSOCKET_HPP__
 #define __MIST_INCLUDE_H2_WEBSOCKET_HPP__
 
@@ -29,7 +24,7 @@ class WebSocket : public io::Socket
 public:
 
   generator_callback::result_type generator(std::uint8_t* data,
-    std::size_t length, std::uint32_t* flags);
+    std::size_t length);
 
   void onData(const std::uint8_t* data, std::size_t length);
 

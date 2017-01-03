@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #ifndef __MIST_SRC_H2_STREAM_CLIENT_STREAM_IMPL_HPP__
 #define __MIST_SRC_H2_STREAM_CLIENT_STREAM_IMPL_HPP__
 
@@ -46,10 +41,6 @@ public:
 
   void setOnPush(client_request_callback cb);
 
-  void setOnRead(generator_callback cb);
-
-  void end();
-
   boost::system::error_code submitTrailers(header_map headers);
 
 protected:
@@ -60,9 +51,6 @@ protected:
 
   void onPush(std::shared_ptr<ClientStreamImpl> pushedStream);
 
-  generator_callback::result_type onRead(std::uint8_t* data,
-    std::size_t length, std::uint32_t* flags);
-
 private:
 
   ClientStreamImpl& _stream;
@@ -70,10 +58,6 @@ private:
   client_response_callback _onResponse;
 
   client_request_callback _onPush;
-
-  generator_callback _onRead;
-
-  bool _eof;
 
 };
 
@@ -150,9 +134,6 @@ protected:
     std::size_t len) override;
 
   virtual int onStreamClose(std::uint32_t errorCode) override;
-
-  virtual generator_callback::result_type onRead(std::uint8_t* data,
-    std::size_t length, std::uint32_t* flags) override;
 
 };
 

@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #include <cassert>
 #include <cstddef>
 #include <list>
@@ -328,6 +323,7 @@ SessionImpl::stop()
   if (_stopped)
     return;
   _stopped = true;
+  // TODO: Check if this is necessary
   for (auto s : _streams) {
     auto stream(s.second.lock());
     if (stream) {
@@ -419,8 +415,8 @@ SessionImpl::submitRequest(StreamImpl& strm,
         std::uint8_t* data, std::size_t length, std::uint32_t* flags,
         nghttp2_data_source* source, void* userp) -> ssize_t
     {
-      StreamImpl& strm = *static_cast<StreamImpl*>(source->ptr);
-      return static_cast<ssize_t>(strm.onRead(data, length, flags));
+      SessionImpl& session = *static_cast<SessionImpl*>(source->ptr);
+      return session.onRead(stream_id, data, length, flags);
     };
     prdptr = &prd;
   }
@@ -460,8 +456,8 @@ SessionImpl::submitResponse(StreamImpl& strm,
         std::uint8_t* data, std::size_t length, std::uint32_t* flags,
         nghttp2_data_source* source, void* userp) -> ssize_t
     {
-      StreamImpl& strm = *static_cast<StreamImpl*>(source->ptr);
-      return static_cast<ssize_t>(strm.onRead(data, length, flags));
+      SessionImpl& session = *static_cast<SessionImpl*>(source->ptr);
+      return session.onRead(stream_id, data, length, flags);
     };
     prdptr = &prd;
   }

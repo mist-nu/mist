@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #ifndef __MIST_HEADERS_H2_TYPES_HPP__
 #define __MIST_HEADERS_H2_TYPES_HPP__
 
@@ -10,6 +5,7 @@
 #include <functional>
 #include <map>
 
+#include <boost/optional.hpp>
 #include <boost/system/error_code.hpp>
 
 namespace mist
@@ -30,8 +26,8 @@ using header_map = std::map<std::string, header_value>;
 using data_callback
   = std::function<void(const std::uint8_t* data, std::size_t length)>;
 using generator_callback
-  = std::function<std::ptrdiff_t(std::uint8_t* data, std::size_t length,
-                                 std::uint32_t* flags)>;
+  = std::function<boost::optional<std::size_t>(std::uint8_t* data,
+      std::size_t length)>;
 
 using close_callback = std::function<void(const boost::system::error_code&)>;
 using error_callback = std::function<void(const boost::system::error_code&)>;

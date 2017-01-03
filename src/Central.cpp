@@ -219,46 +219,6 @@ namespace
 //     }
 // };
 
-void putAllData(mist::h2::ServerResponse response,
-    std::string buffer) {
-    std::size_t i = 0;
-    response.setOnRead([response, buffer, i](std::uint8_t* data,
-        std::size_t length,
-        std::uint32_t* flags) mutable -> std::ptrdiff_t
-    {
-        std::size_t n = std::min(length, buffer.length() - i);
-        if (n == 0) {
-            response.end();
-            return 0;
-        } else {
-            const std::uint8_t* begin = reinterpret_cast<const std::uint8_t*>(buffer.data());
-            const std::uint8_t* end = begin + n;
-            std::copy(begin, end, data);
-            return static_cast<std::ptrdiff_t>(n);
-        }
-    });
-}
-
-void putAllData(mist::h2::ClientRequest request,
-    std::string buffer) {
-    std::size_t i = 0;
-    request.setOnRead([request, buffer, i](std::uint8_t* data,
-        std::size_t length,
-        std::uint32_t* flags) mutable -> std::ptrdiff_t
-    {
-        std::size_t n = std::min(length, buffer.length() - i);
-        if (n == 0) {
-            request.end();
-            return 0;
-        } else {
-            const std::uint8_t* begin = reinterpret_cast<const std::uint8_t*>(buffer.data());
-            const std::uint8_t* end = begin + n;
-            std::copy(begin, end, data);
-            return static_cast<std::ptrdiff_t>(n);
-        }
-    });
-}
-
 void getAllData(mist::h2::ServerRequest request,
     std::function<void(std::string)> cb) {
     std::shared_ptr<std::string> buf
@@ -317,7 +277,7 @@ void execOutStream(mist::io::IOContext& ioCtx,
     std::function<void(std::streambuf&)> fn) {
     std::ostringstream os;
     fn(*os.rdbuf());
-    putAllData(req, os.str());
+    req.end(os.str());
 }
 
 void execOutStream(mist::io::IOContext& ioCtx,
@@ -325,7 +285,7 @@ void execOutStream(mist::io::IOContext& ioCtx,
     std::function<void(std::streambuf&)> fn) {
     std::ostringstream os;
     fn(*os.rdbuf());
-    putAllData(res, os.str());
+    res.end(os.str());
 }
 
 } // namespace
@@ -917,20 +877,20 @@ void Mist::Central::addAddressLookupServer( const std::string& address, std::uin
     connCtx.onionAddress([=](const std::string& onionAddress)
     {
         auto addr(mist::io::Address::fromAny(address, port));
-        connCtx.submitRequest(addr, "POST", "/peer",
-            [=](boost::optional<mist::h2::ClientRequest> request)
+        connCtx.submitRequest(addr, "POST", "/peer", address, {},
+            [=](boost::optional<mist::h2::ClientRequest> request,
+              boost::system::error_code ec)
         {
-            if (request) {
-                std::string sss(
-                    R"("[{"address":"")" + onionAddress + "\""
-                    + R"(","port":443)"
-                    + R"(,"type":"onion"")"
-                    + R"("}])");
-                putAllData(*request, sss);
+            if (!ec) {
+                request->end(R"([{"address":")" + onionAddress + "\""
+                  + R"(,"port":443)"
+                  + R"(,"type":"onion")"
+                  + R"(}])");
+                request->setOnResponse([](mist::h2::ClientResponse response)
+                {
+                  // TODO: Figure out error states here
+                });
             }
-            request->setOnResponse([](mist::h2::ClientResponse response) {
-                // TODO: Figure out error states here
-            });
         });
     });
 }
@@ -1145,6 +1105,7 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
                     });
                 }
             });
+            request.end();
         });
     }
 }
@@ -1167,6 +1128,7 @@ Mist::Central::PeerSyncState::queryTransactionsGetNextParent()
                 // If a transaction parent transaction does not exist, add it to transactionParentsToDownload
                 queryTransactionsGetNextParent();
             });
+            request.end();
         });
     } else {
         // Search transactionsToDownload for the oldest transaction
@@ -1182,6 +1144,7 @@ Mist::Central::PeerSyncState::queryTransactionsGetNextParent()
 
                 queryTransactionsGetNextParent();
             });
+            request.end();
         });
 
     }
@@ -1203,6 +1166,7 @@ Mist::Central::PeerSyncState::queryTransactionsDownloadNextTransaction(std::vect
         {
             // INSERT transaction into currentDatabase
             queryTransactionsDownloadNextTransaction(std::next(it));
+            request.end();
         });
     }
 }
@@ -1234,9 +1198,11 @@ Mist::Central::PeerSyncState::queryAddressServersNext(address_vector_t::iterator
         std::cerr << addressServer.first << " " << addressServer.second << std::endl;
         central.connCtx.submitRequest(
             mist::io::Address::fromAny(addressServer.first, addressServer.second),
-            "GET", path, [=](boost::optional<mist::h2::ClientRequest> request) mutable
+            "GET", path, addressServer.first, {},
+            [=](boost::optional<mist::h2::ClientRequest> request,
+              boost::system::error_code ec) mutable
         {
-            if (request) {
+            if (!ec) {
                 getJsonResponse(*request, [this, it, request]
                     (boost::optional<const JSON::Value&> value) mutable
                 {
@@ -1356,6 +1322,7 @@ Mist::Central::PeerSyncState::listServices(
             }
             callback(keyHash, services);
         });
+        request.end();
     });
 }
 
@@ -1728,20 +1695,24 @@ void Mist::Central::RestRequest::userInfo( const CryptoHelper::PublicKeyHash& us
 void Mist::Central::RestRequest::replyBadRequest() {
     // 400 Bad request
     request.stream().submitResponse(400, {});
+    request.stream().response().end();
 }
 
 void Mist::Central::RestRequest::replyBadMethod() {
     // 403 Bad method
     request.stream().submitResponse(403, {});
+    request.stream().response().end();
 }
 
 void Mist::Central::RestRequest::replyNotFound() {
     // 404 Not found
     request.stream().submitResponse(404, {});
+    request.stream().response().end();
 }
 
 void Mist::Central::RestRequest::replyNotAuthorized() {
     // ??? Not authorized
     // TODO:
     request.stream().submitResponse(400, {});
+    request.stream().response().end();
 }

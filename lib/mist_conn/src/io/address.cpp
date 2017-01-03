@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #include <cstddef>
 #include <string>
 #include <memory>
@@ -65,7 +60,13 @@ Address::fromIpAddr(const std::string& ip, std::uint16_t port)
 Address
 Address::fromAny(const std::string& str, std::uint16_t port)
 {
-  return Address(AddressImpl::fromAny(str, port));
+    return Address(AddressImpl::fromAny(str, port));
+}
+
+std::string
+Address::toString() const
+{
+    return _impl->toString();
 }
 
 /* AddressImpl */
@@ -192,6 +193,20 @@ AddressImpl::fromAny(const std::string& str, std::uint16_t port)
       throw;
   return impl;
 };
+
+std::string
+AddressImpl::toString() const
+{
+  if (addr.inet.family == AF_INET) {
+      return  std::to_string(addr.inet.ip & 0xff)
+          + '.' + std::to_string((addr.inet.ip >> 8) & 0xff)
+          + '.' + std::to_string((addr.inet.ip >> 16) & 0xff)
+          + '.' + std::to_string(addr.inet.ip >> 24)
+          + ':' + std::to_string(PR_ntohs(addr.inet.port));
+  } else {
+      return std::string();
+  }
+}
 
 } // namespace io
 } // namespace mist

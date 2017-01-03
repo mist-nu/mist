@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #include <cstddef>
 #include <memory>
 
@@ -52,13 +47,25 @@ ClientRequest::setOnPush(client_request_callback cb)
 void
 ClientRequest::setOnRead(generator_callback cb)
 {
-  _impl->request().setOnRead(std::move(cb));
+  _impl->setOnRead(std::move(cb));
 }
 
 void
 ClientRequest::end()
 {
-  _impl->request().end();
+  _impl->end();
+}
+
+void
+ClientRequest::end(const std::string& data)
+{
+  _impl->end(data);
+}
+
+void
+ClientRequest::end(const std::vector<std::uint8_t>& data)
+{
+  _impl->end(data);
 }
 
 const header_map&
@@ -101,7 +108,7 @@ ClientRequest::authority() const
  * ClientRequestImpl
  */
 ClientRequestImpl::ClientRequestImpl(ClientStreamImpl& stream)
-  : _stream(stream), _eof(false)
+  : _stream(stream)
 {}
 
 void
@@ -114,12 +121,6 @@ void
 ClientRequestImpl::setOnPush(client_request_callback cb)
 {
   _onPush = std::move(cb);
-}
-
-void
-ClientRequestImpl::setOnRead(generator_callback cb)
-{
-  _onRead = std::move(cb);
 }
 
 void
@@ -136,27 +137,6 @@ ClientRequestImpl::onPush(std::shared_ptr<ClientStreamImpl> pushedStream)
 {
   if (_onPush)
     _onPush(ClientRequest(std::move(pushedStream)));
-}
-
-generator_callback::result_type
-ClientRequestImpl::onRead(std::uint8_t* data, std::size_t length,
-  std::uint32_t* flags)
-{
-  if (_eof) {
-    *flags |= NGHTTP2_DATA_FLAG_EOF;
-    return 0;
-  } else if (_onRead) {
-    return _onRead(data, length, flags);
-  } else {
-    return NGHTTP2_ERR_DEFERRED;
-  }
-}
-
-void
-ClientRequestImpl::end()
-{
-  _eof = true;
-  _stream.resume();
 }
 
 boost::system::error_code
@@ -317,7 +297,7 @@ ClientStreamImpl::submit(std::string method, std::string path,
   }
 
   if (cb) {
-    request().setOnRead(std::move(cb));
+    setOnRead(std::move(cb));
   }
 
   /* Submit to the session */
@@ -423,13 +403,6 @@ ClientStreamImpl::onStreamClose(std::uint32_t errorCode)
     _response._onData(nullptr, 0);
 
   return 0;
-}
-
-generator_callback::result_type
-ClientStreamImpl::onRead(std::uint8_t* data, std::size_t length,
-  std::uint32_t* flags)
-{
-  return _request.onRead(data, length, flags);
 }
 
 } // namespace h2

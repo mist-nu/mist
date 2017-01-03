@@ -1,8 +1,3 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -110,13 +105,25 @@ ServerResponse::stream()
 void
 ServerResponse::setOnRead(generator_callback cb)
 {
-  _impl->response().setOnRead(std::move(cb));
+  _impl->setOnRead(std::move(cb));
 }
 
 void
 ServerResponse::end()
 {
   _impl->end();
+}
+
+void
+ServerResponse::end(const std::string& buffer)
+{
+  _impl->end(buffer);
+}
+
+void
+ServerResponse::end(const std::vector<std::uint8_t>& buffer)
+{
+  _impl->end(buffer);
 }
 
 boost::system::error_code
@@ -146,25 +153,6 @@ ServerResponse::statusCode() const
 /*
 * ServerResponseImpl
 */
-void
-ServerResponseImpl::setOnRead(generator_callback cb)
-{
-  _onRead = std::move(cb);
-}
-
-generator_callback::result_type
-ServerResponseImpl::onRead(std::uint8_t* data, std::size_t length,
-  std::uint32_t* flags)
-{
-  if (_eof) {
-    *flags |= NGHTTP2_DATA_FLAG_EOF;
-    return 0;
-  } else if (_onRead) {
-    return _onRead(data, length, flags);
-  } else {
-    return NGHTTP2_ERR_DEFERRED;
-  }
-}
 
 /*
 * ServerStream
@@ -261,7 +249,7 @@ ServerStreamImpl::submitResponse(std::uint16_t statusCode, header_map headers,
   }
 
   if (cb) {
-    response().setOnRead(std::move(cb));
+    setOnRead(std::move(cb));
   }
 
   return session()->submitResponse(*this, nvs);
@@ -271,13 +259,6 @@ boost::system::error_code
 ServerStreamImpl::submitTrailers(header_map headers)
 {
   return session()->submitTrailers(*this, makeHeaderNv(headers));
-}
-
-void
-ServerStreamImpl::end()
-{
-  _response._eof = true;
-  resume();
 }
 
 int
@@ -352,13 +333,6 @@ ServerStreamImpl::onStreamClose(std::uint32_t errorCode)
   if (_request._onData)
     _request._onData(nullptr, 0);
   return 0;
-}
-
-generator_callback::result_type
-ServerStreamImpl::onRead(std::uint8_t* data, std::size_t length,
-  std::uint32_t* flags)
-{
-  return _response.onRead(data, length, flags);
 }
 
 } // namespace h2

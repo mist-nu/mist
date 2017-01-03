@@ -1,13 +1,10 @@
-/*
- * (c) 2016 VISIARC AB
- * 
- * Free software licensed under GPLv3.
- */
 #ifndef __MIST_HEADERS_H2_CLIENT_REQUEST_HPP__
 #define __MIST_HEADERS_H2_CLIENT_REQUEST_HPP__
 
 #include <cstddef>
 #include <memory>
+#include <string>
+#include <vector>
 
 #include <boost/optional.hpp>
 
@@ -32,8 +29,9 @@ public:
   void setOnPush(client_request_callback cb);
 
   void setOnRead(generator_callback cb);
-
   void end();
+  void end(const std::string& data);
+  void end(const std::vector<std::uint8_t>& data);
 
   const header_map& headers() const;
   const boost::optional<std::uint64_t>& contentLength() const;
