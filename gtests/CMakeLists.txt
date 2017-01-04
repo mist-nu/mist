@@ -12,10 +12,13 @@ option(test "Build all tests." OFF) # Makes boolean 'test' available.
 set(PROJECT_NAME Mist)
 project(${PROJECT_NAME})
 
-if(test)
-    set(CMAKE_BUILD_TYPE Debug)
-else()
-    set(CMAKE_BUILD_TYPE Release)
+# Build type defaults
+if(NOT CMAKE_BUILD_TYPE)
+    if(test)
+        set(CMAKE_BUILD_TYPE Debug)
+    else()
+        set(CMAKE_BUILD_TYPE Release)
+    endif()
 endif()
 
 # TODO: make this more cross platform
