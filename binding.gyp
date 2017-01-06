@@ -3,6 +3,9 @@
         {
             "target_name": "mist",
             "type": "loadable_module",
+            "defines" : [
+                "CHANGE_G3LOG_DEBUG_TO_DBUG"
+            ],
             "sources": [ 
                 "src/Node/Async.cpp",
                 "src/Node/CentralWrap.cpp",
