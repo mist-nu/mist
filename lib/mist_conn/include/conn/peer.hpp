@@ -39,7 +39,7 @@ public:
 
   const address_list& addresses() const;
 
-  void addAddress(PeerAddress address);
+  //void addAddress(PeerAddress address);
 
   bool authenticated() const;
   void setAuthenticated(bool authenticated);

@@ -32,5 +32,9 @@ public:
 
 };
 
+MistConnApi std::string urlEncode(const std::string& value);
+
+MistConnApi std::string urlDecode(const std::string& value);
+
 } // namespace h2
 } // namespace mist

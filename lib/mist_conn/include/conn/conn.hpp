@@ -28,12 +28,16 @@ class SSLContext;
 }
 
 class Peer;
+struct PeerAddress;
 class Service;
 class ConnectContextImpl;
 
 class MistConnApi ConnectContext
 {
 public:
+
+  using connect_peer_callback = std::function<void(Peer&,
+    boost::system::error_code)>;
 
   using authenticate_peer_callback = std::function<void(Peer&)>;
 
@@ -43,10 +47,11 @@ public:
 
   io::SSLContext& sslCtx();
 
-  boost::system::error_code connectPeerDirect(Peer& peer,
-    const io::Address& addr);
+  void connectPeerDirect(Peer& peer, const io::Address& addr,
+    connect_peer_callback cb);
 
-  boost::system::error_code connectPeerTor(Peer& peer);
+  void connectPeerTor(Peer& peer, const PeerAddress& addr,
+    connect_peer_callback cb);
 
   Peer& addAuthenticatedPeer(const std::vector<std::uint8_t>& derPublicKey);
 

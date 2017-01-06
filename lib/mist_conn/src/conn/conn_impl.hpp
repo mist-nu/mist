@@ -76,19 +76,24 @@ protected:
 
   void incomingTorConnection(std::shared_ptr<io::SSLSocket> socket);
 
-  boost::system::error_code tryConnectPeerTor(Peer& peer,
-    Peer::address_list::const_iterator it);
+  //boost::system::error_code tryConnectPeerTor(Peer& peer,
+  //  Peer::address_list::const_iterator it);
 
 public:
+
+  using connect_peer_callback
+    = ConnectContext::connect_peer_callback;
 
   using authenticate_peer_callback
     = ConnectContext::authenticate_peer_callback;
 
   ConnectContextImpl(io::SSLContext& sslCtx, authenticate_peer_callback cb);
 
-  boost::system::error_code connectPeerDirect(Peer& peer, const io::Address& addr);
+  void connectPeerDirect(Peer& peer,
+    const io::Address& addr, connect_peer_callback cb);
 
-  boost::system::error_code connectPeerTor(Peer& peer);
+  void connectPeerTor(Peer& peer,
+    const PeerAddress& addr, connect_peer_callback cb);
 
   io::IOContext& ioCtx();
 
@@ -145,8 +150,10 @@ private:
   authenticate_peer_callback _authenticatePeerCb;
 
   std::map<std::string, std::shared_ptr<ServiceImpl>> _services;
-
+  
   void onPeerRequest(Peer& peer, h2::ServerRequest request);
+
+  void onPeerError(Peer& peer, boost::system::error_code ec);
 
   void onPeerConnectionStatus(Peer& peer, PeerImpl::ConnectionStatus status);
 

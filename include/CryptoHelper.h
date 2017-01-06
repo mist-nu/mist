@@ -91,7 +91,7 @@ public:
     //bool verify( const SHA3& hash, const Signature& sig ) const;
     
     PublicKeyHash hash() const;
-    std::string md5Fingerprint() const;
+    std::string fingerprint() const;
     std::string toString() const;
     std::vector<std::uint8_t> toDer() const;
     

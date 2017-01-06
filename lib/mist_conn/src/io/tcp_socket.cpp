@@ -28,26 +28,6 @@ namespace mist
 {
 namespace io
 {
-//namespace
-//{
-//
-//std::string to_hex(uint8_t byte)
-//{
-//  static const char *digits = "0123456789abcdef";
-//  std::array<char, 2> text{digits[byte >> 4], digits[byte & 0xf]};
-//  return std::string(text.begin(), text.end());
-//}
-//
-//template<typename It>
-//std::string to_hex(It begin, It end)
-//{
-//  std::string text;
-//  while (begin != end)
-//    text += to_hex(static_cast<uint8_t>(*(begin++)));
-//  return text;
-//}
-//
-//} // namespace
 
 /*
  * Socket
@@ -84,7 +64,6 @@ TCPSocket::inFlags() const
     PRInt16 flags
       = (isReading() ? PR_POLL_READ : 0)   // 1
       | (isWriting() ? PR_POLL_WRITE : 0); // 2
-    //std::cerr << "Socket polling with flags " << flags << std::endl;
     return flags;
   }
 }
@@ -115,18 +94,15 @@ TCPSocket::process(PRInt16 inFlags, PRInt16 outFlags)
   } else if (outFlags) {
     
     if (_state == State::Connecting) {
-      //std::cerr << "Socket Connecting" << std::endl;
       connectContinue(outFlags);
     } else {
       if (outFlags & PR_POLL_WRITE) {
-        //std::cerr << "Socket Open PR_POLL_WRITE" << std::endl;
         writeReady();
       }
       // TODO: writeReady may trigger callbacks that close the socket...
       if (_state == State::Closed)
           return;
       if (outFlags & PR_POLL_READ) {
-        //std::cerr << "Socket Open PR_POLL_READ" << std::endl;
         readReady();
       }
     }
@@ -247,7 +223,7 @@ TCPSocket::readReady()
 
   if (!nread) {
     /* Read 0 bytes: the socket is closed */
-    close();
+    close(make_nss_error(PR_CONNECT_RESET_ERROR));
   } else if (nread < 0) {
     PRErrorCode err = PR_GetError();
     if (err == PR_WOULD_BLOCK_ERROR) {
@@ -299,6 +275,19 @@ TCPSocket::write(const uint8_t* data, std::size_t length,
   _w.cb = std::move(cb);
   
   signal();
+}
+
+void
+TCPSocket::writeCopy(const uint8_t* data, std::size_t length,
+  write_callback cb)
+{
+  auto buf = std::make_shared<std::vector<std::uint8_t>>(data, data + length);
+  write(buf->data(), buf->size(),
+    [cb, buf](std::size_t nwritten, boost::system::error_code ec)
+  {
+    if (cb)
+      cb(nwritten, ec);
+  });
 }
 
 /* Called when the socket is ready for writing. */

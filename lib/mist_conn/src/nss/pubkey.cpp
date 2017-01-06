@@ -1,9 +1,12 @@
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <vector>
 
 #include <boost/system/system_error.hpp>
 #include <boost/throw_exception.hpp>
+
+#include <nssb64.h>
 
 #include <base64.h>
 #include <cert.h>
@@ -189,14 +192,25 @@ base64Decode(const std::string& src)
 }
 
 std::string
+base64Encode(SECItem* item)
+{
+  std::string base64(BTOA_ConvertItemToAscii(item));
+  /* Remove spaces and all ASCII control characters */
+  base64.erase(std::remove_if(base64.begin(), base64.end(),
+    [](char c) { return c <= 32; }),
+    base64.end());
+  return base64;
+}
+
+std::string
 base64Encode(const std::vector<std::uint8_t>& src)
 {
   SECItem bin{ siAsciiString,
-      reinterpret_cast<unsigned char*>(const_cast<std::uint8_t*>(src.data())),
-      static_cast<unsigned int>(src.size()) };
-  return std::string(BTOA_ConvertItemToAscii(&bin));
+    reinterpret_cast<unsigned char*>(const_cast<std::uint8_t*>(src.data())),
+    static_cast<unsigned int>(src.size()) };
+  return base64Encode(&bin);
 }
-  
+
 std::vector<std::uint8_t>
 derEncodePubKey(SECKEYPublicKey* key)
 {
@@ -211,7 +225,7 @@ pemEncodePubKey(SECKEYPublicKey* key)
 {
   auto derPubKey = to_unique(SECKEY_EncodeDERSubjectPublicKeyInfo(key));
   return "-----BEGIN PUBLIC KEY-----\n"
-    + std::string(BTOA_ConvertItemToAscii(derPubKey.get()))
+    + base64Encode(derPubKey.get())
     + "\n-----END PUBLIC KEY-----\n";
 }
 

@@ -37,6 +37,8 @@ public:
   virtual void write(const std::uint8_t *data, std::size_t length,
     write_callback cb = nullptr) = 0;
 
+  /* TODO: Move TCPSocket's writeCopy here */
+
   /* Close the socket. */
   virtual void close(boost::system::error_code ec
     = boost::system::error_code()) = 0;

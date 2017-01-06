@@ -40,6 +40,8 @@ class ServerRequestImpl : public RequestLane
 {
 public:
 
+  ServerRequestImpl(ServerStreamImpl& stream);
+
   void setOnData(data_callback cb);
 
 protected:
@@ -49,6 +51,8 @@ protected:
   void onData(const std::uint8_t* data, std::size_t length);
 
 private:
+
+  ServerStreamImpl& _stream;
 
   data_callback _onData;
 

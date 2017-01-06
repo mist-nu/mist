@@ -804,7 +804,7 @@ handshakeSOCKS5(mist::io::TCPSocket &sock,
   socksReq[1] = 1;
   socksReq[2] = 0;
 
-  sock.write(socksReq.data(), socksReq.size());
+  sock.writeCopy(socksReq.data(), socksReq.size());
 
   sock.readOnce(2,
     [=, &sock]
@@ -836,7 +836,7 @@ handshakeSOCKS5(mist::io::TCPSocket &sock,
       assert(outIt == connReq.end());
     }
 
-    sock.write(connReq.data(), connReq.size());
+    sock.writeCopy(connReq.data(), connReq.size());
 
     /* Read 5 bytes; these are all the bytes we need to determine the
     final packet size */
@@ -926,15 +926,13 @@ void
 TorController::connect(io::TCPSocket & socket, std::string hostname,
   std::uint16_t port, connect_callback cb)
 {
-  assert(_state == State::Started);
+  if (_state != State::Started) {
+    cb(make_mist_error(MIST_ERR_TOR_GENERAL_FAILURE));
+    return;
+  }
 
   /* Initialize addr to localhost:torPort */
   auto addr = io::Address::fromLoopback(_socksPort.get());
-  //if (PR_InitializeNetAddr(PR_IpAddrLoopback, _socksPort.get(), &addr)
-  //    != PR_SUCCESS) {
-  //  cb(mist::make_nss_error());
-  //  return;
-  //}
 
   auto anchor = shared_from_this();
   socket.connect(addr,

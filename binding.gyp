@@ -231,10 +231,6 @@
                 "-fno-rtti",
                 "-std=gnu++0x"
             ],
-            "link_settings": {
-                "libraries": [
-                ],
-            }
         },
         {
             "target_name": "libs",
@@ -297,10 +293,6 @@
                 "-fno-rtti",
                 "-std=gnu++0x"
             ],
-            "link_settings": {
-                "libraries": [
-                ],
-            }
         },
         {
             "target_name": "_mist_conn",
@@ -438,7 +430,7 @@
                             "BOOST_BUILDSTRING": "-vc140-mt-sgd-1_61",
                             "NGHTTP2_ROOT": "<!(echo %NGHTTP2_ROOT%)",
                             "NSS_ROOT": "<!(echo %NSS_ROOT%)",
-                            "NSS_BUILDSTRING": "WIN954.0_64_DBG.OBJ"
+                            "NSS_BUILDSTRING": "WIN954.0_64_DBG.OBJ",
                         },
                         "include_dirs+": [
                             ">(BOOST_ROOT)",
@@ -469,8 +461,8 @@
                         }
                     }
                 ]
-            ]
-        }
+            ],
+        },
     ],
 }
 

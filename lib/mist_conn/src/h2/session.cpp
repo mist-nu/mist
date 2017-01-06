@@ -1,8 +1,12 @@
 #include <cassert>
+#include <cctype>
 #include <cstddef>
+#include <iomanip>
 #include <list>
 #include <map>
 #include <memory>
+#include <sstream>
+#include <string>
 
 #include <boost/system/system_error.hpp>
 #include <boost/throw_exception.hpp>
@@ -22,6 +26,69 @@ namespace mist
 {
 namespace h2
 {
+
+MistConnApi
+std::string
+urlEncode(const std::string& value)
+{
+  std::ostringstream out;
+  out.fill('0');
+  out << std::hex;
+  for (auto c : value) {
+      if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+          out << c;
+      } else {
+        out << std::uppercase << '%' << std::setw(2)
+          << int((unsigned char)c) << std::nouppercase;
+      }
+  }
+  return out.str();
+}
+
+namespace
+{
+bool decodeTakeChar(std::string::const_iterator& i,
+  std::string::const_iterator& e, char& c)
+{
+  if (i == e)
+    return false;
+  c = *(i++);
+  return true;
+}
+bool decodeTakeCodedChar(std::string::const_iterator& i,
+  std::string::const_iterator& e, char& c)
+{
+  char c1, c2;
+  if (!decodeTakeChar(i, e, c1))
+    return false;
+  if (!decodeTakeChar(i, e, c2))
+    return false;
+  if (c1 < '0' || c1 > '9' || c2 < '0' || c2 > '9')
+    return false;
+  unsigned char cc = 10 * (c1 - '0') + (c2 - '0');
+  c = *reinterpret_cast<char*>(&cc);
+  return true;
+}
+} // namespace
+
+MistConnApi
+std::string
+urlDecode(const std::string& value)
+{
+  std::ostringstream out;
+  auto i = value.cbegin();
+  auto e = value.cend();
+  while (1) {
+    char c;
+    if (!decodeTakeChar(i, e, c))
+      break;
+    if (c == '%')
+      if (!decodeTakeCodedChar(i, e, c))
+        break;
+    out << c;
+  }
+  return out.str();
+}
 
 namespace
 {

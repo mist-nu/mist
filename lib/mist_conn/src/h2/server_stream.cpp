@@ -85,17 +85,29 @@ ServerRequest::setOnData(data_callback cb)
 /*
 * ServerRequestImpl
 */
+ServerRequestImpl::ServerRequestImpl(ServerStreamImpl & stream)
+  : _stream(stream)
+{
+}
+
 void
 ServerRequestImpl::setOnData(data_callback cb)
 {
-  _onData = std::move(cb);
+  auto anchor(_stream.shared_from_this());
+  _onData = [anchor, cb](const std::uint8_t* data, std::size_t length) {
+    cb(data, length);
+  };
 }
 
 void
 ServerRequestImpl::onData(const std::uint8_t* data, std::size_t length)
 {
-  if (_onData)
+  if (_onData) {
+    /* We clear the onData callback on EOF */
     _onData(data, length);
+    if (length == 0)
+      _onData = nullptr;
+  }
 }
 
 /*
@@ -242,7 +254,7 @@ ServerStream::submitTrailers(const header_map& trailers)
  * ServerStreamImpl
  */
 ServerStreamImpl::ServerStreamImpl(std::shared_ptr<ServerSessionImpl> session)
-  : StreamImpl(std::static_pointer_cast<SessionImpl>(session))
+  : StreamImpl(std::static_pointer_cast<SessionImpl>(session)), _request(*this)
 {}
 
 std::shared_ptr<ServerSessionImpl>
@@ -358,8 +370,9 @@ ServerStreamImpl::onStreamClose(std::uint32_t errorCode)
   if (errorCode)
     ec = make_nghttp2_error(errorCode);
   close(ec);
-  if (_request._onData)
-    _request._onData(nullptr, 0);
+
+  _request.onData(nullptr, 0);
+
   return 0;
 }
 

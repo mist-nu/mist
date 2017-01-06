@@ -324,12 +324,15 @@ private:
         using manifest_vector_t = std::vector<Database::Manifest>;
         using sha3_vector_t = std::vector<CryptoHelper::SHA3>;
 
+        std::string shortFinger() const;
+
         void onDisconnect();
 
         void queryAddressServers();
         void queryAddressServersNext(address_vector_t::iterator it);
         void queryAddressServersDone();
         void connectTor();
+        void connectTorNext(address_vector_t::iterator it);
         void connectTorDone();
         void connectDirect();
         void connectDirectDone();
@@ -399,8 +402,11 @@ private:
         RestRequest( Central& central, mist::Peer& peer,
             mist::h2::ServerRequest request );
 
+        std::string shortFinger() const;
+
         Central& central;
         mist::Peer& peer;
+        CryptoHelper::PublicKey pubKey;
         CryptoHelper::PublicKeyHash keyHash;
         mist::h2::ServerRequest request;
         std::map<CryptoHelper::SHA3,Mist::Database*> databaseCache;

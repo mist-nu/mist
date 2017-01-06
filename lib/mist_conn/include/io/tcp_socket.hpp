@@ -139,9 +139,13 @@ public:
   /* Read indefinitely. */
   virtual void read(read_callback cb) override;
 
-  /* Write. */
+  /* Write. The data needs to live until the callback is called. */
   virtual void write(const uint8_t* data, std::size_t length,
                      write_callback cb = nullptr) override;
+
+  /* Copy data and write */
+  void writeCopy(const uint8_t* data, std::size_t length,
+    write_callback cb = nullptr);
 
   /* Close the socket. */
   virtual void close(boost::system::error_code ec

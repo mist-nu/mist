@@ -29,8 +29,8 @@ v8::Local<v8::FunctionTemplate> PublicKeyWrap::Init()
       Method<&PublicKeyWrap::toString>);
   Nan::SetPrototypeMethod(tpl, "toDer",
       Method<&PublicKeyWrap::toDer>);
-  Nan::SetPrototypeMethod(tpl, "md5Fingerprint",
-      Method<&PublicKeyWrap::md5Fingerprint>);
+  Nan::SetPrototypeMethod(tpl, "fingerprint",
+      Method<&PublicKeyWrap::fingerprint>);
 
   constructor().Reset(Nan::GetFunction(tpl).ToLocalChecked());
 
@@ -78,10 +78,10 @@ PublicKeyWrap::toDer(const Nan::FunctionCallbackInfo<v8::Value>& info)
 }
 
 void
-PublicKeyWrap::md5Fingerprint(const Nan::FunctionCallbackInfo<v8::Value>& info)
+PublicKeyWrap::fingerprint(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
   Nan::HandleScope scope;
-  info.GetReturnValue().Set(conv(self().md5Fingerprint()));
+  info.GetReturnValue().Set(conv(self().fingerprint()));
 }
 
 } // namespace Node

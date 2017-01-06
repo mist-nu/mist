@@ -14,6 +14,11 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include <memory>
+
+#include <g3log/g3log.hpp>
+#include <g3log/logworker.hpp>
+#include <g3log/std2_make_unique.hpp>
 
 #include "CryptoHelper.h"
 #include "Central.h"
@@ -29,195 +34,22 @@
 #include "h2/server_request.hpp"
 #include "h2/server_response.hpp"
 #include "h2/server_stream.hpp"
+#include "h2/session.hpp"
 
 namespace
 {
 
-// class h2_ostream : public std::enable_shared_from_this<h2_istream>,
-//                    public std::basic_streambuf<char>
-// {
-// private:
+std::unique_ptr<g3::LogWorker> logWorker;
+std::unique_ptr<g3::SinkHandle<g3::FileSink>> logHandle;
 
-//     std::mutex mux;
-//     std::condition_variable read_cond;
-//     std::condition_variable write_cond;
-//     bool eof;
-//     bool running;
-//     bool exited;
-
-//     char* bufData;
-//     std::size_t bufLength;
-
-// public:
-
-//     h2_istream() : eof(false), running(true), exited(false),
-// 	           bufData(nullptr), bufLength(0) {}
-
-//     class guard
-//     {
-//     public:
-// 	guard(std::shared_ptr<h2_istream> strm) : strm(strm) {}
-// 	~guard() { strm->exit(); }
-//     private:
-// 	std::shared_ptr<h2_istream> strm;
-//     };
-//     friend class guard;
-
-//     guard make_guard() { return guard(shared_from_this()); }
-
-// protected:
-
-//     void exit() {
-// 	std::unique_lock<std::mutex> lock(mux);
-// 	running = false;
-// 	exited = true;
-// 	write_cond.notify_all();
-//     }
-
-//     virtual int_type underflow() override {
-// 	std::unique_lock<std::mutex> lock(mux);
-// 	/* In case of a re-read after EOF, check again here
-// 	   TODO: Find out if we can skip this... */
-// 	if (eof)
-// 	    return traits_type::eof();
-
-// 	running = false;
-// 	write_cond.notify_all();
-//         while (!running) {
-// 	    read_cond.wait(lock);
-//         }
-
-// 	if (eof) {
-// 	    return traits_type::eof();
-// 	} else {
-// 	    setg(bufData, bufData, bufData + bufLength);
-// 	    return traits_type::to_int_type(bufData[0]);
-// 	}
-//     }
-
-//     std::ptrdiff_t onData(std::uint8_t* data, std::size_t length, std::uint32_t* flags) {
-// 	std::unique_lock<std::mutex> lock(mux);
-// 	/* In case of an unconsumed stream, we get data
-// 	   after the reader has finished */
-// 	if (exited)
-// 	    return;
-
-// 	bufData = const_cast<char*>
-// 	    (reinterpret_cast<const char*>(data));
-// 	bufLength = length;
-// 	if (!data) {
-// 	    eof = true;
-// 	}
-
-// 	running = true;
-// 	read_cond.notify_all();
-// 	while (running) {
-// 	    write_cond.wait(lock);
-// 	}
-//     }
-// };
-
-// class h2_istream : public std::enable_shared_from_this<h2_istream>,
-//                    public std::basic_streambuf<char>
-// {
-// private:
-
-//     std::mutex mux;
-//     std::condition_variable read_cond;
-//     std::condition_variable write_cond;
-//     bool eof;
-//     bool running;
-//     bool exited;
-
-//     char* bufData;
-//     std::size_t bufLength;
-
-// public:
-
-//     h2_istream() : eof(false), running(true), exited(false),
-// 	           bufData(nullptr), bufLength(0) {}
-
-//     class guard
-//     {
-//     public:
-// 	guard(std::shared_ptr<h2_istream> strm) : strm(strm) {}
-// 	~guard() { strm->exit(); }
-//     private:
-// 	std::shared_ptr<h2_istream> strm;
-//     };
-//     friend class guard;
-
-//     guard make_guard() { return guard(shared_from_this()); }
-
-// protected:
-
-//     void exit() {
-// 	std::unique_lock<std::mutex> lock(mux);
-// 	running = false;
-// 	exited = true;
-// 	write_cond.notify_all();
-//     }
-
-//     virtual int_type underflow() override {
-// 	std::unique_lock<std::mutex> lock(mux);
-// 	/* In case of a re-read after EOF, check again here
-// 	   TODO: Find out if we can skip this... */
-// 	if (eof)
-// 	    return traits_type::eof();
-
-// 	running = false;
-// 	write_cond.notify_all();
-//         while (!running) {
-// 	    read_cond.wait(lock);
-//         }
-
-// 	if (eof) {
-// 	    return traits_type::eof();
-// 	} else {
-// 	    setg(bufData, bufData, bufData + bufLength);
-// 	    return traits_type::to_int_type(bufData[0]);
-// 	}
-//     }
-
-//     void onRead(const std::uint8_t* data, std::size_t length) {
-// 	std::unique_lock<std::mutex> lock(mux);
-// 	/* In case of an unconsumed stream, we get data
-// 	   after the reader has finished */
-// 	if (exited)
-// 	    return;
-
-// 	bufData = const_cast<char*>
-// 	    (reinterpret_cast<const char*>(data));
-// 	bufLength = length;
-// 	if (!data) {
-// 	    eof = true;
-// 	}
-
-// 	running = true;
-// 	read_cond.notify_all();
-// 	while (running) {
-// 	    write_cond.wait(lock);
-// 	}
-//     }
-// };
-
-// class client_response_stream : public h2_istream {
-// public:
-//     mist::h2::ClientResponse res;
-//     client_response_stream(mist::h2::ClientResponse res) : res(res) {
-// 	using namespace std::placeholders;
-// 	res.setOnData(std::bind(&client_response_stream::onRead, this, _1, _2));
-//     }
-// };
-
-// class server_request_stream : public h2_istream {
-// public:
-//     mist::h2::ServerRequest req;
-//     server_request_stream(mist::h2::ServerRequest req) : req(req) {
-// 	using namespace std::placeholders;
-// 	req.setOnData(std::bind(&server_request_stream::onRead, this, _1, _2));
-//     }
-// };
+void
+initLogger(const std::string& directory, const std::string& file)
+{
+    logWorker = g3::LogWorker::createLogWorker();
+    logHandle = logWorker->addDefaultLogger(file, directory);
+    g3::initializeLogging(logWorker.get());
+    LOG( INFO ) << "Starting Central";
+}
 
 void getAllData(mist::h2::ServerRequest request,
     std::function<void(std::string)> cb) {
@@ -300,6 +132,8 @@ Mist::Central::Central( std::string path ) :
 
     using namespace std::placeholders;
 
+    initLogger(path, "central.log");
+
     // Initialize sync
     sync.started = false;
     sync.forceAnonymous = false;
@@ -317,6 +151,22 @@ void Mist::Central::startEventLoop()
 {
     // Start the IOContext event loop
     ioCtx.queueJob([=]() { ioCtx.exec(); });
+}
+
+namespace
+{
+char nibbleToHexadecimal(int c) {
+    return c < 10 ? '0' + c : 'a' + c - 10;
+}
+std::string hex(const std::vector<std::uint8_t> buf)
+{
+    std::string out{};
+    for (std::uint8_t c : buf) {
+        out += nibbleToHexadecimal(c >> 4);
+        out += nibbleToHexadecimal(c & 7);
+    }
+    return out;
+}
 }
 
 void Mist::Central::init( boost::optional<std::string> privKey ) {
@@ -345,6 +195,7 @@ void Mist::Central::init( boost::optional<std::string> privKey ) {
 	    //        }
     }
     sslCtx.loadPKCS12(*privKey, "");
+    LOG(DBUG) << "My fingerprint is " << getPublicKey().fingerprint();
 }
 
 void Mist::Central::create( boost::optional<std::string> privKey ) {
@@ -467,10 +318,10 @@ Mist::Central::sign(const CryptoHelper::SHA3& hash) const {
 
 bool
 Mist::Central::verify(const CryptoHelper::PublicKey& key,
-		      const CryptoHelper::SHA3& hash,
-		      const CryptoHelper::Signature& sig) const {
-  return sslCtx.verify(key.toDer(), hash.data(), hash.size(),
-		       sig.data(), sig.size());
+        const CryptoHelper::SHA3& hash,
+        const CryptoHelper::Signature& sig) const {
+    return sslCtx.verify(key.toDer(), hash.data(), hash.size(),
+        sig.data(), sig.size());
 }
 
 Mist::Database* Mist::Central::getDatabase( CryptoHelper::SHA3 hash ) {
@@ -794,6 +645,8 @@ void getJsonResponse(mist::h2::ClientRequest request,
     response.setOnData(
         [cb, response, ss](const std::uint8_t* data, std::size_t length)
     {
+        std::uint64_t id(reinterpret_cast<std::uint64_t>(reinterpret_cast<void*>(response._impl.get())));
+        LOG(DBUG) << id << " onData(" << length << " bytes)";
         if (!data) {
             auto sss(ss->str());
             if (sss.empty()) {
@@ -868,7 +721,8 @@ void Mist::Central::addAddressLookupServer( const std::string& address, std::uin
     // TODO:
     removeAddressLookupServer(address, port);
     Helper::Database::Transaction transaction(*settingsDatabase);
-    Helper::Database::Statement query(*settingsDatabase, "INSERT INTO AddressLookupServer (address, port) VALUES (?, ?)");
+    Helper::Database::Statement query(*settingsDatabase,
+        "INSERT INTO AddressLookupServer (address, port) VALUES (?, ?)");
     query.bind(1, address);
     query.bind(2, port);
     query.exec();
@@ -882,20 +736,19 @@ void Mist::Central::addAddressLookupServer( const std::string& address, std::uin
               boost::system::error_code ec)
         {
             if (!ec) {
-                //std::cerr << "Submitting onion address " << onionAddress
-                //    << " to " << address << std::endl;
                 request->end(R"([{"address":")" + onionAddress + "\""
                   + R"(,"port":443)"
                   + R"(,"type":"tor")"
                   + R"(}])");
-                request->setOnResponse([request, address](mist::h2::ClientResponse response)
+                request->setOnResponse([request, address, port]
+                    (mist::h2::ClientResponse response)
                 {
-                    //std::cerr << "Got response from " << address << std::endl;
-                    // TODO: Figure out error states here
+                    LOG(DBUG) << "Got response from " << address
+                        << ":" << port;
                 });
             } else {
-                //std::cerr << "Could not connect to " << address
-                //    << ": " << ec.message() << std::endl;
+                LOG(DBUG) << "Could not connect to " << address
+                    << ":" << port << ": " << ec.message();
             }
         });
     });
@@ -924,6 +777,7 @@ Mist::Central::listAddressLookupServers() const {
 }
 
 void Mist::Central::startSync(new_database_callback newDatabase, bool forceAnonymous) {
+    LOG(INFO) << "Starting sync globally";
     std::lock_guard<std::recursive_mutex> lock(sync.mux);
     sync.started = true;
     sync.forceAnonymous = forceAnonymous;
@@ -931,7 +785,7 @@ void Mist::Central::startSync(new_database_callback newDatabase, bool forceAnony
 
 void Mist::Central::syncStep() {
     std::lock_guard<std::recursive_mutex> lock(sync.mux);
-    ioCtx.setTimeout(1000, std::bind(&Central::syncStep, this));
+    ioCtx.setTimeout(10000, std::bind(&Central::syncStep, this));
     if (!sync.started)
         return;
 
@@ -941,6 +795,7 @@ void Mist::Central::syncStep() {
 }
 
 void Mist::Central::stopSync() {
+    LOG(INFO) << "Stopping sync globally";
     std::lock_guard<std::recursive_mutex> lock(sync.mux);
     sync.started = false;
     for (auto peer : listPeers()) {
@@ -971,6 +826,7 @@ Mist::Central::PeerSyncState::startSync()
 {
     std::lock_guard<std::recursive_mutex> lock(mux);
     if (state == State::Reset || state == State::Disconnected) {
+        LOG(INFO) << shortFinger() << "Starting sync";
         queryAddressServers();
     }
 }
@@ -978,6 +834,7 @@ Mist::Central::PeerSyncState::startSync()
 void
 Mist::Central::PeerSyncState::stopSync()
 {
+    LOG(INFO) << shortFinger() << "Stopping sync";
     std::lock_guard<std::recursive_mutex> lock(mux);
     // TODO:
 }
@@ -1020,7 +877,13 @@ Mist::Central::PeerSyncState::queryTransactions()
 {
     std::lock_guard<std::recursive_mutex> lock(mux);
     state = State::QueryTransactions;
-
+    /*LOG(DBUG) << shortFinger() << "Submitting sample request";
+    central.dbService.submitRequest(peer, "GET", "/",
+        [this](mist::Peer& peer, mist::h2::ClientRequest request)
+    {
+        LOG(DBUG) << shortFinger() << "Sample request!";
+        request.end();
+    });*/
     databaseHashes = central.listDatabasePermissions( keyHash );
     databaseHashesIterator = databaseHashes.begin();
     queryTransactionsNext();
@@ -1049,7 +912,9 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
 
         std::basic_stringbuf<char> sb;
         currentDatabase->readTransactionMetadataLastest( sb );
-        central.dbService.submitRequest(peer, "GET", "/transactions/" + hash.toString() + "/?from=" + sb.str(),
+        central.dbService.submitRequest(peer, "GET", "/transactions/" 
+            + mist::h2::urlEncode(hash.toString())
+            + "/?from=" + mist::h2::urlEncode(sb.str()),
             [=](mist::Peer& _peer, mist::h2::ClientRequest request)
         {
             // Not found
@@ -1061,7 +926,9 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
                 [=](mist::h2::ClientResponse response)
             {
                 if (*response.statusCode() == 404) {
-                    central.dbService.submitRequest(peer, "GET", "/transactions/" + hash.toString() + "/latest",
+                    central.dbService.submitRequest(peer, "GET",
+                        "/transactions/" + mist::h2::urlEncode(hash.toString())
+                        + "/latest",
                         [=](mist::Peer& peer, mist::h2::ClientRequest request)
                     {
                         getJsonResponse(request,
@@ -1139,7 +1006,9 @@ Mist::Central::PeerSyncState::queryTransactionsGetNextParent()
     } else {
         // Search transactionsToDownload for the oldest transaction
         std::string trHash;
-        central.dbService.submitRequest(peer, "GET", "/transactions/" + currentDatabase->getManifest()->getHash().toString() + "/?from=[" + trHash + "]",
+        central.dbService.submitRequest(peer, "GET",
+            "/transactions/" + mist::h2::urlEncode(currentDatabase->getManifest()->getHash().toString())
+            + "/?from=[" + mist::h2::urlEncode(trHash) + "]",
             [=](mist::Peer& peer, mist::h2::ClientRequest request)
         {
             getJsonResponse(request,
@@ -1156,6 +1025,12 @@ Mist::Central::PeerSyncState::queryTransactionsGetNextParent()
     }
 }
 
+std::string
+Mist::Central::PeerSyncState::shortFinger() const
+{
+    return pubKey.fingerprint().substr(0, 6) + ": ";
+}
+
 void
 Mist::Central::PeerSyncState::queryTransactionsDownloadNextTransaction(std::vector<std::string>::iterator it)
 {
@@ -1167,7 +1042,9 @@ Mist::Central::PeerSyncState::queryTransactionsDownloadNextTransaction(std::vect
     } else {
         auto hash= *it;
 
-        central.dbService.submitRequest(peer, "GET", "/transactions/" + currentDatabase->getManifest()->getHash().toString() + "/" + hash,
+        central.dbService.submitRequest(peer, "GET",
+            "/transactions/" + mist::h2::urlEncode(currentDatabase->getManifest()->getHash().toString())
+            + "/" + mist::h2::urlEncode(hash),
             [=](mist::Peer& peer, mist::h2::ClientRequest request)
         {
             // INSERT transaction into currentDatabase
@@ -1188,6 +1065,7 @@ Mist::Central::PeerSyncState::queryAddressServers()
 {
     std::lock_guard<std::recursive_mutex> lock(mux);
     state = State::QueryAddressServers;
+    addresses.clear();
     addressServers = central.listAddressLookupServers();
     queryAddressServersNext(addressServers.begin());
 }
@@ -1200,8 +1078,11 @@ Mist::Central::PeerSyncState::queryAddressServersNext(address_vector_t::iterator
         queryAddressServersDone();
     } else {
         auto addressServer = *it;
-        auto path = "/peer/" + pubKey.md5Fingerprint();
-        std::cerr << addressServer.first << " " << addressServer.second << std::endl;
+        auto fingerprint = pubKey.fingerprint();
+        auto path = "/peer/" + mist::h2::urlEncode(fingerprint);
+        LOG(DBUG) << shortFinger() << "Querying "
+            << addressServer.first << ":" << addressServer.second
+            << " for onion address";
         central.connCtx.submitRequest(
             mist::io::Address::fromAny(addressServer.first, addressServer.second),
             "GET", path, addressServer.first, {},
@@ -1209,11 +1090,13 @@ Mist::Central::PeerSyncState::queryAddressServersNext(address_vector_t::iterator
               boost::system::error_code ec) mutable
         {
             if (!ec) {
-                getJsonResponse(*request, [this, it, request]
+                LOG(DBUG) << shortFinger() << "Connected to "
+                    << addressServer.first << ":" << addressServer.second;
+                getJsonResponse(*request, [this, it, request, fingerprint]
                     (boost::optional<const JSON::Value&> value) mutable
                 {
                     std::lock_guard<std::recursive_mutex> lock(mux);
-                     if (value) {
+                    if (value) {
                         if (value->is_array()) {
                             const auto& arr = value->array;
                             for (const auto& objVal : arr) {
@@ -1224,26 +1107,37 @@ Mist::Central::PeerSyncState::queryAddressServersNext(address_vector_t::iterator
                                     if (!type.is_string() || !address.is_string() || !port.is_number()) {
                                         throw;
                                     }
-                                    // TODO: if (type == "???")
+                                    LOG(DBUG) << shortFinger() << "Got address"
+                                        << ":" << address.get_string()
+                                        << ":" << port.get_integer();
                                     addresses.emplace_back(address.get_string(), port.get_integer());
+                                } else {
+                                    LOG(DBUG) << shortFinger() << "JSON response invalid: not an object";
                                 }
                             }
+                        } else {
+                            LOG(DBUG) << shortFinger() << "JSON response invalid: not an array";
                         }
+                    } else {
+                        LOG(DBUG) << shortFinger() << "JSON response invalid: not a valid JSON object";
                     }
                     queryAddressServersNext(std::next(it));
                 });
                 request->end();
             } else {
+                LOG(DBUG) << shortFinger() << "Error while connecting to "
+                    << addressServer.first << ":" << addressServer.second
+                    << ": " << ec.message();
                 queryAddressServersNext(std::next(it));
             };
         });
-
     }
 }
 
 void
 Mist::Central::PeerSyncState::queryAddressServersDone()
 {
+    LOG(DBUG) << shortFinger() << "Done querying for onion address of peer SHA3:" << pubKey.fingerprint();
     std::lock_guard<std::recursive_mutex> lock(mux);
     connectTor();
 }
@@ -1251,13 +1145,26 @@ Mist::Central::PeerSyncState::queryAddressServersDone()
 void
 Mist::Central::PeerSyncState::connectDirect()
 {
+    LOG(DBUG) << shortFinger() << "Direct connect to peer SHA3:" << pubKey.fingerprint();
     std::lock_guard<std::recursive_mutex> lock(mux);
     state = State::ConnectDirect;
+    //central.connCtx.connectPeerDirect(peer, addr,
+    //    [=](mist::Peer&, boost::system::error_code ec)
+    //{
+    //    if (!ec) {
+    //        connectDirectDone();
+    //    } else {
+                //LOG(DBUG) << "Direct connect attempt failed for peer SHA3:" << pubKey.fingerprint()
+                //    << ": " << ec.message();
+    //        ...
+    //    }
+    //});
 }
 
 void
 Mist::Central::PeerSyncState::connectDirectDone()
 {
+    LOG(DBUG) << shortFinger() << "Direct connect done";
     std::lock_guard<std::recursive_mutex> lock(mux);
     queryTransactions();
 }
@@ -1265,16 +1172,40 @@ Mist::Central::PeerSyncState::connectDirectDone()
 void
 Mist::Central::PeerSyncState::connectTor()
 {
+    LOG(DBUG) << shortFinger() << "Tor connect";
     std::lock_guard<std::recursive_mutex> lock(mux);
     state = State::ConnectTor;
-    for (auto addr : addresses)
-        peer.addAddress(mist::PeerAddress{ addr.first, addr.second });
-    central.connCtx.connectPeerTor(peer);
+    connectTorNext(addresses.begin());
+}
+
+void
+Mist::Central::PeerSyncState::connectTorNext(address_vector_t::iterator it)
+{
+    std::lock_guard<std::recursive_mutex> lock(mux);
+    if (it == addresses.end()) {
+        LOG(DBUG) << shortFinger() << "Tor connect failed";
+        state = State::Disconnected;
+    } else {
+        LOG(DBUG) << shortFinger() << "Trying tor address " << it->first << ":" << it->second;
+        mist::PeerAddress addr{ it->first, it->second };
+        central.connCtx.connectPeerTor(peer, addr,
+            [=](mist::Peer&, boost::system::error_code ec)
+        {
+            if (!ec) {
+                connectTorDone();
+            } else {
+                LOG(DBUG) << shortFinger() << "Tor connect attempt failed"
+                    << ": " << ec.message();
+                connectTorNext(std::next(it));
+            }
+        });
+    }
 }
 
 void
 Mist::Central::PeerSyncState::connectTorDone()
 {
+    LOG(DBUG) << shortFinger() << "Tor connect successful";
     std::lock_guard<std::recursive_mutex> lock(mux);
     queryTransactions();
 }
@@ -1404,7 +1335,8 @@ Mist::Central::RestRequest::RestRequest( Central& central, mist::Peer& peer,
         mist::h2::ServerRequest request )
         : central(central),
           peer(peer),
-          keyHash(CryptoHelper::PublicKey::fromDer(peer.derPublicKey()).hash()),
+          pubKey(CryptoHelper::PublicKey::fromDer(peer.derPublicKey())),
+          keyHash(pubKey.hash()),
           request(request) {
 }
 
@@ -1413,10 +1345,21 @@ void Mist::Central::RestRequest::serve( Mist::Central& central,
     RestRequest(central, peer, request).entry(path);
 }
 
+std::string
+Mist::Central::RestRequest::shortFinger() const
+{
+    return pubKey.fingerprint().substr(0, 6) + ": ";
+}
+
 void Mist::Central::RestRequest::entry( const std::string& path ) {
+    LOG(DBUG) << shortFinger() << "Serving REST request for " << path;
     std::vector<std::string> elts;
     boost::split(elts, path, boost::is_any_of("/"));
     auto eltCount(elts.size());
+
+    for (auto& elt : elts) {
+        elt = mist::h2::urlDecode(elt);
+    }
 
     if (!request.method()) {
         replyBadMethod();

@@ -212,14 +212,21 @@ ClientResponseImpl::ClientResponseImpl(ClientStreamImpl& stream)
 void
 ClientResponseImpl::setOnData(data_callback cb)
 {
-  _onData = std::move(cb);
+  auto anchor(_stream.shared_from_this());
+  _onData = [anchor, cb](const std::uint8_t* data, std::size_t length) {
+    cb(data, length);
+  };
 }
 
 void
 ClientResponseImpl::onData(const std::uint8_t* data, std::size_t length)
 {
-  if (_onData)
+  if (_onData) {
+    /* We clear the onData callback on EOF */
     _onData(data, length);
+    if (length == 0)
+      _onData = nullptr;
+  }
 }
 
 /*
@@ -426,8 +433,7 @@ ClientStreamImpl::onStreamClose(std::uint32_t errorCode)
 {
   close(make_nghttp2_error(static_cast<nghttp2_error>(errorCode)));
 
-  if (_response._onData)
-    _response._onData(nullptr, 0);
+  response().onData(nullptr, 0);
 
   return 0;
 }

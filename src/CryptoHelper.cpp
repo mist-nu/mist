@@ -198,29 +198,13 @@ Mist::CryptoHelper::PublicKey::hash() const {
     return hasher.finalize();
 }
 
-namespace
-{
-char nibbleToHexadecimal(int c) {
-    return c < 10 ? '0' + c : 'A' + c - 10;
-}
-std::string hashToFingerprint(const std::vector<std::uint8_t> hash)
-{
-    std::string fingerprint{};
-    for (std::uint8_t c : hash) {
-        if (fingerprint.length()) fingerprint += ':';
-        fingerprint += nibbleToHexadecimal(c >> 4);
-        fingerprint += nibbleToHexadecimal(c & 7);
-    }
-    return fingerprint;
-}
-}
-
 std::string
-Mist::CryptoHelper::PublicKey::md5Fingerprint() const
+Mist::CryptoHelper::PublicKey::fingerprint() const
 {
-    std::vector<std::uint8_t> md5Hash = mist::crypto::hash_md5()->finalize(
-        publicKey.data(), publicKey.data() + publicKey.size());
-    return hashToFingerprint(md5Hash);
+    auto sha3Hash(hash());
+    std::vector<std::uint8_t> buffer(sha3Hash.data(),
+        sha3Hash.data() + sha3Hash.size());
+    return mist::crypto::base64Encode(buffer);
 }
 
 Mist::CryptoHelper::PublicKey&

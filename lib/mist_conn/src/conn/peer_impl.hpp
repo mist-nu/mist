@@ -44,7 +44,7 @@ class PeerImpl
 {
 public:
 
-  using address_list = Peer::address_list;
+  //using address_list = Peer::address_list;
   using ConnectionType = Peer::ConnectionType;
   using ConnectionDirection = Peer::ConnectionDirection;
   using ConnectionStatus = Peer::ConnectionStatus;
@@ -61,9 +61,9 @@ public:
 
   const std::vector<std::uint8_t>& publicKeyHash() const;
 
-  const address_list& addresses() const;
+  //const address_list& addresses() const;
 
-  void addAddress(PeerAddress address);
+  //void addAddress(PeerAddress address);
 
   bool authenticated() const;
   void setAuthenticated(bool authenticated);
@@ -90,7 +90,7 @@ private:
   boost::optional<h2::ServerSession> _reverseServerSession;
   boost::optional<h2::ClientSession> _reverseClientSession;
 
-  address_list _addresses;
+  //address_list _addresses;
 
   /* Peer public key */
   c_unique_ptr<SECKEYPublicKey> _pubKey;

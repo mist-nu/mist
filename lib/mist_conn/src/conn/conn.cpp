@@ -145,17 +145,19 @@ ConnectContext::sslCtx()
 }
 
 MistConnApi
-boost::system::error_code
-ConnectContext::connectPeerDirect(Peer& peer, const io::Address& addr)
+void
+ConnectContext::connectPeerDirect(Peer& peer, const io::Address& addr,
+  connect_peer_callback cb)
 {
-  return _impl->connectPeerDirect(peer, addr);
+  _impl->connectPeerDirect(peer, addr, cb);
 }
 
 MistConnApi
-boost::system::error_code
-ConnectContext::connectPeerTor(Peer& peer)
+void
+ConnectContext::connectPeerTor(Peer& peer, const PeerAddress& addr,
+  connect_peer_callback cb)
 {
-  return _impl->connectPeerTor(peer);
+  _impl->connectPeerTor(peer, addr, cb);
 }
 
 MistConnApi
@@ -334,19 +336,16 @@ ConnectContextImpl::handshakePeer(io::SSLSocket& socket,
   });
 }
 
-boost::system::error_code
-ConnectContextImpl::connectPeerDirect(Peer& peer, const io::Address& addr)
+void
+ConnectContextImpl::connectPeerDirect(Peer& peer, const io::Address& addr,
+  connect_peer_callback cb)
 {
   std::shared_ptr<io::SSLSocket> socket = _sslCtx.openSocket();
   socket->connect(addr,
-    [this, &peer, socket]
+    [this, &peer, socket, cb]
     (boost::system::error_code ec)
   {
-    if (ec) {
-      std::cerr << ec.message() << " while connecting to peer directly"
-        << std::endl;
-    } else {
-      std::cerr << "Connected to peer directly" << std::endl;
+    if (!ec) {
       handshakePeer(*socket, peer,
         [=, &peer]
         (boost::optional<Peer&>, boost::system::error_code ec)
@@ -355,58 +354,48 @@ ConnectContextImpl::connectPeerDirect(Peer& peer, const io::Address& addr)
           peer._impl.connection(std::move(socket),
             Peer::ConnectionType::Direct,
             Peer::ConnectionDirection::Client);
+          cb(peer, boost::system::error_code());
         } else {
           /* Handshake failed */
+          cb(peer, ec);
         }
       });
+    } else {
+      /* Connection failed */
+      cb(peer, ec);
     }
   });
-  return boost::system::error_code();
 }
 
-boost::system::error_code
-ConnectContextImpl::tryConnectPeerTor(Peer& peer,
-  Peer::address_list::const_iterator it)
+void
+ConnectContextImpl::connectPeerTor(Peer& peer, const PeerAddress& addr,
+  connect_peer_callback cb)
 {
-  if (it != peer.addresses().end()) {
-    const PeerAddress &address = *it;
-
-    std::shared_ptr<io::SSLSocket> socket = _sslCtx.openSocket();
-    _torCtrl->connect(*socket, address.hostname, address.port,
-      [=, &peer]
-      (boost::system::error_code ec)
-    {
-      if (!ec) {
-        std::cerr << "Connected to peer via tor" << std::endl;
-        handshakePeer(*socket, peer,
-          [=, &peer]
-          (boost::optional<Peer&>, boost::system::error_code ec)
-        {
-          if (!ec) {
-            peer._impl.connection(std::move(socket),
-              Peer::ConnectionType::Tor,
-              Peer::ConnectionDirection::Client);
-          } else {
-            /* Handshake failed, try the next address */
-            tryConnectPeerTor(peer, std::next(it));
-          }
-        });
-      } else {
-        /* Connection failed, try the next address */
-        tryConnectPeerTor(peer, std::next(it));
-      }
-    });
-  } else {
-    /* All addresses tried, fail */
-    std::cerr << "Unable to connect" << std::endl;
-  }
-  return boost::system::error_code();
-}
-
-boost::system::error_code
-ConnectContextImpl::connectPeerTor(Peer& peer)
-{
-  return tryConnectPeerTor(peer, peer.addresses().begin());
+  std::shared_ptr<io::SSLSocket> socket = _sslCtx.openSocket();
+  _torCtrl->connect(*socket, addr.hostname, addr.port,
+    [=, &peer]
+    (boost::system::error_code ec)
+  {
+    if (!ec) {
+      handshakePeer(*socket, peer,
+        [=, &peer]
+        (boost::optional<Peer&>, boost::system::error_code ec)
+      {
+        if (!ec) {
+          peer._impl.connection(std::move(socket),
+            Peer::ConnectionType::Tor,
+            Peer::ConnectionDirection::Client);
+          cb(peer, boost::system::error_code());
+        } else {
+          /* Handshake failed */
+          cb(peer, ec);
+        }
+      });
+    } else {
+      /* Connection failed */
+      cb(peer, ec);
+    }
+  });
 }
 
 void
@@ -572,6 +561,12 @@ ConnectContextImpl::newService(std::string name)
   auto it = _services.emplace(std::make_pair(name, service));
   assert(it.second); // Assert insertion
   return service->facade();
+}
+
+void
+ConnectContextImpl::onPeerError(Peer& peer, boost::system::error_code ec)
+{
+    std::cerr << "onPeerError " << ec.message() << std::endl;
 }
 
 void

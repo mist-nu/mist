@@ -43,19 +43,19 @@ Peer::publicKeyHash() const
   return _impl.publicKeyHash();
 }
 
-MistConnApi
-const Peer::address_list&
-Peer::addresses() const
-{
-  return _impl.addresses();
-}
+//MistConnApi
+//const Peer::address_list&
+//Peer::addresses() const
+//{
+//  return _impl.addresses();
+//}
 
-MistConnApi
-void
-Peer::addAddress(PeerAddress address)
-{
-  _impl.addAddress(address);
-}
+//MistConnApi
+//void
+//Peer::addAddress(PeerAddress address)
+//{
+//  _impl.addAddress(address);
+//}
 
 MistConnApi
 bool
@@ -108,6 +108,8 @@ PeerImpl::connection(std::shared_ptr<io::Socket> socket,
     _serverSession = h2::ServerSession(socket);
     _serverSession->setOnRequest(std::bind(&ConnectContextImpl::onPeerRequest,
       &_ctx, std::ref(_facade), _1));
+    _serverSession->setOnError(std::bind(&ConnectContextImpl::onPeerError,
+      &_ctx, std::ref(_facade), _1));
   } else {
     /* TODO */
     assert(!_clientSession);
@@ -151,17 +153,17 @@ PeerImpl::publicKeyHash() const
   return _pubKeyHash;
 }
 
-const Peer::address_list&
-PeerImpl::addresses() const
-{
-  return _addresses;
-}
-
-void
-PeerImpl::addAddress(PeerAddress address)
-{
-  _addresses.push_back(std::move(address));
-}
+//const Peer::address_list&
+//PeerImpl::addresses() const
+//{
+//  return _addresses;
+//}
+//
+//void
+//PeerImpl::addAddress(PeerAddress address)
+//{
+//  _addresses.push_back(std::move(address));
+//}
 
 bool
 PeerImpl::authenticated() const
