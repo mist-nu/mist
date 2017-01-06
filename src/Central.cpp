@@ -1221,10 +1221,10 @@ Mist::Central::PeerSyncState::onPeerConnectionStatus(mist::Peer::ConnectionStatu
 {
     std::lock_guard<std::recursive_mutex> lock(mux);
     if (status == mist::Peer::ConnectionStatus::Connected) {
-        if (state == State::ConnectTor)
+        /*if (state == State::ConnectTor)
             connectTorDone();
         else if (state == State::ConnectDirect)
-            connectDirectDone();
+            connectDirectDone();*/
     } else {
         onDisconnect();
     }
