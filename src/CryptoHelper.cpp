@@ -267,7 +267,7 @@ Mist::CryptoHelper::Signature::Signature( const std::string& str ) {
     if ( str.empty() ) {
         signature.reset();
     } else {
-        signature.reset( mist::crypto::stringToBuffer(str) );
+        signature.reset( mist::crypto::base64Decode(str) );
     }
 }
 
@@ -287,10 +287,7 @@ Mist::CryptoHelper::Signature::operator=( const Signature& rhs ) {
 
 Mist::CryptoHelper::Signature
 Mist::CryptoHelper::Signature::fromString( const std::string& str ) {
-    if ( str.empty() ) {
-        return Signature();
-    }
-    return Signature( str );
+    return Signature(str);
 }
 
 Mist::CryptoHelper::Signature
