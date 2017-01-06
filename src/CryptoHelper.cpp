@@ -303,10 +303,7 @@ Mist::CryptoHelper::Signature::operator=( const Signature& rhs ) {
 
 Mist::CryptoHelper::Signature
 Mist::CryptoHelper::Signature::fromString( const std::string& str ) {
-    if ( str.empty() ) {
-        return Signature();
-    }
-    return Signature( str );
+    return str.empty() ? Signature() : Signature( mist::crypto::base64Decode( str ) );
 }
 
 Mist::CryptoHelper::Signature

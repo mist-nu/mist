@@ -84,50 +84,6 @@ TEST( RemoteCentral, CreateTransactions ) {
     ) };
     EXPECT_TRUE( manifest.verify() );
 
-    // Test value by value copy
-    M::Database::Manifest manifest2{ nullptr,
-        std::bind( &M::Central::verify, &central, _1, _2, _3 ),
-        m->getName(),
-        m->getCreated(),
-        m->getCreator(),
-        m->getSignature(),
-        m->getHash()
-    };
-    EXPECT_TRUE( manifest2.verify() );
-
-    // Test PublicKey::fromPem( toString() )
-    M::Database::Manifest manifest3{ nullptr,
-        std::bind( &M::Central::verify, &central, _1, _2, _3 ),
-        m->getName(),
-        m->getCreated(),
-        M::CryptoHelper::PublicKey( M::CryptoHelper::PublicKey::fromPem( m->getCreator().toString() ) ),
-        m->getSignature(),
-        m->getHash()
-    };
-    EXPECT_TRUE( manifest3.verify() );
-
-    // Test Signature::fromString( toString() )
-    M::Database::Manifest manifest4{ nullptr,
-        std::bind( &M::Central::verify, &central, _1, _2, _3 ),
-        m->getName(),
-        m->getCreated(),
-        m->getCreator(),
-        M::CryptoHelper::Signature( M::CryptoHelper::Signature::fromString( m->getSignature().toString() ) ),
-        m->getHash()
-    };
-    EXPECT_TRUE( manifest4.verify() );
-
-    // Test SHA3::fromString( toString() )
-    M::Database::Manifest manifest5{ nullptr,
-        std::bind( &M::Central::verify, &central, _1, _2, _3 ),
-        m->getName(),
-        m->getCreated(),
-        m->getCreator(),
-        m->getSignature(),
-        M::CryptoHelper::SHA3( M::CryptoHelper::SHA3::fromString( m->getHash().toString() ) )
-    };
-    EXPECT_TRUE( manifest5.verify() );
-
     // Start transaction
     std::unique_ptr<T> t{ std::move( db->beginTransaction() ) };
 

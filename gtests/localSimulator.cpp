@@ -63,7 +63,7 @@ const std::string central_remote{ FS::path( "central_remote" ).string() };
 const std::string central_local{ FS::path( "central_local" ).string() };
 
 TEST( LocalCentral, ReceiveTransactions ) {
-    // If present, remote central from previous round.
+    // If present, central from previous round.
     removeCentral( central_local );
 
     // Init central
@@ -83,8 +83,8 @@ TEST( LocalCentral, ReceiveTransactions ) {
     M::Database* db{ central.receiveDatabase( manifest ) };
 
     // Read "remote" transactions
-    //std::fstream tfs( central_remote + ".json", std::fstream::in | std::fstream::binary );
-    //db->writeToDatabase( *tfs.rdbuf() );
+    std::fstream tfs( central_remote + ".json", std::fstream::in | std::fstream::binary );
+    db->writeToDatabase( *tfs.rdbuf() );
 }
 
 } // namespace
