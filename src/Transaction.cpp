@@ -149,9 +149,9 @@ unsigned long Transaction::newObject( const Database::ObjectRef &parent, const s
                 << version
                 << kv.first
                 << static_cast<int>( kv.second.t );
-        using T = Database::Value::T;
+        using T = Database::Value::Type;
         switch ( kv.second.t ){
-        case T::NoType:
+        case T::Typeless:
             break;
         case T::Null:
             break;
@@ -442,9 +442,9 @@ void Transaction::updateObject( unsigned long id, const std::map<std::string, Da
                 obj.version <<
                 kv.first <<
                 static_cast<int>( kv.second.t );
-        using T = Database::Value::T;
+        using T = Database::Value::Type;
         switch ( kv.second.t ){
-        case T::NoType:
+        case T::Typeless:
             break;
         case T::Null:
             break;

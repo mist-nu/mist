@@ -17,21 +17,21 @@ namespace Mist {
 
 void putAttribute( JSON::Serialize* s, const std::pair<std::string,Database::Value>& attribute ) {
     s->put( attribute.first );
-    using T = Database::Value::T;
-    switch( attribute.second.t ) {
-    case T::NoType:
+    using T = Database::Value::Type;
+    switch( attribute.second.type() ) {
+    case T::Typeless:
     case T::Null:
        s->put( nullptr );
        break;
     case T::Boolean:
-       s->put( attribute.second.b );
+       s->put( attribute.second.boolean() );
        break;
     case T::Number:
-       s->put( static_cast<long double>( attribute.second.n ) );
+       s->put( static_cast<long double>( attribute.second.number() ) );
        break;
     case T::String:
     case T::Json:
-       s->put( attribute.second.v );
+       s->put( attribute.second.string() );
        break;
     default:
        // TODO: throw instread?

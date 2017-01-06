@@ -14,7 +14,7 @@ namespace M = Mist;
 namespace FS = M::Helper::filesystem;
 
 using V = M::Database::Value;
-using T = V::T;
+using T = V::Type;
 
 TEST(ManifestTest, TODO_TestAllMethods) {
     LOG( INFO ) << "TODO: Test all methods";
@@ -30,7 +30,7 @@ TEST(DatabaseValue, TestEmpty) {
     LOG( INFO ) << "Test Database::Value empty";
 
     V dv { };
-    EXPECT_EQ( T::NoType, dv.t );
+    EXPECT_EQ( T::Typeless, dv.t );
     EXPECT_FALSE( dv.b );
 }
 

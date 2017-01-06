@@ -34,7 +34,7 @@ using D = OpenDatabase;
 using ORef = D::ObjectRef;
 using AD = D::AccessDomain;
 using V = D::Value;
-using VT = D::Value::T;
+using VT = D::Value::Type;
 
 using RT = M::RemoteTransaction;
 using URT = std::unique_ptr<RT>;

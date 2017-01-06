@@ -10,7 +10,6 @@
 
 namespace Mist {
 
-#pragma message "Enable the hashes and signature above when they're working as expected." // TODO
 RemoteTransaction::RemoteTransaction(
         Database *db,
         Database::AccessDomain accessDomain,
@@ -200,9 +199,9 @@ void RemoteTransaction::newObject( unsigned long id, const Database::ObjectRef& 
                 version <<
                 kv.first <<
                 static_cast<int>( kv.second.t );
-        using T = Database::Value::T;
+        using T = Database::Value::Type;
         switch ( kv.second.t ){
-        case T::NoType:
+        case T::Typeless:
             break;
         case T::Null:
             break;
@@ -464,9 +463,9 @@ void RemoteTransaction::updateObject( unsigned long id, std::map<std::string, Da
                 version <<
                 kv.first <<
                 static_cast<int>( kv.second.t );
-        using T = Database::Value::T;
+        using T = Database::Value::Type;
         switch ( kv.second.t ){
-        case T::NoType:
+        case T::Typeless:
             break;
         case T::Null:
             break;
@@ -657,7 +656,7 @@ void RemoteTransaction::commit() {
     // TODO: do this before inserting transaction parent?
     Database::Transaction meta{ db->getTransactionMeta( version, connection.get() ) };
     #pragma message "Uncomment this code to enable transaction hash verification" // TODO
-    /*
+    //*
     if ( !( hash == db->calculateTransactionHash( meta, connection.get() ) ) ) {
         rollback();
         throw Mist::Exception( Mist::Error::ErrorCode::InvalidTransaction );

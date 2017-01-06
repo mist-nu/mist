@@ -10,16 +10,18 @@
 #include <string>
 
 #include "Central.h"
+#include "CryptoHelper.h"
 #include "Database.h"
 #include "Helper.h"
 #include "JSONstream.h"
-#include "RemoteTransaction.h"
 #include "Transaction.h"
 
 #include "gtest/gtest.h"
 
 namespace M = Mist;
 namespace FS = M::Helper::filesystem;
+
+using namespace std::placeholders;
 
 using T = M::Transaction;
 using RT = M::RemoteTransaction;
@@ -58,7 +60,6 @@ void removeCentral(std::string p) {
 
 } // namespace
 
-const std::string transaction_file( "transactions.json" );
 const std::string central_remote{ FS::path( "central_remote" ).string() };
 
 TEST( RemoteCentral, CreateTransactions ) {
@@ -71,6 +72,61 @@ TEST( RemoteCentral, CreateTransactions ) {
 
     // Create db
     D* db{ central.createDatabase( "test" ) };
+
+    // Test manifest
+    M::Database::Manifest* m{ db->getManifest() };
+    EXPECT_TRUE( m->verify() );
+
+    // Test Manifest::fromString( toString() )
+    std::string storedManifest{ db->getManifest()->toString() };
+    M::Database::Manifest manifest{ M::Database::Manifest::fromString( storedManifest,
+            std::bind( &M::Central::verify, &central, _1, _2, _3 )
+    ) };
+    EXPECT_TRUE( manifest.verify() );
+
+    // Test value by value copy
+    M::Database::Manifest manifest2{ nullptr,
+        std::bind( &M::Central::verify, &central, _1, _2, _3 ),
+        m->getName(),
+        m->getCreated(),
+        m->getCreator(),
+        m->getSignature(),
+        m->getHash()
+    };
+    EXPECT_TRUE( manifest2.verify() );
+
+    // Test PublicKey::fromPem( toString() )
+    M::Database::Manifest manifest3{ nullptr,
+        std::bind( &M::Central::verify, &central, _1, _2, _3 ),
+        m->getName(),
+        m->getCreated(),
+        M::CryptoHelper::PublicKey( M::CryptoHelper::PublicKey::fromPem( m->getCreator().toString() ) ),
+        m->getSignature(),
+        m->getHash()
+    };
+    EXPECT_TRUE( manifest3.verify() );
+
+    // Test Signature::fromString( toString() )
+    M::Database::Manifest manifest4{ nullptr,
+        std::bind( &M::Central::verify, &central, _1, _2, _3 ),
+        m->getName(),
+        m->getCreated(),
+        m->getCreator(),
+        M::CryptoHelper::Signature( M::CryptoHelper::Signature::fromString( m->getSignature().toString() ) ),
+        m->getHash()
+    };
+    EXPECT_TRUE( manifest4.verify() );
+
+    // Test SHA3::fromString( toString() )
+    M::Database::Manifest manifest5{ nullptr,
+        std::bind( &M::Central::verify, &central, _1, _2, _3 ),
+        m->getName(),
+        m->getCreated(),
+        m->getCreator(),
+        m->getSignature(),
+        M::CryptoHelper::SHA3( M::CryptoHelper::SHA3::fromString( m->getHash().toString() ) )
+    };
+    EXPECT_TRUE( manifest5.verify() );
 
     // Start transaction
     std::unique_ptr<T> t{ std::move( db->beginTransaction() ) };
@@ -91,7 +147,7 @@ TEST( RemoteCentral, CreateTransactions ) {
     t->commit();
     t.reset();
 
-    db->dump( central_remote + ".1" );
+    db->dump( central_remote );
 
     // Shutdown
     db->close();
