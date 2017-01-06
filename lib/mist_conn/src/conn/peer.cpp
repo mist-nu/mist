@@ -106,6 +106,7 @@ PeerImpl::connection(std::shared_ptr<io::Socket> socket,
     assert(!_serverSession);
     using namespace std::placeholders;
     _serverSession = h2::ServerSession(socket);
+    //_serverSession->setName("serverSession");
     _serverSession->setOnRequest(std::bind(&ConnectContextImpl::onPeerRequest,
       &_ctx, std::ref(_facade), _1));
     _serverSession->setOnError(std::bind(&ConnectContextImpl::onPeerError,
@@ -114,6 +115,7 @@ PeerImpl::connection(std::shared_ptr<io::Socket> socket,
     /* TODO */
     assert(!_clientSession);
     _clientSession = h2::ClientSession(socket);
+    //_clientSession->setName("serverSession");
     _ctx.initializeReverseConnection(_facade);
     _ctx.onPeerConnectionStatus(_facade, ConnectionStatus::Connected);
   }
@@ -126,11 +128,13 @@ PeerImpl::reverseConnection(std::shared_ptr<io::Socket> socket,
   if (connDirection == ConnectionDirection::Server) {
     using namespace std::placeholders;
     _reverseServerSession = h2::ServerSession(socket);
+    //_reverseServerSession->setName("reverseServerSession");
     _reverseServerSession->setOnRequest(
       std::bind(&ConnectContextImpl::onPeerRequest, &_ctx,
         std::ref(_facade), _1));
   } else {
     _reverseClientSession = h2::ClientSession(socket);
+    //_reverseClientSession->setName("reverseClientSession");
     _ctx.onPeerConnectionStatus(_facade, ConnectionStatus::Connected);
   }
 }

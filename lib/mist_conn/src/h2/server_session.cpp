@@ -42,6 +42,12 @@ ServerSession::ServerSession(std::shared_ptr<ServerSessionImpl> impl)
 
 MistConnApi
 void
+ServerSession::setName(const std::string& name) const
+{
+  _impl->setName(name);
+}
+MistConnApi
+void
 ServerSession::setOnRequest(server_request_callback cb)
 {
   _impl->setOnRequest(std::move(cb));

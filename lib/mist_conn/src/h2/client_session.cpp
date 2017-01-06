@@ -34,10 +34,18 @@ ClientSession::ClientSession(std::shared_ptr<io::Socket> socket)
     start();
 }
 
+
 MistConnApi
 ClientSession::ClientSession(std::shared_ptr<ClientSessionImpl> impl)
   : _impl(impl)
 {}
+
+MistConnApi
+void
+ClientSession::setName(const std::string& name) const
+{
+  _impl->setName(name);
+}
 
 MistConnApi
 ClientRequest

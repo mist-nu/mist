@@ -36,6 +36,8 @@ public:
   virtual bool isStopped() const override;
 
   virtual void setOnError(error_callback cb) override;
+  
+  void setName(const std::string& name) const;
 
   ServerSession(std::shared_ptr<io::Socket> socket);
   ServerSession(std::shared_ptr<ServerSessionImpl> impl);

@@ -877,16 +877,16 @@ Mist::Central::PeerSyncState::queryTransactions()
 {
     std::lock_guard<std::recursive_mutex> lock(mux);
     state = State::QueryTransactions;
-    /*LOG(DBUG) << shortFinger() << "Submitting sample request";
+    LOG(DBUG) << shortFinger() << "Submitting sample request";
     central.dbService.submitRequest(peer, "GET", "/",
         [this](mist::Peer& peer, mist::h2::ClientRequest request)
     {
         LOG(DBUG) << shortFinger() << "Sample request!";
         request.end();
-    });*/
-    databaseHashes = central.listDatabasePermissions( keyHash );
+    });
+    /*databaseHashes = central.listDatabasePermissions( keyHash );
     databaseHashesIterator = databaseHashes.begin();
-    queryTransactionsNext();
+    queryTransactionsNext();*/
 }
 
 void

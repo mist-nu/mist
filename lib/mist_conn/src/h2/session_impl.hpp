@@ -6,6 +6,7 @@
 #include <memory>
 #include <mutex>
 #include <list>
+#include <ostream>
 
 #include <boost/optional.hpp>
 #include <boost/system/error_code.hpp>
@@ -59,6 +60,8 @@ public:
 
   /* Resume the data generation for the given stream */
   boost::system::error_code resumeData(StreamImpl& stream);
+
+  void setName(const std::string& name);
 
 protected:
 
@@ -124,7 +127,8 @@ private:
   std::shared_ptr<io::Socket> _socket;
 
   /* Map of all streams in the session */
-  using stream_map = std::map<std::int32_t, std::weak_ptr<StreamImpl>>;
+  using stream_map = std::map<std::int32_t, std::shared_ptr<StreamImpl>>;
+  //using stream_map = std::map<std::int32_t, std::weak_ptr<StreamImpl>>;
   stream_map _streams;
 
   /* Boolean signifying that we are already sending data on the socket */
@@ -142,6 +146,10 @@ private:
   /* Called by the socket when data has been read; forwards to nghttp2 */
   void readCallback(const std::uint8_t* data, std::size_t length,
     boost::system::error_code ec);
+
+  std::string _name;
+
+  std::ostream& logStream() const;
 
 protected:
 

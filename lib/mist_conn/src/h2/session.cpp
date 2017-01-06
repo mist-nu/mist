@@ -156,7 +156,8 @@ SessionImpl::SessionImpl(std::shared_ptr<io::Socket> socket, bool isServer)
   //  [](nghttp2_session* /*session*/, const char* message, std::size_t length,
   //     void* user_data) -> int
   //{
-  //  std::cerr << "nghttp2 signalled error: "
+  //  std::cerr << static_cast<SessionImpl*>(user_data)->_name 
+  //    << ": " << "nghttp2 signalled error: "
   //    << std::string(message, length) << std::endl;
   //  return 0;
   //});
@@ -166,6 +167,8 @@ SessionImpl::SessionImpl(std::shared_ptr<io::Socket> socket, bool isServer)
     [](nghttp2_session* /*session*/, const nghttp2_frame* frame,
        void* user_data) -> int
   {
+    static_cast<SessionImpl*>(user_data)->logStream()
+      << "onBeginHeaders("  << frame->hd.stream_id << ")" << std::endl;
     return static_cast<SessionImpl*>(user_data)->onBeginHeaders(frame);
   });
 
@@ -176,6 +179,11 @@ SessionImpl::SessionImpl(std::shared_ptr<io::Socket> socket, bool isServer)
        const std::uint8_t* value, std::size_t valuelen, std::uint8_t flags,
        void* user_data) -> int
   {
+    static_cast<SessionImpl*>(user_data)->logStream()
+      << "onHeader(" << frame->hd.stream_id
+      << ", " << std::string(reinterpret_cast<const char*>(name), namelen)
+      << ", " << std::string(reinterpret_cast<const char*>(value), valuelen) << ", " << flags
+      << ")" << std::endl;
     return static_cast<SessionImpl*>(user_data)->onHeader(frame, name, namelen,
                                                        value, valuelen, flags);
   });
@@ -185,6 +193,10 @@ SessionImpl::SessionImpl(std::shared_ptr<io::Socket> socket, bool isServer)
     [](nghttp2_session* /*session*/, const nghttp2_frame* frame,
        void* user_data) -> int
   {
+    static_cast<SessionImpl*>(user_data)->logStream()
+      << "onFrameSend(" << frame->hd.stream_id
+      << ", " << static_cast<int>(frame->hd.type)
+      << ")" << std::endl;
     return static_cast<SessionImpl*>(user_data)->onFrameSend(frame);
   });
   
@@ -193,6 +205,9 @@ SessionImpl::SessionImpl(std::shared_ptr<io::Socket> socket, bool isServer)
     [](nghttp2_session* /*session*/, const nghttp2_frame *frame,
        int error_code, void* user_data) -> int
   {
+    static_cast<SessionImpl*>(user_data)->logStream()
+      << "onFrameNotSend(..., "
+      << make_nghttp2_error(error_code).message() << ")" << std::endl;
     return static_cast<SessionImpl*>(user_data)->onFrameNotSend(
       frame, error_code);
   });
@@ -202,6 +217,8 @@ SessionImpl::SessionImpl(std::shared_ptr<io::Socket> socket, bool isServer)
     [](nghttp2_session* /*session*/, const nghttp2_frame *frame,
        void* user_data) -> int
   {
+    static_cast<SessionImpl*>(user_data)->logStream()
+      << "onFrameRecv(" << frame->hd.stream_id << ")" << std::endl;
     return static_cast<SessionImpl*>(user_data)->onFrameRecv(frame);
   });
   
@@ -211,6 +228,9 @@ SessionImpl::SessionImpl(std::shared_ptr<io::Socket> socket, bool isServer)
        std::int32_t stream_id, const std::uint8_t* data, std::size_t len,
        void* user_data) -> int
   {
+    static_cast<SessionImpl*>(user_data)->logStream()
+      << "onDataChunkRecv(" << flags << ", " << stream_id
+      << ", " << "..." << ", " << len << ")" << std::endl;
     return static_cast<SessionImpl*>(user_data)->onDataChunkRecv(
       flags, stream_id, data, len);
   });
@@ -220,6 +240,9 @@ SessionImpl::SessionImpl(std::shared_ptr<io::Socket> socket, bool isServer)
     [](nghttp2_session* /*session*/, std::int32_t stream_id,
        std::uint32_t error_code, void *user_data) -> int
   {
+    static_cast<SessionImpl*>(user_data)->logStream()
+      << "onStreamClose(" << stream_id << ", "
+      << mist::make_nghttp2_error(error_code).message() << ")" << std::endl;
     return static_cast<SessionImpl*>(user_data)->onStreamClose(stream_id,
       error_code);
   });
@@ -256,7 +279,45 @@ SessionImpl::SessionImpl(std::shared_ptr<io::Socket> socket, bool isServer)
   }
 }
 
-SessionImpl::~SessionImpl() {}
+namespace
+{
+class nopbuf : public std::basic_streambuf<char> {
+  int_type overflow(int_type c)
+  {
+    return traits_type::not_eof(c);
+  }
+};
+class nopstream : public std::basic_ostream<char> {
+public:
+  nopstream() : std::basic_ios<char>(&_nopbuf),
+    std::basic_ostream<char>(&_nopbuf)
+  {
+    init(&_nopbuf);
+  }
+private:
+    nopbuf _nopbuf;
+};
+nopstream cnop;
+} // namespace;
+
+SessionImpl::~SessionImpl()
+{
+  logStream() << "~SessionImpl()" << std::endl;
+}
+
+void SessionImpl::setName(const std::string& name)
+{
+  _name = name;
+  logStream() << "setName(" << name << ")" << std::endl;
+}
+
+std::ostream& SessionImpl::logStream() const
+{
+  if (_name.size() > 0)
+    return std::cerr << _name << ": ";
+  else
+    return cnop;
+}
 
 boost::optional<std::shared_ptr<StreamImpl>>
 SessionImpl::findBaseStream(std::int32_t streamId)
@@ -267,25 +328,27 @@ SessionImpl::findBaseStream(std::int32_t streamId)
     /* We know of no such id */
     return boost::none;
   }
-  auto ptr = it->second.lock();
-  if (!ptr) {
-    /* The weak pointer has expired; reset the stream */
-    nghttp2_submit_rst_stream(nghttp2Session(), NGHTTP2_FLAG_NONE, streamId,
-      NGHTTP2_INTERNAL_ERROR);
-    _streams.erase(streamId);
-    return boost::none;
-  }
-  return ptr;
+  return it->second;
+  //auto ptr = it->second.lock();
+  //if (!ptr) {
+  //  /* The weak pointer has expired; reset the stream */
+  //  nghttp2_submit_rst_stream(nghttp2Session(), NGHTTP2_FLAG_NONE, streamId,
+  //    NGHTTP2_INTERNAL_ERROR);
+  //  _streams.erase(streamId);
+  //  return boost::none;
+  //}
+  //return ptr;
 }
 
 void
 SessionImpl::insertBaseStream(std::shared_ptr<StreamImpl> strm)
 {
+  logStream() << "insertBaseStream(" << strm->streamId() << ")" << std::endl;
   std::lock_guard<std::recursive_mutex> lock(_sessionMutex);
   assert(strm);
   assert(strm->hasValidStreamId());
-  _streams.insert(std::make_pair(strm->streamId(),
-    std::weak_ptr<StreamImpl>(strm)));
+  _streams.insert(std::make_pair(strm->streamId(), strm));
+  //  std::weak_ptr<StreamImpl>(strm)));
 }
 
 namespace
@@ -304,6 +367,7 @@ void
 SessionImpl::readCallback(const std::uint8_t* data, std::size_t length,
   boost::system::error_code ec)
 {
+  logStream() << "readCallback(..., " << length << ", ...)" << std::endl;
   if (ec) {
     /* Read error */
     error(ec);
@@ -334,6 +398,7 @@ SessionImpl::readCallback(const std::uint8_t* data, std::size_t length,
 void
 SessionImpl::start()
 {
+  logStream() << "start" << std::endl;
   /* Bind the socket read callback */
   {
     using namespace std::placeholders;
@@ -374,12 +439,14 @@ SessionImpl::alive() const
 void
 SessionImpl::setOnError(error_callback cb)
 {
+  logStream() << "setOnError(...)" << std::endl;
   _onError = std::move(cb);
 }
 
 void
 SessionImpl::error(boost::system::error_code ec)
 {
+  logStream() << "error(" << ec.message() << ")" << std::endl;
   if (_onError)
     _onError(ec);
   stop();
@@ -388,12 +455,13 @@ SessionImpl::error(boost::system::error_code ec)
 void
 SessionImpl::stop()
 {
+  logStream() << "stop()" << std::endl;
   if (_stopped)
     return;
   _stopped = true;
   // TODO: Check if this is necessary
   for (auto s : _streams) {
-    auto stream(s.second.lock());
+    auto stream(s.second);
     if (stream) {
         stream->close(boost::system::error_code());
     }
@@ -405,6 +473,7 @@ SessionImpl::stop()
 void
 SessionImpl::shutdown()
 {
+  logStream() << "shutdown()" << std::endl;
   if (_stopped)
     return;
 
@@ -420,6 +489,7 @@ SessionImpl::shutdown()
 void
 SessionImpl::write()
 {
+  logStream() << "write()" << std::endl;
   if (_insideCallback)
     return;
   
@@ -471,6 +541,7 @@ boost::system::error_code
 SessionImpl::submitRequest(StreamImpl& strm,
   const std::vector<nghttp2_nv>& nvs)
 {
+  logStream() << "submitRequest(..., ...)" << std::endl;
   assert(!strm.hasValidStreamId());
 
   /* Set the data provider */
@@ -514,6 +585,7 @@ boost::system::error_code
 SessionImpl::submitResponse(StreamImpl& strm,
   const std::vector<nghttp2_nv>& nvs)
 {
+  logStream() << "submitResponse(" << strm.streamId() << ", ...)" << std::endl;
   /* Set the data provider */
   nghttp2_data_provider* prdptr = nullptr;
   nghttp2_data_provider prd;
@@ -549,6 +621,7 @@ boost::system::error_code
 SessionImpl::submitTrailers(StreamImpl& strm,
   const std::vector<nghttp2_nv>& nvs)
 {
+  logStream() << "submitTrailers(" << strm.streamId() << ", ...)" << std::endl;
   assert(strm.hasValidStreamId());
 
   int rv;
@@ -568,6 +641,7 @@ SessionImpl::submitTrailers(StreamImpl& strm,
 boost::system::error_code
 SessionImpl::resumeData(StreamImpl& strm)
 {
+  logStream() << "resumeData(" << strm.streamId() << ")" << std::endl;
   std::lock_guard<std::recursive_mutex> lock(_sessionMutex);
   int rv = nghttp2_session_resume_data(nghttp2Session(), strm.streamId());
 

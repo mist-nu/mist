@@ -40,6 +40,8 @@ public:
 
   virtual void setOnError(error_callback cb) override;
 
+  void setName(const std::string& name) const;
+
   ClientSession(std::shared_ptr<io::Socket> socket);
   ClientSession(std::shared_ptr<ClientSessionImpl> impl);
 
