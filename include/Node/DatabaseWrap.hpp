@@ -95,7 +95,16 @@ namespace detail
 {
 
 template<>
-struct NodeValueConverter<const Database::AccessDomain&>
+struct NodeValueConverter<Database* const>
+{
+    static v8::Local<v8::Value> conv(const Database* const v)
+    {
+        return DatabaseWrap::object(const_cast<Database*>(v));
+    }
+};
+
+template<>
+struct NodeValueConverter<const Database::AccessDomain>
 {
     static v8::Local<v8::Value> conv(const Database::AccessDomain& v)
     {
@@ -104,7 +113,7 @@ struct NodeValueConverter<const Database::AccessDomain&>
 };
 
 template<>
-struct NodeValueConverter<const Database::Manifest&>
+struct NodeValueConverter<const Database::Manifest>
 {
     static v8::Local<v8::Value> conv(const Database::Manifest& v)
     {

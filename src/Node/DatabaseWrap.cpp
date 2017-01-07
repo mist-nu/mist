@@ -1,5 +1,7 @@
 #include "Node/DatabaseWrap.hpp"
 #include "Node/PrivateKeyWrap.hpp"
+#include "Node/PublicKeyWrap.hpp"
+#include "Node/SHA3Wrap.hpp"
 
 namespace Mist
 {
