@@ -154,7 +154,7 @@ public:
         double n;
         std::string v;
         Value() : t( Type::Typeless ),b(),n(),v() {}
-        Value( std::nullptr_t ) : t( Type::Typeless ),b(),n(),v() {}
+        Value( std::nullptr_t ) : t( Type::Null ),b(),n(),v() {}
         Value( bool b ) : t( Type::Boolean ),b(b),n(),v() {}
         Value( double n ) : t( Type::Number), b(),n(n),v() {}
         Value( int i ) : t( Type::Number ), b(),n(i),v() {}

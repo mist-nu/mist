@@ -56,12 +56,17 @@ void SavePoint::rollback() {
 } /* namespace Database */
 
 std::string Date::now( int diffSeconds ) {
-    std::time_t now_c;
-    std::time( &now_c );
-    now_c += diffSeconds;
-    char time_c[100];
-    std::size_t len = std::strftime( time_c, sizeof( time_c ), "%F %T", std::gmtime( &now_c ) );
-    return std::string( time_c, len );
+    auto now = std::chrono::system_clock::now();
+    auto seconds = std::chrono::time_point_cast<std::chrono::seconds>(now);
+    auto fraction = now - seconds;
+    auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(fraction);
+
+    time_t cnow = std::chrono::system_clock::to_time_t(now);
+    char buffer[100];
+    std::size_t len = std::strftime( buffer, sizeof( buffer ), "%F %T", std::gmtime( &cnow ) );
+    std::string time( buffer, len );
+    time += milliseconds.count();
+    return time;
 }
 
 } /* namespace Helper */

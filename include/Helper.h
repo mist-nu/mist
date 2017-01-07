@@ -60,10 +60,10 @@ class TemporaryFile {};
 
 
 class Date {
-    // TODO: fix the whole class
+    // TODO: verify input
 public:
     static std::string now( int diffSeconds = 0 );
-    Date() : date( { } ) {}
+    Date() : date( now() ) {}
     Date( const char* date ) : date( date ) {}
     Date( const std::string& date ) : date( date ) {}
     ~Date() {}
@@ -92,7 +92,6 @@ protected:
         std::ptrdiff_t n{ this->pptr() - this->pbase() };
         if ( n > 0 ) {
             cb( std::basic_string<CharT>( static_cast<CharT*>( this->pbase() ), n ) );
-            LOG( DBUG ) << "Streamer: " << std::basic_string<CharT>( static_cast<CharT*>( this->pbase() ), n );
             this->pbump( -n );
         }
         return true; // Assume true since cb returns void

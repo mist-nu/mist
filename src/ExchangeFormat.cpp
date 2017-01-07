@@ -1128,9 +1128,8 @@ void Deserializer::parseAttributes( E e ) {
         // TODO: Verify this behavior
         switch( e ) {
         case E::Null:
-            // TODO: not implemented in Database::Value
-            // change this when implemented.
-            value = false;
+            d->pop();
+            value = nullptr;
             break;
         case E::Integer:
             value = static_cast<double>( d->get_integer() );
@@ -1149,8 +1148,6 @@ void Deserializer::parseAttributes( E e ) {
             value = d->get_string();
             break;
         default:
-            // Got unexpected value
-            //formatError();
             throw std::logic_error( "Missing case in attribute parser." );
             return;
         }
@@ -1177,9 +1174,9 @@ void Deserializer::startTransaction() {
             static_cast<Database::AccessDomain>( accessDomain ),
             parents,
             Helper::Date( timestamp ),
-            CryptoHelper::SHA3( user ),
-            CryptoHelper::SHA3( transactionId ),
-            CryptoHelper::Signature( signature ) ) );
+            CryptoHelper::PublicKeyHash::fromString( user ),
+            CryptoHelper::SHA3::fromString( transactionId ),
+            CryptoHelper::Signature::fromString( signature ) ) );
     transaction->init(); // TODO: this should not be needed, make it RAII instead?
 }
 
@@ -1193,7 +1190,7 @@ void Deserializer::commitTransaction() {
             static_cast<Database::AccessDomain>( accessDomain ),
             parentsSHA3,
             Helper::Date( timestamp ),
-            CryptoHelper::SHA3::fromString( user ),
+            CryptoHelper::PublicKeyHash::fromString( user ),
             CryptoHelper::SHA3::fromString( transactionId ),
             CryptoHelper::Signature::fromString( signature )
         } );

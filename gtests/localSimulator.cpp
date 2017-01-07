@@ -85,6 +85,9 @@ TEST( LocalCentral, ReceiveTransactions ) {
     // Read "remote" transactions
     std::fstream tfs( central_remote + ".json", std::fstream::in | std::fstream::binary );
     db->writeToDatabase( *tfs.rdbuf() );
+    tfs.close();
+    db->close();
+    central.close();
 }
 
 } // namespace

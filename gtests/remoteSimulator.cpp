@@ -73,36 +73,56 @@ TEST( RemoteCentral, CreateTransactions ) {
     // Create db
     D* db{ central.createDatabase( "test" ) };
 
-    // Test manifest
+    // Verify manifest
     M::Database::Manifest* m{ db->getManifest() };
     EXPECT_TRUE( m->verify() );
 
-    // Test Manifest::fromString( toString() )
-    std::string storedManifest{ db->getManifest()->toString() };
-    M::Database::Manifest manifest{ M::Database::Manifest::fromString( storedManifest,
-            std::bind( &M::Central::verify, &central, _1, _2, _3 )
-    ) };
-    EXPECT_TRUE( manifest.verify() );
+    // Attributes
+    std::map<std::string, V> attributes;
+
+    // Object parent
+    M::Database::ObjectRef parentObject{ M::Database::AccessDomain::Normal, 0 };
+
+    // Transaction pointer
+    std::unique_ptr<T> t{};
 
     // Start transaction
-    std::unique_ptr<T> t{ std::move( db->beginTransaction() ) };
-
-    // Add Object
-    std::map<std::string, V> attributes;
-    attributes.emplace( "Hello", "world" );
-    attributes.emplace( "Next", V( 2 ) );
-    t->newObject( {}, attributes );
+    t = std::move( db->beginTransaction() );
     t->commit();
     t.reset();
 
-    // New transaction
+    // Next transaction
     t = std::move( db->beginTransaction() );
     attributes.clear();
-    attributes.emplace( "Second", "test" );
-    t->newObject( {}, attributes );
+    attributes.emplace( "Hello", "world" );
+    parentObject.id = t->newObject( parentObject, attributes );
     t->commit();
     t.reset();
 
+    // Next transaction
+    t = std::move( db->beginTransaction() );
+    attributes.clear();
+    attributes.emplace( "Nothing", V() );
+    attributes.emplace( "Null", nullptr );
+    attributes.emplace( "Boolean", true );
+    attributes.emplace( "Number", 2.0 );
+    attributes.emplace( "String", "text" );
+    attributes.emplace( "Json", V( "{}", true ) );
+    parentObject.id = t->newObject( parentObject, attributes );
+    t->commit();
+    t.reset();
+
+    // Next transaction
+    t = std::move( db->beginTransaction() );
+    attributes.clear();
+    attributes.emplace( "a", "v" );
+    parentObject.id = t->newObject( parentObject, attributes );
+    parentObject.id = t->newObject( parentObject, attributes );
+    parentObject.id = t->newObject( parentObject, attributes );
+    t->commit();
+    t.reset();
+
+    // Dump the whole database
     db->dump( central_remote );
 
     // Shutdown

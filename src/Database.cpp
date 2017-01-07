@@ -25,7 +25,7 @@ Database::Database( Central *central, std::string path ) :
         manifest( nullptr ),
         central( central ),
         path( path ),
-        userHash( nullptr == central ? "" : central->getPublicKey().hash().toString() ),
+        userHash(),
         db( nullptr ),
         deserializer( new Deserializer( this ) ),
         serializer( new Serializer( this ) ) {
@@ -49,6 +49,7 @@ void Database::create( unsigned localId, std::unique_ptr<Manifest> manifest ) {
 
     if ( manifest ) {
         if( manifest->verify() ) {
+            userHash = manifest->getCreator().hash().toString();
             this->manifest = std::move( manifest );
         } else {
             throw std::runtime_error( "Manifest verification failed" );
@@ -104,8 +105,12 @@ void Database::init( std::unique_ptr<Manifest> manifest ) {
     LOG ( DBUG ) << "Initializing database";
     try {
         if ( manifest ) {
-            // TODO: verify manifest
-            this->manifest = std::move( manifest );
+            if( manifest->verify() ) {
+                userHash = manifest->getCreator().hash().toString();
+                this->manifest = std::move( manifest );
+            } else {
+                throw std::runtime_error( "Manifest verification failed" );
+            }
         }
         if ( !db ) { // TODO: what to do if this.create() have been called?
             db.reset( new Connection( path, Helper::Database::OPEN_READWRITE ) );
@@ -1036,7 +1041,6 @@ std::unique_ptr<Mist::RemoteTransaction> Database::beginRemoteTransaction(
             LOG( WARNING ) << "Could not get user: " << e.what();
         }
 
-        //#pragma message "Uncomment this code to enable AC when we have usable public keys" // TODO
         if ( !userAccount || userAccount->getPermission() == Permission::P::read ) {
             LOG ( WARNING ) << "Invalid user or user permission";
             throw Mist::Exception( Mist::Error::ErrorCode::AccessDenied );
@@ -1155,13 +1159,13 @@ unsigned Database::reorderTransaction( const Database::Transaction& tranasaction
     Statement newerTransaction( *conn,
             "SELECT version, timestamp "
             "FROM 'Transaction' "
-            "WHERE datetime( timestamp ) >= datetime( ? ) "
+            "WHERE timestamp >= ? "
             "ORDER BY version DESC ");
 
     Statement sameTimeTransaction( *conn,
             "SELECT version, hash "
             "FROM 'Transaction' "
-            "WHERE datetime( timestamp ) == datetime( ? ) "
+            "WHERE timestamp >= ? "
             "ORDER BY version ASC ");
 
     std::vector<std::unique_ptr<Statement>> versionUp;
