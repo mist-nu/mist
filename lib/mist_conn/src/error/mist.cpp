@@ -23,8 +23,26 @@ class mist_error_category : public boost::system::error_category
       return "MIST_ERR_NOT_HTTP2";
     case MIST_ERR_NO_KEY_OR_CERT:
       return "MIST_ERR_NO_KEY_OR_CERT";
+    case MIST_ERR_INVALID_KEY_OR_CERT:
+      return "MIST_ERR_INVALID_KEY_OR_CERT";
     case MIST_ERR_SOCKS_HANDSHAKE:
       return "MIST_ERR_SOCKS_HANDSHAKE";
+    case MIST_ERR_PORT_TAKEN:
+      return "MIST_ERR_PORT_TAKEN";
+    case MIST_ERR_DIRECT_LISTEN_PORT_TAKEN:
+      return "MIST_ERR_DIRECT_LISTEN_PORT_TAKEN";
+    case MIST_ERR_TOR_GENERAL_FAILURE:
+      return "MIST_ERR_TOR_GENERAL_FAILURE";
+    case MIST_ERR_TOR_LISTEN_PORT_TAKEN:
+      return "MIST_ERR_TOR_LISTEN_PORT_TAKEN";
+    case MIST_ERR_TOR_SOCKS_PORT_TAKEN:
+      return "MIST_ERR_TOR_SOCKS_PORT_TAKEN";
+    case MIST_ERR_TOR_CONTROL_PORT_TAKEN:
+      return "MIST_ERR_TOR_CONTROL_PORT_TAKEN";
+    case MIST_ERR_TOR_EXECUTION:
+      return "MIST_ERR_TOR_EXECUTION";
+    case MIST_ERR_TOR_LOG_FILE:
+      return "MIST_ERR_TOR_LOG_FILE";
     default:
       return "Unknown mist error " + std::to_string(ev);
     }

@@ -1,4 +1,5 @@
 #include "Node/CentralWrap.hpp"
+#include "Node/DatabaseWrap.hpp"
 #include "Node/SHA3Wrap.hpp"
 #include "Node/PrivateKeyWrap.hpp"
 #include "Node/PublicKeyWrap.hpp"
@@ -14,7 +15,8 @@ CentralWrap::CentralWrap(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
   v8::HandleScope scope(isolate);
   std::string path(convBack<std::string>(info[0]));
-  self() = std::make_shared<Mist::Central>(path);
+  bool isLoggerInitialized(convBack<bool>(info[1]));
+  self() = std::make_shared<Mist::Central>(path, isLoggerInitialized);
 }
 
 CentralWrap::CentralWrap(std::shared_ptr<Mist::Central> _self)
@@ -162,11 +164,24 @@ CentralWrap::startServeTor(const Nan::FunctionCallbackInfo<v8::Value>& info)
     std::uint16_t torOutgoingPortHigh(convBack<std::uint16_t>(info[4]));
     std::uint16_t torControlPortLow(convBack<std::uint16_t>(info[5]));
     std::uint16_t torControlPortHigh(convBack<std::uint16_t>(info[6]));
+    auto startFunc(info[7].As<v8::Function>());
+    auto exitFunc(info[8].As<v8::Function>());
+
+    auto startCb(makeAsyncCallback<>(startFunc));
+    std::function<void(v8::Local<v8::Function>, boost::system::error_code ec)>
+        adapter = [](v8::Local<v8::Function> fn,
+            boost::system::error_code ec) {
+        // TODO: Make a converter for the error code
+        Nan::Callback cb(fn);
+        cb();
+    };
+    auto exitCb(makeAsyncCallback<boost::system::error_code>(exitFunc, adapter));
 
     self()->startServeTor(torPath,
         mist::io::port_range_list{ { torIncomingPortLow, torIncomingPortHigh } },
         mist::io::port_range_list{ { torOutgoingPortLow, torOutgoingPortHigh} },
-        mist::io::port_range_list{ { torControlPortLow, torControlPortHigh} });
+        mist::io::port_range_list{ { torControlPortLow, torControlPortHigh} },
+        startCb, exitCb);
 }
 
 void
@@ -222,34 +237,39 @@ CentralWrap::getDatabase(const Nan::FunctionCallbackInfo<v8::Value>& info)
 void
 CentralWrap::createDatabase(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
-  v8::HandleScope scope(isolate);
-  std::string name(convBack<std::string>(info[0]));
-  info.GetReturnValue().Set(conv(self()->createDatabase(name)));
+    v8::HandleScope scope(isolate);
+    std::string name(convBack<std::string>(info[0]));
+    info.GetReturnValue().Set(conv(self()->createDatabase(name)));
 }
 
 void
 CentralWrap::receiveDatabase(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
-  v8::HandleScope scope(isolate);
-  // TODO:
+    v8::HandleScope scope(isolate);
+    // TODO:
 }
 
 void
 CentralWrap::listDatabases(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
-  v8::HandleScope scope(isolate);
-  // TODO:
+    v8::HandleScope scope(isolate);
+    auto arr(Nan::New<v8::Array>());
+    auto databases(self()->listDatabases());
+    for (std::size_t i = 0; i < databases.size(); ++i) {
+        Nan::Set(arr, i, ManifestWrap::make(databases[i]));
+    }
+    info.GetReturnValue().Set(arr);
 }
 
 void
 CentralWrap::addPeer(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
-  v8::HandleScope scope(isolate);
-  auto pubKey(PublicKeyWrap::self(info[0]));
-  std::string name(convBack<std::string>(info[1]));
-  Mist::PeerStatus status(static_cast<Mist::PeerStatus>(convBack<int>(info[2])));
-  bool anonymous(convBack<bool>(info[3]));
-  self()->addPeer(pubKey, name, status, anonymous);
+    v8::HandleScope scope(isolate);
+    auto pubKey(PublicKeyWrap::self(info[0]));
+    std::string name(convBack<std::string>(info[1]));
+    Mist::PeerStatus status(static_cast<Mist::PeerStatus>(convBack<int>(info[2])));
+    bool anonymous(convBack<bool>(info[3]));
+    self()->addPeer(pubKey, name, status, anonymous);
 }
 
 void
@@ -271,18 +291,39 @@ CentralWrap::removePeer(const Nan::FunctionCallbackInfo<v8::Value>& info)
     self()->removePeer(pubKeyHash);
 }
 
+namespace
+{
+v8::Local<v8::Object> peerToObject(const Mist::Peer& peer)
+{
+    Nan::HandleScope scope();
+    auto obj(Nan::New<v8::Object>());
+    Nan::Set(obj, Nan::New("id").ToLocalChecked(), SHA3Wrap::make(peer.id));
+    Nan::Set(obj, Nan::New("anonymous").ToLocalChecked(), Nan::New(peer.anonymous));
+    Nan::Set(obj, Nan::New("key").ToLocalChecked(), PublicKeyWrap::make(peer.key));
+    Nan::Set(obj, Nan::New("name").ToLocalChecked(), Nan::New(peer.name).ToLocalChecked());
+    Nan::Set(obj, Nan::New("status").ToLocalChecked(), conv(peer.status));
+    return obj;
+}
+} // namespace
+
 void
 CentralWrap::listPeers(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
-  v8::HandleScope scope(isolate);
-  // TODO:
+    v8::HandleScope scope(isolate);
+    auto arr(Nan::New<v8::Array>());
+    auto peers(self()->listPeers());
+    for (std::size_t i = 0; i < peers.size(); ++i) {
+        arr->Set(i, peerToObject(peers[i]));
+    }
+    info.GetReturnValue().Set(arr);
 }
 
 void
 CentralWrap::getPeer(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
-  v8::HandleScope scope(isolate);
-  // TODO:
+    v8::HandleScope scope(isolate);
+    auto keyHash(SHA3Wrap::self(info[0]));
+    info.GetReturnValue().Set(peerToObject(self()->getPeer(keyHash)));
 }
 
 void
@@ -306,8 +347,18 @@ CentralWrap::removeAddressLookupServer(const Nan::FunctionCallbackInfo<v8::Value
 void
 CentralWrap::listAddressLookupServers(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
-  v8::HandleScope scope(isolate);
-  // TODO:
+    v8::HandleScope scope(isolate);
+    auto arr(Nan::New<v8::Array>());
+    auto addressLookupServers(self()->listAddressLookupServers());
+    for (std::size_t i = 0; i < addressLookupServers.size(); ++i) {
+        auto obj(Nan::New<v8::Object>());
+        obj->Set(Nan::New("address").ToLocalChecked(),
+            conv(addressLookupServers[i].first));
+        obj->Set(Nan::New("port").ToLocalChecked(),
+            conv(addressLookupServers[i].second));
+        arr->Set(i, obj);
+    }
+    info.GetReturnValue().Set(arr);
 }
 
 void
@@ -331,8 +382,14 @@ CentralWrap::removeDatabasePermission(const Nan::FunctionCallbackInfo<v8::Value>
 void
 CentralWrap::listDatabasePermissions(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
-  v8::HandleScope scope(isolate);
-  // TODO:
+    v8::HandleScope scope(isolate);
+    auto keyHash(SHA3Wrap::self(info[0]));
+    auto arr(Nan::New<v8::Array>());
+    auto permissions(self()->listDatabasePermissions(keyHash));
+    for (std::size_t i = 0; i < permissions.size(); ++i) {
+        arr->Set(i, SHA3Wrap::make(permissions[i]));
+    }
+    info.GetReturnValue().Set(arr);
 }
 
 void
@@ -358,8 +415,19 @@ CentralWrap::removeServicePermission(const Nan::FunctionCallbackInfo<v8::Value>&
 void
 CentralWrap::listServicePermissions(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
-  v8::HandleScope scope(isolate);
-  // TODO:
+    v8::HandleScope scope(isolate);
+    auto keyHash(SHA3Wrap::self(info[0]));
+    auto permissions(self()->listServicePermissions(keyHash));
+    auto map(Nan::New<v8::Object>());
+    for (auto& item : permissions) {
+        auto& services = item.second;
+        auto arr(Nan::New<v8::Array>());
+        for (std::size_t i = 0; i < services.size(); ++i) {
+            arr->Set(i, conv(services[i]));
+        }
+        map->Set(conv(item.first), arr);
+    }
+    info.GetReturnValue().Set(map);
 }
 
 void
@@ -377,7 +445,7 @@ void
 CentralWrap::stopSync(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
   v8::HandleScope scope(isolate);
-  // TODO:
+  self()->stopSync();
 }
 
 void

@@ -16,6 +16,10 @@
 #include <tuple>
 #include <vector>
 
+#include <g3log/g3log.hpp>
+#include <g3log/logworker.hpp>
+#include <g3log/std2_make_unique.hpp>
+
 #include "CryptoHelper.h"
 #include "Database.h"
 #include "Helper.h"
@@ -65,7 +69,7 @@ public:
      * Path is the path to the directory where it stores its SQLite databases. If it is the first time the
      * directory is used, create must be called. Init must be called before using any other methods.
      */
-    Central( std::string path );
+    Central( std::string path, bool loggerAlreadyInitialized = false );
 
     /**
      * Start Mist from an existing directory with databases that has already been initaited. Usually
@@ -196,13 +200,20 @@ public:
      */
     virtual std::map<std::string, std::vector<std::string>> listServicePermissions( const CryptoHelper::PublicKeyHash& keyHash );
 
-    //
-    // Suggestions for a connection api
-    //
+    using tor_start_callback = std::function<void()>;
+    using tor_exit_callback = std::function<void(boost::system::error_code)>;
+    /*
+     * Launch TOR and set up a hidden service for incoming  anonymous connections.
+     */
     virtual void startServeTor(std::string torPath,
         mist::io::port_range_list torIncomingPort,
         mist::io::port_range_list torOutgoingPort,
-        mist::io::port_range_list controlPort);
+        mist::io::port_range_list controlPort,
+        tor_start_callback startCb,
+        tor_exit_callback exitCb);
+    /*
+     * Set up a socket for incoming direct connections.
+     */
     virtual void startServeDirect(
         mist::io::port_range_list directIncomingPort);
 

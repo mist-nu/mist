@@ -74,7 +74,7 @@ public:
   TorHiddenService& addHiddenService(std::uint16_t port,
     std::string name);
 
-  using start_callback = std::function<void(boost::system::error_code)>;
+  using start_callback = std::function<void()>;
   using exit_callback = std::function<void(boost::system::error_code)>;
   void start(io::port_range_list socksPort, io::port_range_list ctrlPort,
     start_callback startCb, exit_callback exitCb);
@@ -139,8 +139,7 @@ private:
 
   void attemptLaunch();
 
-  void onStart(boost::system::error_code ec, std::uint16_t socksPort = 0,
-    std::uint16_t ctrlPort = 0);
+  void onStart();
 
   void onExit(boost::system::error_code ec);
 

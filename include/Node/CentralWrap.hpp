@@ -74,5 +74,23 @@ private:
 
 };
 
+namespace detail
+{
+
+template<>
+struct NodeValueConverter<const Mist::PeerStatus>
+{
+    static v8::Local<v8::Value> conv(Mist::PeerStatus v)
+    {
+        return Nan::New(static_cast<int>(v));
+    }
+    static Mist::PeerStatus convBack(v8::Local<v8::Value> v)
+    {
+        return static_cast<Mist::PeerStatus>(Nan::To<int>(v).FromJust());
+    }
+};
+
+}
+
 } // namespace Node
 } // namespace Mist

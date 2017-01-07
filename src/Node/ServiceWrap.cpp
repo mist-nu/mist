@@ -1,4 +1,6 @@
+#include "Node/ClientStreamWrap.hpp"
 #include "Node/PeerWrap.hpp"
+#include "Node/ServerStreamWrap.hpp"
 #include "Node/ServiceWrap.hpp"
 
 namespace Mist

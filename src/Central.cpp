@@ -17,8 +17,6 @@
 #include <memory>
 
 #include <g3log/g3log.hpp>
-#include <g3log/logworker.hpp>
-#include <g3log/std2_make_unique.hpp>
 
 #include "CryptoHelper.h"
 #include "Central.h"
@@ -38,18 +36,6 @@
 
 namespace
 {
-
-std::unique_ptr<g3::LogWorker> logWorker;
-std::unique_ptr<g3::SinkHandle<g3::FileSink>> logHandle;
-
-void
-initLogger(const std::string& directory, const std::string& file)
-{
-    logWorker = g3::LogWorker::createLogWorker();
-    logHandle = logWorker->addDefaultLogger(file, directory);
-    g3::initializeLogging(logWorker.get());
-    LOG( INFO ) << "Starting Central";
-}
 
 void getAllData(mist::h2::ServerRequest request,
     std::function<void(std::string)> cb) {
@@ -120,9 +106,20 @@ void execOutStream(mist::io::IOContext& ioCtx,
     res.end(os.str());
 }
 
+std::unique_ptr<g3::LogWorker> logWorker;
+std::unique_ptr<g3::SinkHandle<g3::FileSink>> logHandle;
+
+void
+initializeLogging(const std::string& directory, const std::string& prefix)
+{
+    logWorker = g3::LogWorker::createLogWorker();
+    logHandle = logWorker->addDefaultLogger(prefix, directory);
+    g3::initializeLogging(logWorker.get());
+}
+
 } // namespace
 
-Mist::Central::Central( std::string path ) :
+Mist::Central::Central( std::string path, bool loggerAlreadyInitialized ) :
         path( path ), contentDatabase( nullptr ), settingsDatabase( nullptr ),
         databases { },
         ioCtx(), sslCtx( ioCtx, path ),
@@ -132,7 +129,10 @@ Mist::Central::Central( std::string path ) :
 
     using namespace std::placeholders;
 
-    //initLogger(path, "central.log");
+    // Initialize logger
+    if (!loggerAlreadyInitialized) {
+        initializeLogging(path, "central");
+    }
 
     // Initialize sync
     sync.started = false;
@@ -289,11 +289,13 @@ void Mist::Central::close() {
 void Mist::Central::startServeTor(std::string torPath,
     mist::io::port_range_list torIncomingPort,
     mist::io::port_range_list torOutgoingPort,
-    mist::io::port_range_list controlPort)
+    mist::io::port_range_list controlPort,
+    std::function<void()> startCb,
+    std::function<void(boost::system::error_code)> exitCb)
 {
     connCtx.startServeTor(torIncomingPort,
         torOutgoingPort, controlPort,
-        torPath, path);
+        torPath, path, startCb, exitCb);
 }
 
 void Mist::Central::startServeDirect(
@@ -920,16 +922,10 @@ Mist::Central::PeerSyncState::queryTransactions()
 {
     std::lock_guard<std::recursive_mutex> lock(mux);
     state = State::QueryTransactions;
-    LOG(DBUG) << shortFinger() << "Submitting sample request";
-    central.dbService.submitRequest(peer, "GET", "/",
-        [this](mist::Peer& peer, mist::h2::ClientRequest request)
-    {
-        LOG(DBUG) << shortFinger() << "Sample request!";
-        request.end();
-    });
-    /*databaseHashes = central.listDatabasePermissions( keyHash );
+
+    databaseHashes = central.listDatabasePermissions( keyHash );
     databaseHashesIterator = databaseHashes.begin();
-    queryTransactionsNext();*/
+    queryTransactionsNext();
 }
 
 void
@@ -1033,7 +1029,9 @@ Mist::Central::PeerSyncState::queryTransactionsGetNextParent()
         auto trHash = *(transactionParentsToDownload.begin());
 
         transactionParentsToDownload.erase( trHash );
-        central.dbService.submitRequest(peer, "HEAD", "/transactions/" + currentDatabase->getManifest()->getHash().toString() + "/" + trHash,
+        central.dbService.submitRequest(peer, "HEAD", "/transactions/"
+            + mist::h2::urlEncode(currentDatabase->getManifest()->getHash().toString()
+            + "/" + mist::h2::urlEncode(trHash)),
             [=](mist::Peer& peer, mist::h2::ClientRequest request)
         {
             getJsonResponse(request,
@@ -1180,7 +1178,7 @@ Mist::Central::PeerSyncState::queryAddressServersNext(address_vector_t::iterator
 void
 Mist::Central::PeerSyncState::queryAddressServersDone()
 {
-    LOG(DBUG) << shortFinger() << "Done querying for onion address of peer SHA3:" << pubKey.fingerprint();
+    LOG(DBUG) << shortFinger() << "Done querying for onion address";
     std::lock_guard<std::recursive_mutex> lock(mux);
     connectTor();
 }
@@ -1188,7 +1186,7 @@ Mist::Central::PeerSyncState::queryAddressServersDone()
 void
 Mist::Central::PeerSyncState::connectDirect()
 {
-    LOG(DBUG) << shortFinger() << "Direct connect to peer SHA3:" << pubKey.fingerprint();
+    LOG(DBUG) << shortFinger() << "Direct connect";
     std::lock_guard<std::recursive_mutex> lock(mux);
     state = State::ConnectDirect;
     //central.connCtx.connectPeerDirect(peer, addr,
@@ -1691,8 +1689,8 @@ void Mist::Central::RestRequest::replyBadRequest() {
 }
 
 void Mist::Central::RestRequest::replyBadMethod() {
-    // 403 Bad method
-    request.stream().submitResponse(403, {});
+    // 405 Method not allowed
+    request.stream().submitResponse(405, {});
     request.stream().response().end();
 }
 
@@ -1703,8 +1701,7 @@ void Mist::Central::RestRequest::replyNotFound() {
 }
 
 void Mist::Central::RestRequest::replyNotAuthorized() {
-    // ??? Not authorized
-    // TODO:
-    request.stream().submitResponse(400, {});
+    // 403 Forbidden
+    request.stream().submitResponse(403, {});
     request.stream().response().end();
 }

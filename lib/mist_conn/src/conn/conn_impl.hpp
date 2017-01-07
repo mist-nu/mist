@@ -104,10 +104,14 @@ public:
   std::uint16_t serveDirect(io::port_range_list directIncomingPort);
 
   std::uint16_t directConnectPort() const;
+  
+  using tor_start_callback = ConnectContext::tor_start_callback;
+  using tor_exit_callback = ConnectContext::tor_exit_callback;
 
   void startServeTor(io::port_range_list torIncomingPort,
     io::port_range_list torOutgoingPort, io::port_range_list controlPort,
-    std::string executableName, std::string workingDir);
+    std::string executableName, std::string workingDir,
+    tor_start_callback startCb, tor_exit_callback exitCb);
 
   void onionAddress(std::function<void(const std::string&)> cb);
 

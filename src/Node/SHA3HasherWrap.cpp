@@ -1,4 +1,5 @@
 #include "Node/SHA3HasherWrap.hpp"
+#include "Node/SHA3Wrap.hpp"
 
 namespace Mist
 {

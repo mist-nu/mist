@@ -24,11 +24,6 @@ namespace detail
 template<typename T, typename Enable = void>
 struct NodeValueConverter
 {
-  static v8::Local<v8::Value> conv(T v)
-  {
-    //static_assert(false, "No converter for this type");
-    return v8::Local<v8::Value>();
-  }
 };
 
 template<typename T, typename Enable = void>

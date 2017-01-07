@@ -57,9 +57,13 @@ public:
 
   std::uint16_t serveDirect(io::port_range_list directIncomingPort);
 
+  using tor_start_callback = std::function<void()>;
+  using tor_exit_callback = std::function<void(boost::system::error_code)>;
+
   void startServeTor(io::port_range_list torIncomingPort,
     io::port_range_list torOutgoingPort, io::port_range_list controlPort,
-    std::string executableName, std::string workingDir);
+    std::string executableName, std::string workingDir,
+    tor_start_callback startCb, tor_exit_callback exitCb);
 
   void onionAddress(std::function<void(const std::string&)> cb);
 
