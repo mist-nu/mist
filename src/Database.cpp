@@ -1270,10 +1270,10 @@ void Database::objectChanged( const Database::ObjectRef& objectRef ) {
     if ( AccessDomain::Settings == objectRef.accessDomain && USERS_OBJECT_ID == objectRef.id ) {
         // Handle user changes
         Database::Statement affectedUsers( *db.get(),
-                "SELECT id, status, transactionAction "
+                "SELECT id "
                 "FROM Attribute "
                 "WHERE id IN ( "
-                    "SELECT MAX(version), id "
+                    "SELECT id "
                     "FROM Object "
                     "WHERE parent=? "
                 ") "
@@ -1313,12 +1313,15 @@ void Database::objectChanged( const Database::ObjectRef& objectRef ) {
                 continue;
             }
 
-            if ( ObjectStatus::Current != static_cast<ObjectStatus>( affectedUsers.getColumn( "status" ).getUInt() )
-                    || ObjectAction::Delete == static_cast<ObjectAction>( affectedUsers.getColumn( "transactionAction" ).getUInt() ) ) {
+            // TODO: add/remove user from central.
+            /*
+            if ( ObjectStatus::Current != static_cast<ObjectStatus>( affectedUsers.getColumn( "status" ).getUInt() ) ||
+                    ObjectAction::Delete == static_cast<ObjectAction>( affectedUsers.getColumn( "transactionAction" ).getUInt() ) ) {
                 central->removePeer( CryptoHelper::PublicKeyHash::fromString( id ) );
             } else {
                 central->addPeer( CryptoHelper::PublicKey::fromPem( publicKeyPem ), name, PeerStatus::IndirectAnonymous, true );
             }
+            //*/
             user.clearBindings();
             user.reset();
         }

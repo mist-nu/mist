@@ -1,6 +1,6 @@
 /*
  * (c) 2016 VISIARC AB
- * 
+ *
  * Free software licensed under GPLv3.
  */
 
@@ -9,39 +9,46 @@
 namespace Simulator
 {
 
-const std::string central_remote{ FS::path( "central_remote" ).string() };
+const std::string central2{ FS::path( "central2" ).string() };
+const std::string thisCentral{ FS::path( "central1" ).string() };
 
-TEST( RemoteCentral, CreateTransactions ) {
-    LOG( INFO ) << "Creating 'remote' transaction";
-    std::string thisCentral{ central_remote };
-    removeCentral( thisCentral );
+TEST( Mist, ReceiveDatabase ) {
+    LOG( INFO ) << "Creating Central 1 and extracting user";
 
+    // Create central
     M::Central central( thisCentral, true );
     central.create();
     central.init();
 
-    // Create db
-    D* db{ central.createDatabase( "test" ) };
+    // Read "remote" database manifest
+    std::fstream mfs( central2 + ".manifest.json", std::fstream::in | std::fstream::binary );
+    std::string mstr((std::istreambuf_iterator<char>(mfs)), std::istreambuf_iterator<char>());
+    mfs.close();
+    M::Database::Manifest manifest{
+        M::Database::Manifest::fromString( mstr,
+                std::bind( &M::Central::verify, &central, _1, _2, _3)
+        )
+    };
 
-    // Verify manifest
-    M::Database::Manifest* m{ db->getManifest() };
-    EXPECT_TRUE( m->verify() );
+    M::Database* db{ central.receiveDatabase( manifest ) };
+
+    // Read "remote" transactions
+    std::fstream tfs( central2 + ".json", std::fstream::in | std::fstream::binary );
+    db->writeToDatabase( *tfs.rdbuf() );
+    tfs.close();
+
+    // Write a transaction to db2
 
     // Attributes
     std::map<std::string, V> attributes;
 
-    // Object parent
+    // Transaction pointer
+    std::unique_ptr<M::Transaction> t{};
+
+    // Object references
     M::Database::ObjectRef object{ M::Database::AccessDomain::Normal, 0 };
     M::Database::ObjectRef object2{ object };
     M::Database::ObjectRef object3{ object };
-
-    // Transaction pointer
-    std::unique_ptr<T> t{};
-
-    // Empty transaction
-    t = std::move( db->beginTransaction() );
-    t->commit();
-    t.reset();
 
     // New object
     t = std::move( db->beginTransaction() );
@@ -97,9 +104,6 @@ TEST( RemoteCentral, CreateTransactions ) {
     t->deleteObject( object3.id );
     t->commit();
     t.reset();
-
-    // Dump the whole database
-    db->dump( thisCentral );
 
     // Shutdown
     db->close();

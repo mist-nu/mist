@@ -43,7 +43,7 @@ void removeCentral(std::string p) {
 void createTestCentral(FS::path p) {
     removeCentral(p.string());
 
-    M::Central central(p.string());
+    M::Central central(p.string(), true);
     M::Database* db;
 
     central.create();
@@ -59,7 +59,7 @@ TEST(InitRestTest, CreateCentral) {
 
 class CentralTest: public ::testing::Test {
 public:
-    CentralTest() : central("central") {
+    CentralTest() : central("central", true) {
         central.init();
     }
 

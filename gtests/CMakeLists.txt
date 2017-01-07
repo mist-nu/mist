@@ -167,12 +167,30 @@ if (test)
   	remoteSimulator.cpp
   )
   target_link_libraries( remoteSimulator ${Boost_LIBRARIES} gtest_main mist mist_conn )
-
+  
   add_executable( localSimulator
   	testAll.cpp
   	localSimulator.cpp
   )
   target_link_libraries( localSimulator ${Boost_LIBRARIES} gtest_main mist mist_conn )
+  
+  add_executable( simulator1
+  	testAll.cpp
+  	simulator1.cpp
+  )
+  target_link_libraries( simulator1 ${Boost_LIBRARIES} gtest_main mist mist_conn )
+
+  add_executable( simulator2
+  	testAll.cpp
+  	simulator2.cpp
+  )
+  target_link_libraries( simulator2 ${Boost_LIBRARIES} gtest_main mist mist_conn )
+  
+  add_executable( simulator3
+  	testAll.cpp
+  	simulator3.cpp
+  )
+  target_link_libraries( simulator3 ${Boost_LIBRARIES} gtest_main mist mist_conn )
   
   # This is so you can do 'make test' to see all your tests run, instead of
   # manually running the executable runUnitTests to see those specific tests.

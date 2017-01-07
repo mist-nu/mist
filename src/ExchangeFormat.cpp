@@ -1197,6 +1197,7 @@ void Deserializer::commitTransaction() {
     }
     if ( db && transaction ) {
         transaction->commit();
+        transaction.reset();
     }
 }
 

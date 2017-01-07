@@ -103,9 +103,12 @@ unsigned long Transaction::newObject( const Database::ObjectRef &parent, const s
     Database::AccessDomain parentAccessDomain;
     unsigned parentVersion;
 
-    if ( parent.id != Database::ROOT_OBJECT_ID ) {
+    if ( parent.id == Database::USERS_OBJECT_ID ) {
+        // TODO: verify user permission?
+    } else if ( parent.id != Database::ROOT_OBJECT_ID ) {
         // TODO: handle query exceptions.
-        Database::Statement query( *connection.get(), "SELECT accessDomain, id, version, transactionAction "
+        Database::Statement query( *connection.get(),
+                "SELECT accessDomain, id, version, transactionAction "
                 "FROM Object "
                 "WHERE accessDomain=? AND id=? AND status=? " );
         // TODO: verify correct behavior when casting during the binding.
@@ -125,7 +128,8 @@ unsigned long Transaction::newObject( const Database::ObjectRef &parent, const s
 
     unsigned long newId{ allocateObjectId() }; // TODO: what happens if this id is generated somewhere else but it has not arrived here yet?
     LOG ( DBUG ) << "New object id: " << newId;
-    Database::Statement query( *connection.get(), "INSERT INTO Object (accessDomain, id, version, status, parent, parentAccessDomain, transactionAction) "
+    Database::Statement query( *connection.get(),
+            "INSERT INTO Object (accessDomain, id, version, status, parent, parentAccessDomain, transactionAction) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)" );
     query << static_cast<int>( accessDomain )
             << static_cast<long long>( newId )

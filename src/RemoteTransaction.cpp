@@ -43,13 +43,44 @@ RemoteTransaction::~RemoteTransaction() {
 }
 
 void RemoteTransaction::init() {
+    // Reject transactions from the future
+    std::string now = Helper::Date::now();
+    if ( timestamp.toString() >= now ) {
+        LOG( WARNING ) << "Rejecting transaction from the future: " <<
+                "local time: " << now << " transaction time: " << timestamp.toString();
+        valid = false;
+        throw std::runtime_error( "Rejecting transaction from the future" );
+    }
+
+    // Insert transaction
+    Database::Statement insertTransaction( *connection.get(),
+            "INSERT INTO 'Transaction' (accessDomain, version, timestamp, userHash, hash, signature) "
+            "VALUES (?, ?, ?, ?, ?, ?) " );
+    insertTransaction <<
+            static_cast<int>( accessDomain ) <<
+            version <<
+            timestamp.toString() <<
+            userHash.toString() <<
+            hash.toString() <<
+            signature.toString();
+    if ( 0 == insertTransaction.exec() ) {
+        LOG( WARNING ) << "Could not insert transaction";
+        throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
+    }
+
+    // Read back the meta info from the db
+    Database::Transaction meta{ db->getTransactionMeta( version, connection.get() ) };
+    // Reorder the transaction to its correct place
+    version = db->reorderTransaction( meta, connection.get() );
+
+    // Check that we have all parents
     if ( !parents.empty() ) {
         // TODO: This block is already required to be done by the constructor,
         // as it takes vector<transaction> parents as an argument.
         // Should it be required in the constructor or done here?
         std::string q = "SELECT accessDomain, version, timestamp, userHash, hash, signature "
                 "FROM 'Transaction' "
-                "WHERE hash IN (";
+                "WHERE version < " + std::to_string( version ) + " AND hash IN ( ";
         for ( auto parent : parents ) {
             q += " '" + parent.hash.toString() + "',";
         }
@@ -71,6 +102,23 @@ void RemoteTransaction::init() {
         // Further more it is never again used and only .empty is called at the end
     }
 
+    // Insert transaction parents
+    Database::Statement insertTransactionParent( *connection.get(),
+            "INSERT INTO transactionParent (version, parentAccessDomain, parentVersion) "
+            "VALUES (?, ?, ?)");
+    for ( auto parent : parents ) {
+        insertTransactionParent <<
+                version <<
+                static_cast<int>( parent.accessDomain ) <<
+                parent.version;
+        if ( 0 == insertTransactionParent.exec() ) {
+            LOG( WARNING ) << "Could not insert transaction parent";
+            throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
+        }
+        insertTransactionParent.clearBindings();
+        insertTransactionParent.reset();
+    }
+
     Database::Statement queryMaxVersion( *connection.get(),
             "SELECT MAX(version) AS max FROM 'Transaction'" );
     if ( !queryMaxVersion.executeStep() ) {
@@ -82,71 +130,9 @@ void RemoteTransaction::init() {
     }
     unsigned maxVersion = queryMaxVersion.getColumn( "max" ).getUInt();
 
-    if ( maxVersion >= this->version ) { // TODO: verify the whole block
-        this->last = false;
-        Database::Statement updateObject( *connection.get(),
-                "UPDATE Object SET version=version+1 WHERE version>=?" );
-        updateObject.bind( 1, this->version );
-        if ( updateObject.exec() == 0 ) {
-            // TODO: 0 rows affected, handle it.
-            valid = false;
-            LOG ( WARNING ) << "Could not update object version";
-            throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
-        }
+    this->last = this->version >= maxVersion;
 
-        Database::Statement updateAttribute( *connection.get(),
-                "UPDATE Attribute SET version=version+1 WHERE version>=?" );
-        updateAttribute.bind( 1, this->version );
-        if ( updateAttribute.exec() == 0 ) {
-            // TODO: 0 rows affected, handle it.
-            valid = false;
-            LOG ( WARNING ) << "Could not update attribute version";
-            throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
-        }
-
-        Database::Statement updateTransaction( *connection.get(),
-                "UPDATE 'Transaction' SET version=version+1 WHERE version>=?" );
-        updateTransaction.bind( 1, this->version );
-        if ( updateTransaction.exec() == 0 ) {
-            // TODO: 0 rows affected, handle it.
-            valid = false;
-            LOG ( WARNING ) << "Could not update transaction version";
-            throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
-        }
-
-        Database::Statement updateTransactionParent( *connection.get(),
-                "UPDATE TransactionParent SET version=version+1 WHERE version>=?" );
-        updateTransactionParent.bind( 1, this->version );
-        if ( updateTransactionParent.exec() == 0 ) {
-            // TODO: 0 rows affected, handle it.
-            valid = false;
-            LOG ( WARNING ) << "Could not update transaction parent version";
-            throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
-        }
-
-        Database::Statement updateTransactionParentParent( *connection.get(),
-                "UPDATE TransactionParent SET parentVersion=parentVersion+1 WHERE parentVersion>=?" );
-        updateObject.bind( 1, this->version );
-        if ( updateObject.exec() == 0 ) {
-            // TODO: 0 rows affected, handle it.
-            valid = false;
-            LOG ( WARNING ) << "Could not update transaction parent, parent version";
-            throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
-        }
-
-        Database::Statement updateRenumber( *connection.get(),
-                "UPDATE Renumber SET version=version+1 WHERE version>=?" );
-        updateObject.bind( 1, this->version );
-        if ( updateObject.exec() == 0 ) {
-            // TODO: 0 rows affected, handle it.
-            valid = false;
-            LOG ( WARNING ) << "Could not update renumber version";
-            throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
-        }
-    } else {
-        this->last = false;
-    }
-    //parents.clear(); // TODO: Why is this done, doesn't that render the whole init() useless?
+    parents.clear();
 }
 
 /**
@@ -154,6 +140,7 @@ void RemoteTransaction::init() {
  * is stored in the database.
  */
 void RemoteTransaction::newObject( unsigned long id, const Database::ObjectRef& parent, const std::map<std::string, Database::Value>& attributes ) {
+    LOG( DBUG ) << "New object: " << id;
     if ( !valid ) {
         LOG( WARNING ) << "Invalid transaction";
         throw Mist::Exception( Mist::Error::ErrorCode::InvalidTransaction );
@@ -173,18 +160,34 @@ void RemoteTransaction::newObject( unsigned long id, const Database::ObjectRef& 
         throw Mist::Exception( Mist::Error::ErrorCode::ObjectCollisionInTransaction );
     }
 
+    Database::ObjectMeta object{
+        accessDomain,
+        id,
+        version,
+        parent,
+        olderVersionOfObjectExists( id ) ? Database::ObjectStatus::InvalidNew : Database::ObjectStatus::Current,
+        Database::ObjectAction::New
+    };
+
+    bool validParent{ Database::ObjectStatus::Current == getParentStatus( object ) };
+    if ( !validParent && Database::ObjectStatus::Current == object.status ) {
+        object.status = Database::ObjectStatus::InvalidParent;
+    }
+
     // Insert the object
-    Database::Statement queryInsertIntoObject( *connection.get(),
+    Database::Statement insertObject( *connection.get(),
             "INSERT INTO Object (accessDomain, id, version, status, parent, parentAccessDomain, transactionAction) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)" );
-    queryInsertIntoObject.bind( 1, (unsigned) accessDomain );
-    queryInsertIntoObject.bind( 2, (long long) id );
-    queryInsertIntoObject.bind( 3, version );
-    queryInsertIntoObject.bind( 4, (unsigned) Database::ObjectStatus::Current );
-    queryInsertIntoObject.bind( 5, (long long) parent.id );
-    queryInsertIntoObject.bind( 6, (unsigned) parent.accessDomain );
-    queryInsertIntoObject.bind( 7, (unsigned) Database::ObjectAction::New );
-    if ( queryInsertIntoObject.exec() == 0 ) {
+    insertObject <<
+            static_cast<unsigned>( accessDomain ) <<
+            static_cast<long long>( id ) <<
+            version <<
+            static_cast<unsigned>( object.status ) <<
+            static_cast<long long>( parent.id ) <<
+            static_cast<unsigned>( parent.accessDomain ) <<
+            static_cast<unsigned>( Database::ObjectAction::New );
+
+    if ( insertObject.exec() == 0 ) {
         // TODO: query failed, handle it.
         valid = false;
         LOG( WARNING ) << "Could not insert object";
@@ -244,6 +247,7 @@ void RemoteTransaction::newObject( unsigned long id, const Database::ObjectRef& 
  * is stored in the database.
  */
 void RemoteTransaction::moveObject( unsigned long id, Database::ObjectRef newParent ) {
+    LOG( DBUG ) << "Move object: " << id;
     if ( !valid ) {
         valid = false;
         LOG( WARNING ) << "Invalid transaction";
@@ -270,15 +274,14 @@ void RemoteTransaction::moveObject( unsigned long id, Database::ObjectRef newPar
     }
 
     Database::Statement getOldParent( *connection.get(),
-            "SELECT accessDomain, id "
+            "SELECT accessDomain, id, MAX(version) "
             "FROM Object "
             "WHERE id=( "
                 "SELECT parent "
                 "FROM Object "
                 "WHERE id=? "
                 "ORDER BY version DESC "
-            ") "
-            "ORDER BY version DESC " );
+            ") " );
     getOldParent << static_cast<long long>( id );
     Database::ObjectRef oldParent{ accessDomain, 0 };
     if ( getOldParent.executeStep() ) {
@@ -349,6 +352,7 @@ void RemoteTransaction::moveObject( unsigned long id, Database::ObjectRef newPar
  * is stored in the database.
  */
 void RemoteTransaction::updateObject( unsigned long id, std::map<std::string, Database::Value> attributes ) {
+    LOG( DBUG ) << "Update object: " << id;
     if ( !valid ) {
         valid = false;
         LOG( WARNING ) << "Invalid transaction";
@@ -364,15 +368,14 @@ void RemoteTransaction::updateObject( unsigned long id, std::map<std::string, Da
     //*/
 
     Database::Statement getParent( *connection.get(),
-            "SELECT accessDomain, id "
+            "SELECT accessDomain, id, MAX(version) "
             "FROM Object "
             "WHERE id=( "
                 "SELECT parent "
                 "FROM Object "
                 "WHERE id=? "
                 "ORDER BY version DESC "
-            ") "
-            "ORDER BY version DESC " );
+            ") " );
     getParent << static_cast<long long>( id );
     Database::ObjectRef parent{ accessDomain, 0 };
     if ( getParent.executeStep() ) {
@@ -522,6 +525,7 @@ void RemoteTransaction::updateObject( unsigned long id, std::map<std::string, Da
 }
 
 void RemoteTransaction::deleteObject( unsigned long id ) {
+    LOG( DBUG ) << "Delete object: " << id;
     if ( !valid ) {
         LOG( WARNING ) << "Invalid transaction";
         throw Mist::Exception( Mist::Error::ErrorCode::InvalidTransaction );
@@ -540,10 +544,11 @@ void RemoteTransaction::deleteObject( unsigned long id ) {
             "WHERE id=( "
                 "SELECT parent "
                 "FROM Object "
-                "WHERE id=? "
-                "ORDER BY version DESC "
+                "WHERE id=? AND version <= ? "
             ") " );
-    getParent << static_cast<long long>( id );
+    getParent <<
+            static_cast<long long>( id ) <<
+            version;
     Database::ObjectRef parent{ accessDomain, 0 };
     if ( getParent.executeStep() ) {
         parent.accessDomain = static_cast<Database::AccessDomain>( getParent.getColumn( "accessDomain" ).getUInt() );
@@ -630,7 +635,8 @@ void RemoteTransaction::commit() {
     Database::Statement object( *connection.get(),
             "SELECT accessDomain, id, version, status, parent, parentAccessDomain, transactionAction "
             "FROM Object "
-            "WHERE version=? ORDER BY id");
+            "WHERE version=? "
+            "ORDER BY id " );
     object << version;
     while( object.executeStep() ) {
         // TODO: check new objects to see if there is a collision
@@ -645,48 +651,13 @@ void RemoteTransaction::commit() {
         }
     }
 
-    // Insert transaction
-    Database::Statement insertTransaction( *connection.get(),
-            "INSERT INTO 'Transaction' (accessDomain, version, timestamp, userHash, hash, signature) "
-            "VALUES (?, ?, ?, ?, ?, ?)");
-    insertTransaction <<
-            static_cast<int>( accessDomain ) <<
-            version <<
-            timestamp.toString() <<
-            userHash.toString() <<
-            hash.toString() <<
-            signature.toString();
-    if ( 0 == insertTransaction.exec() ) {
-        LOG( WARNING ) << "Could not insert transaction";
-        throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
-    }
-
-    Database::Statement insertTransactionParent( *connection.get(),
-            "INSERT INTO transactionParent (version, parentAccessDomain, parentVersion) "
-            "VALUES (?, ?, ?)");
-    for ( auto parent : parents ) {
-        insertTransactionParent <<
-                version <<
-                static_cast<int>( parent.accessDomain ) <<
-                parent.version;
-        if ( 0 == insertTransactionParent.exec() ) {
-            LOG( WARNING ) << "Could not insert transaction parent";
-            throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
-        }
-        insertTransactionParent.clearBindings();
-        insertTransactionParent.reset();
-    }
-
-    // TODO: do this before inserting transaction parent?
+    // Check and verify transaction hash value
     Database::Transaction meta{ db->getTransactionMeta( version, connection.get() ) };
     if ( !( hash == db->calculateTransactionHash( meta, connection.get() ) ) ) {
         rollback();
         LOG( WARNING ) << "Transaction hash value is not a match";
         throw Mist::Exception( Mist::Error::ErrorCode::InvalidTransaction );
     }
-
-    version = db->reorderTransaction( meta, connection.get() );
-
 
     // TODO: some sort of lock here,
     // to prevent changes to the database before "objectChanged" has finished
@@ -808,10 +779,10 @@ Database::ObjectStatus RemoteTransaction::getParentStatus( const Database::Objec
         parentQuery =
                 "SELECT accessDomain, id, version, status, parent, parentAccessDomain, transactionAction "
                 "FROM Object "
-                "WHERE accessDomain=? AND id=? AND version= "
-                    "(SELECT MAX(version) "
+                "WHERE accessDomain=? AND id=? AND version=( "
+                    "SELECT MAX(version) "
                     "FROM Object "
-                    "WHERE accessDomain=? AND id=? AND version <= ? AND status < ?) ";
+                    "WHERE accessDomain=? AND id=? AND version <= ? AND status < ? ) ";
     }
     Database::Statement parentRow( *connection, parentQuery );
     if ( last ) {
