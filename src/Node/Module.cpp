@@ -238,6 +238,7 @@ Init(v8::Local<v8::Object> target, v8::Local<v8::Object> module)
   //   Nan::GetFunction(Nan::New<v8::FunctionTemplate>(connectPeerDirect)).ToLocalChecked());
   // Nan::Set(target, Nan::New("connectPeerTor").ToLocalChecked(),
   //   Nan::GetFunction(Nan::New<v8::FunctionTemplate>(connectPeerTor)).ToLocalChecked());
+
 }
 
 NODE_MODULE(_mist_conn, Init)

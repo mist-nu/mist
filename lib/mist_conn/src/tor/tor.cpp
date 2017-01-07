@@ -297,7 +297,7 @@ TorController::start(io::port_range_list socksPort,
   io::port_range_list ctrlPort, start_callback startCb, exit_callback exitCb)
 {
   if (_state != State::Stopped) {
-    startCb(make_mist_error(MIST_ERR_ASSERTION));
+    fail(make_mist_error(MIST_ERR_ASSERTION));
     return;
   }
 
@@ -319,7 +319,7 @@ TorController::start(io::port_range_list socksPort,
     boost::filesystem::path workingDir(_workingDir);
 
     if (exitCode) {
-      startCb(make_mist_error(MIST_ERR_TOR_EXECUTION));
+      fail(make_mist_error(MIST_ERR_TOR_EXECUTION));
       return;
     }
 
@@ -329,7 +329,7 @@ TorController::start(io::port_range_list socksPort,
       auto logFile = to_unique(PR_Open(logPath.string().c_str(),
         PR_RDONLY, 0));
       if (!logFile) {
-        startCb(make_mist_error(MIST_ERR_TOR_LOG_FILE));
+        fail(make_mist_error(MIST_ERR_TOR_LOG_FILE));
         return;
       }
       std::string passwordHash = readAll(logFile.get());
@@ -340,7 +340,7 @@ TorController::start(io::port_range_list socksPort,
         
       /* Make sure that the password hash was created */
       if (passwordHash.empty()) {
-        onStart(make_mist_error(MIST_ERR_TOR_LOG_FILE), 0, 0);
+        fail(make_mist_error(MIST_ERR_TOR_LOG_FILE));
         return;
       }
 
@@ -386,20 +386,19 @@ TorController::attemptLaunch()
 
   /* Write contents to the torrc file */
   boost::filesystem::path torrcPath(_workingDir / "torrc");
-  std::cerr << "torrcPath = " << torrcPath << std::endl;
   {
     auto rcFile = to_unique(PR_Open(torrcPath.string().c_str(),
       PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE, PR_IRUSR | PR_IWUSR));
 
     if (!rcFile) {
-      onStart(make_nss_error());
+      fail(make_nss_error(MIST_ERR_TOR_GENERAL_FAILURE));
       return;
     }
 
     writeAll(rcFile.get(), torrcContents);
 
     if (PR_Sync(rcFile.get()) != PR_SUCCESS) {
-      onStart(make_nss_error());
+      fail(make_nss_error(MIST_ERR_TOR_GENERAL_FAILURE));
       return;
     }
   }
@@ -432,18 +431,24 @@ TorController::attemptLaunch()
 }
 
 void
-TorController::onStart(boost::system::error_code ec,
-  std::uint16_t socksPort, std::uint16_t ctrlPort)
+TorController::onStart()
 {
-  if (_startCb)
-    std::move(_startCb)(ec);
+  if (_startCb) {
+    auto cb(_startCb);
+    _startCb = nullptr;
+    cb();
+  }
 }
 
 void
 TorController::onExit(boost::system::error_code ec)
 {
-  if (_exitCb)
-    std::move(_exitCb)(ec);
+  _startCb = nullptr;
+  if (_exitCb) {
+    auto cb(_exitCb);
+    _exitCb = nullptr;
+    cb(ec);
+  }
 }
 
 namespace
@@ -486,8 +491,7 @@ TorController::launchPostMortem(std::int32_t exitCode)
       PR_RDONLY, 0));
     if (!logFile) {
       /* Unable to read log file */
-      std::cerr << "Unable to open log file for reading hashed password" << std::endl;
-      fail();
+      fail(make_mist_error(MIST_ERR_TOR_LOG_FILE));
       return;
     }
     log = readAll(logFile.get());
@@ -498,7 +502,7 @@ TorController::launchPostMortem(std::int32_t exitCode)
 
   auto port = findAlreadyInUsePort(log);
   if (!port) {
-    onExit(make_mist_error(MIST_ERR_PORT_TAKEN));
+    fail(make_mist_error(MIST_ERR_PORT_TAKEN));
     return;
   }
 
@@ -542,21 +546,16 @@ TorController::sendCommand(std::string cmd)
     }
  
     std::lock_guard<std::recursive_mutex> lock(_mutex);
-    std::cerr << "Successfully wrote" << std::endl;
     if (_state == State::Started) {
       if (ec) {
-        std::cerr << "Tor: Error while writing to control socket" << std::endl;
         /* TODO: Does an error here mean fail? Maybe we retried the connection, 
         in which case this write in particular failed, but it does not mean
         that this Tor session has failed as a whole! */
-        _state = State::BadState;
-        //fail();
+        fail(make_mist_error(MIST_ERR_TOR_GENERAL_FAILURE));
         return;
       }
     }
   });
-
-  std::cerr << "Tor: Wrote " << cmd;
 }
 
 void
@@ -564,8 +563,8 @@ TorController::readResponse(const std::uint8_t *data, std::size_t length,
   boost::system::error_code ec)
 {
   if (ec) {
-    std::cerr << "Tor error reading response : " << ec.message() << std::endl;
-    _state = State::BadState;
+    /* Error reading response */
+    fail(make_mist_error(MIST_ERR_TOR_GENERAL_FAILURE));
     return;
   }
 
@@ -614,8 +613,7 @@ TorController::responseLineReady(std::string response)
       code = boost::lexical_cast<std::int16_t>(codeStr);
     } catch (const boost::bad_lexical_cast&) {
       /* Unable to parse the response code */
-      _state = State::BadState;
-      std::cerr << "Tor: Unable to parse response code" << std::endl;
+      fail(make_mist_error(MIST_ERR_TOR_GENERAL_FAILURE));
       return;
     }
   }
@@ -655,6 +653,7 @@ void
 TorController::fail(boost::system::error_code ec)
 {
   std::lock_guard<std::recursive_mutex> lock(_mutex);
+  bool starting(_state != State::Started);
   _state = State::BadState;
   onExit(ec);
 }
@@ -671,8 +670,7 @@ TorController::synchronousResponse(std::int16_t code,
 
     if (!ok) {
       /* Unable to authenticate */
-      std::cerr << "Tor: Unable to authenticate" << std::endl;
-      fail();
+      fail(make_mist_error(MIST_ERR_TOR_GENERAL_FAILURE));
       return;
     }
 
@@ -685,8 +683,7 @@ TorController::synchronousResponse(std::int16_t code,
     /* We accept "OK" or "Unrecognized event" */
     if (!ok && code != 552) {
       /* Unable to set events */
-      std::cerr << "Tor: Unable to set events" << std::endl;
-      fail();
+      fail(make_mist_error(MIST_ERR_TOR_GENERAL_FAILURE));
       return;
     }
 
@@ -694,8 +691,8 @@ TorController::synchronousResponse(std::int16_t code,
 
   } else {
 
-    std::cerr << "Tor: Unexpected response" << std::endl;
-    fail();
+    /* Unexpected response */
+    fail(make_mist_error(MIST_ERR_TOR_GENERAL_FAILURE));
     return;
 
   }
@@ -711,8 +708,7 @@ TorController::asynchronousResponse(std::int16_t code,
       if (line.find("Bootstrapped 100") != std::string::npos) {
         // 650 NOTICE Bootstrapped 100 % : Done
         /* Here we know that Tor is up and running and happy with life */
-        onStart(boost::system::error_code(), _socksPort.get(),
-          _ctrlPort.get());
+        onStart();
       }
     }
   }
@@ -722,8 +718,6 @@ void
 TorController::connectControlPort()
 {
   std::lock_guard<std::recursive_mutex> lock(_mutex);
-
-  std::cerr << "Attempting to connect to the Tor control port..." << std::endl;
 
   _ctrlSocket = _ioCtx.openSocket();
   auto addr = io::Address::fromLoopback(_ctrlPort.get());
@@ -748,8 +742,6 @@ TorController::connectControlPort()
         std::bind(&TorController::connectControlPort, this));
       return;
     }
-
-    std::cerr << "Connected to the Tor control port" << std::endl;
 
     _state = State::Authenticating;
 
@@ -816,7 +808,7 @@ handshakeSOCKS5(mist::io::TCPSocket &sock,
       return;
     }
     if (length != 2 || data[0] != 5 || data[1] != 0) {
-      cb("", mist::make_mist_error(mist::MIST_ERR_SOCKS_HANDSHAKE));
+      cb("", make_mist_error(MIST_ERR_SOCKS_HANDSHAKE));
       return;
     }
 
@@ -850,7 +842,7 @@ handshakeSOCKS5(mist::io::TCPSocket &sock,
         return;
       }
       if (length != 5 || data[0] != 5) {
-        cb("", mist::make_mist_error(mist::MIST_ERR_SOCKS_HANDSHAKE));
+        cb("", make_mist_error(MIST_ERR_SOCKS_HANDSHAKE));
         return;
       }
 
@@ -866,7 +858,7 @@ handshakeSOCKS5(mist::io::TCPSocket &sock,
       else if (type == 4)
         complLength = 22 - 5;
       else {
-        cb("", mist::make_mist_error(mist::MIST_ERR_SOCKS_HANDSHAKE));
+        cb("", make_mist_error(MIST_ERR_SOCKS_HANDSHAKE));
         return;
       }
 
@@ -880,7 +872,7 @@ handshakeSOCKS5(mist::io::TCPSocket &sock,
           return;
         }
         if (complLength != length) {
-          cb("", mist::make_mist_error(mist::MIST_ERR_SOCKS_HANDSHAKE));
+          cb("", make_mist_error(MIST_ERR_SOCKS_HANDSHAKE));
           return;
         }
 
@@ -906,12 +898,12 @@ handshakeSOCKS5(mist::io::TCPSocket &sock,
           + to_hex(data[13]) + to_hex(data[14]) + ':'
           + std::to_string((data[15] << 8) | data[16]);
         else {
-          cb("", mist::make_mist_error(mist::MIST_ERR_SOCKS_HANDSHAKE));
+          cb("", make_mist_error(MIST_ERR_SOCKS_HANDSHAKE));
           return;
         }
         assert(address.length());
         if (!success) {
-          cb(address, mist::make_mist_error(mist::MIST_ERR_SOCKS_HANDSHAKE));
+          cb(address, make_mist_error(MIST_ERR_SOCKS_HANDSHAKE));
         } else {
           cb(address, boost::system::error_code());
         }

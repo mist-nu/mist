@@ -17,8 +17,6 @@
 #include <memory>
 
 #include <g3log/g3log.hpp>
-#include <g3log/logworker.hpp>
-#include <g3log/std2_make_unique.hpp>
 
 #include "CryptoHelper.h"
 #include "Central.h"
@@ -38,18 +36,6 @@
 
 namespace
 {
-
-std::unique_ptr<g3::LogWorker> logWorker;
-std::unique_ptr<g3::SinkHandle<g3::FileSink>> logHandle;
-
-void
-initLogger(const std::string& directory, const std::string& file)
-{
-    logWorker = g3::LogWorker::createLogWorker();
-    logHandle = logWorker->addDefaultLogger(file, directory);
-    g3::initializeLogging(logWorker.get());
-    LOG( INFO ) << "Starting Central";
-}
 
 void getAllData(mist::h2::ServerRequest request,
     std::function<void(std::string)> cb) {
@@ -120,9 +106,20 @@ void execOutStream(mist::io::IOContext& ioCtx,
     res.end(os.str());
 }
 
+std::unique_ptr<g3::LogWorker> logWorker;
+std::unique_ptr<g3::SinkHandle<g3::FileSink>> logHandle;
+
+void
+initializeLogging(const std::string& directory, const std::string& prefix)
+{
+    logWorker = g3::LogWorker::createLogWorker();
+    logHandle = logWorker->addDefaultLogger(prefix, directory);
+    g3::initializeLogging(logWorker.get());
+}
+
 } // namespace
 
-Mist::Central::Central( std::string path ) :
+Mist::Central::Central( std::string path, bool loggerAlreadyInitialized ) :
         path( path ), contentDatabase( nullptr ), settingsDatabase( nullptr ),
         databases { },
         ioCtx(), sslCtx( ioCtx, path ),
@@ -132,7 +129,10 @@ Mist::Central::Central( std::string path ) :
 
     using namespace std::placeholders;
 
-    //initLogger(path, "central.log");
+    // Initialize logger
+    if (!loggerAlreadyInitialized) {
+        initializeLogging(path, "central");
+    }
 
     // Initialize sync
     sync.started = false;
@@ -289,11 +289,13 @@ void Mist::Central::close() {
 void Mist::Central::startServeTor(std::string torPath,
     mist::io::port_range_list torIncomingPort,
     mist::io::port_range_list torOutgoingPort,
-    mist::io::port_range_list controlPort)
+    mist::io::port_range_list controlPort,
+    std::function<void()> startCb,
+    std::function<void(boost::system::error_code)> exitCb)
 {
     connCtx.startServeTor(torIncomingPort,
         torOutgoingPort, controlPort,
-        torPath, path);
+        torPath, path, startCb, exitCb);
 }
 
 void Mist::Central::startServeDirect(

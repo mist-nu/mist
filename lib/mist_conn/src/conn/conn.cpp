@@ -179,10 +179,12 @@ MistConnApi
 void
 ConnectContext::startServeTor(io::port_range_list torIncomingPort,
   io::port_range_list torOutgoingPort, io::port_range_list controlPort,
-  std::string executableName, std::string workingDir)
+  std::string executableName, std::string workingDir,
+  tor_start_callback startCb, tor_exit_callback exitCb)
 {
   _impl->startServeTor(torIncomingPort, torOutgoingPort, controlPort,
-    std::move(executableName), std::move(workingDir));
+    std::move(executableName), std::move(workingDir), std::move(startCb),
+    std::move(exitCb));
 }
 
 MistConnApi
@@ -509,7 +511,8 @@ ConnectContextImpl::directConnectPort() const
 void
 ConnectContextImpl::startServeTor(io::port_range_list torIncomingPort,
   io::port_range_list torOutgoingPort, io::port_range_list controlPort,
-  std::string executableName, std::string workingDir)
+  std::string executableName, std::string workingDir,
+  tor_start_callback startCb, tor_exit_callback exitCb)
 {
   /* Serve the Tor connection port */
   {
@@ -524,21 +527,7 @@ ConnectContextImpl::startServeTor(io::port_range_list torIncomingPort,
       workingDir);
     _torHiddenService
       = _torCtrl->addHiddenService(_torIncomingPort, "mist-service");
-    _torCtrl->start(torOutgoingPort, controlPort,
-      [](boost::system::error_code ec)
-    {
-      if (ec) {
-        /* Tor could not start */
-        std::cerr << "Tor could not start" << std::endl;
-      } else {
-        /* Tor started normally */
-        std::cerr << "Tor started normally" << std::endl;
-      }
-    },
-      [](boost::system::error_code ec)
-    {
-      /* Tor exited */
-    });
+    _torCtrl->start(torOutgoingPort, controlPort, startCb, exitCb);
   }
 }
 

@@ -163,11 +163,23 @@ CentralWrap::startServeTor(const Nan::FunctionCallbackInfo<v8::Value>& info)
     std::uint16_t torOutgoingPortHigh(convBack<std::uint16_t>(info[4]));
     std::uint16_t torControlPortLow(convBack<std::uint16_t>(info[5]));
     std::uint16_t torControlPortHigh(convBack<std::uint16_t>(info[6]));
+    auto startFunc(info[7].As<v8::Function>());
+    auto exitFunc(info[8].As<v8::Function>());
+
+    auto startCb(makeAsyncCallback<>(startFunc));
+    auto exitCb(makeAsyncCallback<boost::system::error_code>(exitFunc,
+        [](v8::Local<v8::Function> fn, boost::system::error_code ec)
+    {
+        // TODO: Make a converter for the error code
+        Nan::Callback cb(fn);
+        cb();
+    }));
 
     self()->startServeTor(torPath,
         mist::io::port_range_list{ { torIncomingPortLow, torIncomingPortHigh } },
         mist::io::port_range_list{ { torOutgoingPortLow, torOutgoingPortHigh} },
-        mist::io::port_range_list{ { torControlPortLow, torControlPortHigh} });
+        mist::io::port_range_list{ { torControlPortLow, torControlPortHigh} },
+        startCb, exitCb);
 }
 
 void
