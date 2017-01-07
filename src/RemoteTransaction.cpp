@@ -655,13 +655,10 @@ void RemoteTransaction::commit() {
 
     // TODO: do this before inserting transaction parent?
     Database::Transaction meta{ db->getTransactionMeta( version, connection.get() ) };
-    #pragma message "Uncomment this code to enable transaction hash verification" // TODO
-    //*
     if ( !( hash == db->calculateTransactionHash( meta, connection.get() ) ) ) {
         rollback();
         throw Mist::Exception( Mist::Error::ErrorCode::InvalidTransaction );
     }
-    //*/
 
     version = db->reorderTransaction( meta, connection.get() );
 

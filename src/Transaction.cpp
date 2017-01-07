@@ -626,10 +626,8 @@ void Transaction::commit() {
 
     Database::Statement insertTransaction( *connection.get(),
             "INSERT INTO 'Transaction' (accessDomain, version, timestamp, userHash, hash, signature) "
-            "VALUES (?, ?, DATETIME('NOW'), ?, NULL, NULL)" );
-    // TODO: Setup a trigger during db creation instead of directly calling datetime here?
-    // TODO: verify all the above null-values
-    // TODO is it okay to set the timestamp like above?
+            "VALUES (?, ?, STRFTIME('%Y-%m-%d %H:%M:%f','now'), ?, NULL, NULL)" );
+    // TODO: Wait here if it is less than a millisecond since the last local commit.
     try {
         insertTransaction << static_cast<int>( accessDomain ) << version << db->getUserHash();
         if ( insertTransaction.exec() == 0 ) {

@@ -132,7 +132,7 @@ Mist::Central::Central( std::string path ) :
 
     using namespace std::placeholders;
 
-    initLogger(path, "central.log");
+    //initLogger(path, "central.log");
 
     // Initialize sync
     sync.started = false;
@@ -412,7 +412,6 @@ Mist::Database* Mist::Central::receiveDatabase( const Mist::Database::Manifest& 
             if( !manifest->verify() ) {
                 throw std::runtime_error( "Could not copy manifest, manifest failed verification." );
             }
-
             this->databases.emplace(localId, new Mist::Database( this, path + "/" + std::to_string( localId ) + ".db" ) );
             Mist::Database* db = databases.at( localId );
             Helper::Database::Statement query( *settingsDatabase, "INSERT INTO Database (hash, localId, creator, name, manifest) VALUES (?, ?, ?, ?, ?)" );
