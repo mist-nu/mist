@@ -67,7 +67,7 @@ TEST( LocalCentral, ReceiveTransactions ) {
     removeCentral( central_local );
 
     // Init central
-    M::Central central( central_local );
+    M::Central central( central_local, true );
     central.create();
     central.init();
 

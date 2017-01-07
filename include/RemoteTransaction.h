@@ -49,6 +49,11 @@ protected:
     virtual bool isDeletedStatus( const Database::ObjectStatus& status ) const;
     virtual unsigned long nextNumber( unsigned long num ) const;
     virtual unsigned long findNewId( unsigned long id ) const;
+    virtual Database::ObjectRef getParent( unsigned long id ) const;
+    virtual bool objectExists( unsigned long id ) const;
+    virtual bool olderVersionOfObjectExists( unsigned long id ) const;
+    virtual void insertObject( unsigned long id, unsigned status,
+            unsigned long parentId, unsigned parentAccessDomain, unsigned action );
 
 private:
     Database *db;

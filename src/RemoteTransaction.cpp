@@ -307,7 +307,7 @@ void RemoteTransaction::moveObject( unsigned long id, Database::ObjectRef newPar
     Database::Statement queryObject( *connection.get(),
             "SELECT id, parent, parentAccessDomain, version, status, transactionAction "
             "FROM Object "
-            "WHERE accessDomain=? AND id=? AND version=(SELECT version "
+            "WHERE accessDomain=? AND id=? AND version=(SELECT MAX(version) "
             "FROM Object WHERE accessDomain=? AND id=? AND status <= ? AND version < ?)" );
     queryObject.bind( 1, (unsigned) accessDomain );
     queryObject.bind( 2, (long long) id );
@@ -894,5 +894,77 @@ unsigned long RemoteTransaction::findNewId( unsigned long id ) const {
     }
     return newId;
 }
+
+Database::ObjectRef RemoteTransaction::getParent( unsigned long id ) const {
+    Database::Statement getParent( *connection.get(),
+            "SELECT accessDomain, id "
+            "FROM Object "
+            "WHERE id=( "
+                "SELECT parent "
+                "FROM Object "
+                "WHERE id=? "
+                "ORDER BY version DESC "
+            ") " );
+    getParent << static_cast<long long>( id );
+    if ( getParent.executeStep() ) {
+        Database::ObjectRef parent{ accessDomain, 0 };
+        parent.accessDomain = static_cast<Database::AccessDomain>( getParent.getColumn( "accessDomain" ).getUInt() );
+        parent.id = static_cast<unsigned long>( getParent.getColumn( "id" ).getInt64() );
+        return parent;
+    } else {
+        LOG( DBUG ) << "Parent object not found";
+        throw Exception( Error::ErrorCode::NotFound );
+    }
+}
+
+bool RemoteTransaction::objectExists( unsigned long id ) const {
+    Database::Statement queryId( *connection.get(),
+            "SELECT id FROM Object "
+            "WHERE accessDomain=? AND id=? AND version=?" );
+    queryId <<
+            static_cast<unsigned>( accessDomain ) <<
+            static_cast<long long>( id ) <<
+            version;
+    if ( queryId.executeStep() ) {
+        return true;
+    }
+    return false;
+}
+
+bool RemoteTransaction::olderVersionOfObjectExists( unsigned long id ) const {
+    Database::Statement queryId( *connection.get(),
+            "SELECT id FROM Object "
+            "WHERE accessDomain=? AND id=? AND version < ?" );
+    queryId <<
+            static_cast<unsigned>( accessDomain ) <<
+            static_cast<long long>( id ) <<
+            version;
+    if ( queryId.executeStep() ) {
+        return true;
+    }
+    return false;
+}
+
+void RemoteTransaction::insertObject( unsigned long id, unsigned status,
+        unsigned long parentId, unsigned parentAccessDomain, unsigned action ) {
+    Database::Statement insertObject( *connection.get(),
+            "INSERT INTO Object (accessDomain, id, parent, parentAccessDomain, version, status, transactionAction) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)" );
+    insertObject <<
+            static_cast<unsigned>( accessDomain ) <<
+            static_cast<long long>( id ) <<
+            static_cast<long long>( parentId ) <<
+            parentAccessDomain <<
+            version <<
+            status <<
+            action;
+    if ( !insertObject.exec() ) {
+        valid = false;
+        LOG( WARNING ) << "Failed to insert object into database";
+        throw Exception( Error::ErrorCode::UnexpectedDatabaseError );
+    }
+}
+
+
 
 } /* namespace Mist */

@@ -217,27 +217,35 @@ void Transaction::moveObject( unsigned long id, const Database::ObjectRef &newPa
     Mist::Database::Statement query( *connection.get(),
             "SELECT id, parent, parentAccessDomain, version, status, transactionAction "
             "FROM Object "
-            "WHERE accessDomain=? AND id=? AND status <= ?" );
-    query << (int) accessDomain << (long long) id << (int) Database::ObjectStatus::DeletedParent;
+            "WHERE accessDomain=? AND id=? AND status <= ? " );
+    query <<
+            (int) accessDomain <<
+            (long long) id <<
+            (int) Database::ObjectStatus::DeletedParent;
     if ( !query.executeStep() ) {
         LOG( WARNING ) << "Not Found, transaction no longer valid.";
         valid = false;
         throw Mist::Exception( Mist::Error::ErrorCode::NotFound );
     }
 
-    if ( newParent.id == (unsigned long) query.getColumn( "parent" ).getInt64() && newParent.accessDomain == (Database::AccessDomain) query.getColumn( "parentAccessDomain" ).getInt() ) {
+    if ( newParent.id == (unsigned long) query.getColumn( "parent" ).getInt64() &&
+            newParent.accessDomain == (Database::AccessDomain) query.getColumn( "parentAccessDomain" ).getInt() ) {
         // TODO: Nothing to move, it is already there. throw?
         LOG( DBUG ) << "NOOP";
         return;
     }
 
     // Needs to be in this scope since it's used further down at the moment.
-    Mist::Database::Statement parentQuery( *connection.get(), "SELECT accessDomain, id, version, parent, parentAccessDomain "
+    Mist::Database::Statement parentQuery( *connection.get(),
+            "SELECT accessDomain, id, version, parent, parentAccessDomain "
             "FROM Object "
             "WHERE accessDomain=? AND id=? AND status=?" );
 
     if ( newParent.id != db->ROOT_OBJECT_ID ) {
-        parentQuery << (int) newParent.accessDomain << (long long) newParent.id << (int) Database::ObjectStatus::Current;
+        parentQuery <<
+                (int) newParent.accessDomain <<
+                (long long) newParent.id <<
+                (int) Database::ObjectStatus::Current;
         if ( parentQuery.executeStep() ) {
             Database::AccessDomain parentAccessDomain = (Database::AccessDomain) parentQuery.getColumn( "accessDomain" ).getInt();
             if ( parentAccessDomain != accessDomain ) {
@@ -253,30 +261,46 @@ void Transaction::moveObject( unsigned long id, const Database::ObjectRef &newPa
     }
 
     if ( query.getColumn( "version" ).getUInt() != version ) {
-        Database::Statement updateObj( *connection.get(), "UPDATE Object SET status=? WHERE accessDomain=? AND id=? AND version=?" );
-        updateObj << (int) convertStatusToOld( { (Database::ObjectStatus) query.getColumn( "status" ).getUInt() } )
-                << (int) accessDomain << (long long) id << query.getColumn( "version" ).getUInt();
+        Database::Statement updateObj( *connection.get(),
+                "UPDATE Object SET status=? WHERE accessDomain=? AND id=? AND version=?" );
+        updateObj <<
+                (int) convertStatusToOld( { (Database::ObjectStatus) query.getColumn( "status" ).getUInt() } ) <<
+                (int) accessDomain <<
+                (long long) id <<
+                query.getColumn( "version" ).getUInt();
         if ( updateObj.exec() == 0 ) { // 0 rows affected.
             LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid.";
             valid = false;
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
 
-        Database::Statement insertObj( *connection.get(), "INSERT INTO Object (accessDomain, id, version, status, parentAccessDomain, parent, transactionAction) "
+        Database::Statement insertObj( *connection.get(),
+                "INSERT INTO Object (accessDomain, id, version, status, parentAccessDomain, parent, transactionAction) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?)" );
-        insertObj << (int) accessDomain << (long long) id << version << (int) Database::ObjectStatus::Current << (int) newParent.accessDomain
-                << (long long) newParent.id << (int) Database::ObjectAction::Move;
+        insertObj <<
+                (int) accessDomain <<
+                (long long) id <<
+                version <<
+                (int) Database::ObjectStatus::Current <<
+                (int) newParent.accessDomain <<
+                (long long) newParent.id <<
+                (int) Database::ObjectAction::Move;
         if ( insertObj.exec() == 0 ) { // 0 rows affected.
             LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid.";
             valid = false;
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
 
-        Database::Statement insertAttr( *connection.get(), "INSERT INTO Attribute (accessDomain, id, version, name, type, value) "
+        Database::Statement insertAttr( *connection.get(),
+                "INSERT INTO Attribute (accessDomain, id, version, name, type, value) "
                 "SELECT accessDomain, id, ?, name, type, value "
                 "FROM Attribute "
                 "WHERE accessDomain=? AND id=? AND version=? " );
-        insertAttr << version << (int) accessDomain << (long long) id << query.getColumn( "version" ).getUInt();
+        insertAttr <<
+                version <<
+                (int) accessDomain <<
+                (long long) id <<
+                query.getColumn( "version" ).getUInt();
         if ( insertAttr.exec() == 0 ) { // 0 rows affected.
             LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid.";
             valid = false;
@@ -289,15 +313,21 @@ void Transaction::moveObject( unsigned long id, const Database::ObjectRef &newPa
          *     Update -> Update parent and make into MoveUpdate
          *     Delete -> Update parent and make into Move, copy attributes from last version
          */
-        Database::Statement updateObj( *connection.get(), "UPDATE Object SET transactionAction=?, status=?, parentAccessDomain=?, parent=? "
+        Database::Statement updateObj( *connection.get(),
+                "UPDATE Object SET transactionAction=?, status=?, parentAccessDomain=?, parent=? "
                 "WHERE accessDomain=? AND id=? AND version=?" );
-        updateObj << (int) (
+        updateObj <<
+                (int) (
                 ( (Database::ObjectAction) query.getColumn( "transactionAction" ).getUInt() ) == Database::ObjectAction::Update ?
                         Database::ObjectAction::MoveUpdate :
                         ( ( (Database::ObjectAction) query.getColumn( "transactionAction" ).getUInt() ) == Database::ObjectAction::Delete ?
-                                Database::ObjectAction::Move : (Database::ObjectAction) query.getColumn( "transactionAction" ).getUInt() ) )
-                                << (int) Database::ObjectStatus::Current << (int) newParent.accessDomain << (long long) newParent.id
-                                << (int) accessDomain << (long long) id << version;
+                                Database::ObjectAction::Move : (Database::ObjectAction) query.getColumn( "transactionAction" ).getUInt() ) ) <<
+                (int) Database::ObjectStatus::Current <<
+                (int) newParent.accessDomain <<
+                (long long) newParent.id <<
+                (int) accessDomain <<
+                (long long) id <<
+                version;
         if ( updateObj.exec() == 0 ) { // 0 rows affected.
             LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid.";
             valid = false;
@@ -311,10 +341,18 @@ void Transaction::moveObject( unsigned long id, const Database::ObjectRef &newPa
                     "INSERT INTO Attribute (accessDomain, id, version, name, type, value ) "
                     "SELECT accessDomain, id, ?, name, type, value "
                     "FROM Attribute "
-                    "WHERE accessDomain=? AND id=? AND version="
-                    "(SELECT MAX(version) FROM Object WHERE accessDomain=? AND id=? AND status <= ? AND version < ?)" );
-            insertAttr << version << (int) accessDomain << (long long) id << (int) accessDomain << (long long) id
-                    << (int) Database::ObjectStatus::DeletedParent << version;
+                    "WHERE accessDomain=? AND id=? AND version=( "
+                        "SELECT MAX(version) "
+                        "FROM Object "
+                        "WHERE accessDomain=? AND id=? AND status <= ? AND version < ? ) " );
+            insertAttr <<
+                    version <<
+                    (int) accessDomain <<
+                    (long long) id <<
+                    (int) accessDomain <<
+                    (long long) id <<
+                    (int) Database::ObjectStatus::DeletedParent <<
+                    version;
             if ( insertAttr.exec() == 0 ) { // 0 rows affected.
                 LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
                 valid = false;
@@ -338,7 +376,7 @@ void Transaction::moveObject( unsigned long id, const Database::ObjectRef &newPa
  *     Delete -> Replace with change
  */
 void Transaction::updateObject( unsigned long id, const std::map<std::string, Database::Value> &attributes ) {
-    LOG( DBUG ) << "Update object " << id;
+    LOG( DBUG ) << "Update object: " << id;
     if ( !valid ) {
         LOG( WARNING ) << "Transaction no longer valid";
         valid = false;
@@ -346,22 +384,33 @@ void Transaction::updateObject( unsigned long id, const std::map<std::string, Da
     }
     // TODO: accessDomain check?
 
-    Database::Statement query( *connection.get(), "SELECT id, version, transactionAction, parent, parentAccessDomain "
+    Database::Statement query( *connection.get(),
+            "SELECT id, version, transactionAction, parent, parentAccessDomain "
             "FROM Object "
-            "WHERE accessDomain=? AND id=? AND status < ?" );
-    query << (int) accessDomain << (long long) id << (int) Database::ObjectStatus::DeletedParent;
+            "WHERE accessDomain=? AND id=? AND status < ? " );
+    query <<
+            (int) accessDomain <<
+            (long long) id <<
+            (int) Database::ObjectStatus::DeletedParent;
+
     if ( !query.executeStep() ) {
         LOG( WARNING ) << "Not Found, transaction no longer valid";
         valid = false;
         throw Mist::Exception( Mist::Error::ErrorCode::NotFound );
     }
-    Database::ObjectRef parentRef { (Database::AccessDomain) query.getColumn( "parentAccessDomain" ).getUInt(), (unsigned long) query.getColumn( "parent" ).getInt64() };
-    std::map<std::string, Database::Value> emptyAttributeMap { };
+
+    Database::ObjectRef parentRef {
+        (Database::AccessDomain) query.getColumn( "parentAccessDomain" ).getUInt(),
+        (unsigned long) query.getColumn( "parent" ).getInt64()
+    };
+
+    std::map<std::string, Database::Value> emptyAttributeMap {};
     Database::Object obj { accessDomain, id, query.getColumn( "version" ).getUInt(), parentRef, emptyAttributeMap, Database::ObjectStatus::DeletedParent, (Database::ObjectAction) query.getColumn( "transactionAction" ).getUInt() };
 
     if ( obj.parent.id != Database::ROOT_OBJECT_ID ) {
         obj.status = Database::ObjectStatus::Current;
-        Database::Statement parentQuery( *connection.get(), "SELECT id, version, transactionAction "
+        Database::Statement parentQuery( *connection.get(),
+                "SELECT id, version, transactionAction "
                 "FROM Object "
                 "WHERE accessDomain=? AND id=? AND status=?" );
         parentQuery <<
@@ -376,8 +425,12 @@ void Transaction::updateObject( unsigned long id, const std::map<std::string, Da
     }
 
     if ( obj.version != version ) {
-        Database::Statement updateObj( *connection.get(), "UPDATE Object SET status=? WHERE accessDomain=? AND id=? AND version=?" );
-        updateObj << (int) convertStatusToOld( obj.status ) << (int) obj.accessDomain << (long long) obj.id << obj.version;
+        Database::Statement updateObj( *connection.get(),
+                "UPDATE Object SET status=? WHERE accessDomain=? AND id=? AND version=?" );
+        updateObj <<
+                (int) convertStatusToOld( obj.status ) <<
+                (int) obj.accessDomain <<
+                (long long) obj.id << obj.version;
         if ( updateObj.exec() == 0 ) { // 0 rows affected
             LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
             valid = false;
@@ -387,10 +440,17 @@ void Transaction::updateObject( unsigned long id, const std::map<std::string, Da
         obj.status = Database::ObjectStatus::Current;
         obj.action = Database::ObjectAction::Update;
 
-        Database::Statement insertObj( *connection.get(), "INSERT INTO Object (accessDomain, id, version, status, parent, parentAccessDomain, transactionAction) "
+        Database::Statement insertObj( *connection.get(),
+                "INSERT INTO Object (accessDomain, id, version, status, parent, parentAccessDomain, transactionAction) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?)" );
-        insertObj << (int) obj.accessDomain << (long long) obj.id << obj.version << (int) obj.status << (long long) obj.parent.id
-                << (int) obj.parent.accessDomain << (int) obj.action;
+        insertObj <<
+                static_cast<unsigned>( accessDomain ) <<
+                static_cast<long long>( id ) <<
+                version <<
+                static_cast<unsigned>( Database::ObjectStatus::Current ) <<
+                static_cast<long long>( obj.parent.id ) <<
+                static_cast<unsigned>( obj.parent.accessDomain ) <<
+                static_cast<unsigned>( Database::ObjectAction::Update );
         if ( insertObj.exec() == 0 ) { // 0 rows affected.
             LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
             valid = false;
@@ -405,7 +465,10 @@ void Transaction::updateObject( unsigned long id, const std::map<std::string, Da
          */
         Database::Statement deleteAttr( *connection.get(),
                 "DELETE FROM Attribute WHERE accessDomain=? AND id=? AND version=?" );
-        deleteAttr << (int) obj.accessDomain << (long long) obj.id << obj.version;
+        deleteAttr <<
+                (int) obj.accessDomain <<
+                (long long) obj.id <<
+                obj.version;
         if ( deleteAttr.exec() == 0 ) { // 0 rows affected.
             LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
             valid = false;
@@ -414,8 +477,13 @@ void Transaction::updateObject( unsigned long id, const std::map<std::string, Da
 
         if ( obj.action == Database::ObjectAction::Move ) {
             obj.action = Database::ObjectAction::MoveUpdate;
-            Database::Statement updateObj( *connection.get(), "UPDATE Object SET transactionAction=? WHERE accessDomain=? AND id=? AND version=?" );
-            updateObj << (int) obj.action << (int) obj.accessDomain << (long long) obj.id << obj.version;
+            Database::Statement updateObj( *connection.get(),
+                    "UPDATE Object SET transactionAction=? WHERE accessDomain=? AND id=? AND version=?" );
+            updateObj <<
+                    (int) obj.action <<
+                    (int) obj.accessDomain <<
+                    (long long) obj.id <<
+                    obj.version;
             if ( updateObj.exec() == 0 ) { // 0 rows affected.
                 LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
                 valid = false;
@@ -425,8 +493,14 @@ void Transaction::updateObject( unsigned long id, const std::map<std::string, Da
             obj.action = Database::ObjectAction::Update;
             obj.status = Database::ObjectStatus::Current;
 
-            Database::Statement updateObj( *connection.get(), "UPDATE Object SET transactionAction=?, status=? WHERE accessDomain=? AND id=? AND version=?" );
-            updateObj << (int) obj.action << (int) obj.status << (int) obj.accessDomain << (long long) obj.id << obj.version;
+            Database::Statement updateObj( *connection.get(),
+                    "UPDATE Object SET transactionAction=?, status=? WHERE accessDomain=? AND id=? AND version=?" );
+            updateObj <<
+                    (int) obj.action <<
+                    (int) obj.status <<
+                    (int) obj.accessDomain <<
+                    (long long) obj.id <<
+                    obj.version;
             if ( updateObj.exec() == 0 ) { // 0 rows affected.
                 LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
                 valid = false;
@@ -442,7 +516,7 @@ void Transaction::updateObject( unsigned long id, const std::map<std::string, Da
         insertIntoAttribute <<
                 static_cast<int>( obj.accessDomain ) <<
                 static_cast<long long>( obj.id ) <<
-                obj.version <<
+                version <<
                 kv.first <<
                 static_cast<int>( kv.second.t );
         using T = Database::Value::Type;
@@ -498,7 +572,8 @@ void Transaction::deleteObject( unsigned long id ) {
     }
     // TODO: accessDomain check?
 
-    Database::Statement query( *connection.get(), "SELECT id, version, transactionAction, parent, parentAccessDomain "
+    Database::Statement query( *connection.get(),
+            "SELECT id, version, transactionAction, parent, parentAccessDomain "
             "FROM Object "
             "WHERE accessDomain=? AND id=? AND status < ?" );
     query << (int) accessDomain << (long long) id << (int) Database::ObjectStatus::DeletedParent;
@@ -517,10 +592,15 @@ void Transaction::deleteObject( unsigned long id ) {
         return;
     }
 
-    Database::Statement queryChild( *connection.get(), "SELECT COUNT(id) AS count "
+    Database::Statement queryChild( *connection.get(),
+            "SELECT COUNT(id) AS count "
             "FROM Object "
             "WHERE accessDomain=? AND parentAccessDomain=? AND parent=? AND status=?" );
-    queryChild << (int) obj.accessDomain << (int) obj.accessDomain << (long long) obj.id << (int) Database::ObjectStatus::Current;
+    queryChild <<
+            (int) obj.accessDomain <<
+            (int) obj.accessDomain <<
+            (long long) obj.id <<
+            (int) Database::ObjectStatus::Current;
     if ( queryChild.executeStep() == 0 ) { // 0 rows
         LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
         valid = false;
@@ -534,18 +614,28 @@ void Transaction::deleteObject( unsigned long id ) {
     }
 
     if ( obj.version != version ) {
-        Database::Statement updateObj( *connection.get(), "UPDATE Object SET status=? WHERE accessDomain=? AND id=? AND version=? " );
-        updateObj << (int) convertStatusToOld( obj.status ) << (int) obj.accessDomain << (long long) obj.id << obj.version;
+        Database::Statement updateObj( *connection.get(),
+                "UPDATE Object SET status=? WHERE accessDomain=? AND id=? AND version=? " );
+        updateObj <<
+                (int) convertStatusToOld( obj.status ) <<
+                (int) obj.accessDomain <<
+                (long long) obj.id <<
+                obj.version;
         if ( updateObj.exec() == 0 ) { // 0 rows
             LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
             valid = false;
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
 
-        Database::Statement insertIntoObj( *connection.get(), "INSERT INTO Object (accessDomain, id, version, status, transactionAction) "
+        Database::Statement insertIntoObj( *connection.get(),
+                "INSERT INTO Object (accessDomain, id, version, status, transactionAction) "
                 "VALUES (?, ?, ?, ?, ?)" );
-        insertIntoObj << (int) obj.accessDomain << (long long) obj.id << version << (int) Database::ObjectStatus::Deleted
-                << (int) Database::ObjectAction::Delete;
+        insertIntoObj <<
+                (int) obj.accessDomain <<
+                (long long) obj.id <<
+                version <<
+                (int) Database::ObjectStatus::Deleted <<
+                (int) Database::ObjectAction::Delete;
         if ( insertIntoObj.exec() == 0 ) { // 0 rows
             LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
             valid = false;
@@ -558,8 +648,12 @@ void Transaction::deleteObject( unsigned long id ) {
          *     Update -> Remove attributes, make into Delete
          *     Move, MoveUpdate -> Restore parent, remove attributes, make into Delete
          */
-        Database::Statement deleteAttr( *connection.get(), "DELETE FROM Attribute WHERE accessDomain=? AND id=? AND version=?" );
-        deleteAttr << (int) obj.accessDomain << (long long) obj.id << obj.version;
+        Database::Statement deleteAttr( *connection.get(),
+                "DELETE FROM Attribute WHERE accessDomain=? AND id=? AND version=?" );
+        deleteAttr <<
+                (int) obj.accessDomain <<
+                (long long) obj.id <<
+                obj.version;
         if ( deleteAttr.exec() == 0 ) { // 0 rows
             LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
             valid = false;
@@ -567,41 +661,65 @@ void Transaction::deleteObject( unsigned long id ) {
         }
 
         if ( obj.action == Database::ObjectAction::New ) {
-            Database::Statement deleteObj( *connection.get(), "DELETE FROM Object WHERE accessDomain=? AND id=? AND version=?" );
-            deleteObj << (int) obj.accessDomain << (long long) obj.id << version;
+            Database::Statement deleteObj( *connection.get(),
+                    "DELETE FROM Object WHERE accessDomain=? AND id=? AND version=?" );
+            deleteObj <<
+                    (int) obj.accessDomain <<
+                    (long long) obj.id <<
+                    version;
             if ( deleteObj.exec() == 0 ) { // 0 rows
                 LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
                 valid = false;
                 throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
             }
-        } else if ( obj.action == Database::ObjectAction::Move || obj.action == Database::ObjectAction::MoveUpdate ) {
-            Database::Statement queryParent( *connection.get(), "SELECT parentAccessDomain, parent "
+        } else if ( obj.action == Database::ObjectAction::Move ||
+                obj.action == Database::ObjectAction::MoveUpdate ) {
+            Database::Statement queryParent( *connection.get(),
+                    "SELECT parentAccessDomain, parent "
                     "FROM Object "
-                    "WHERE accessDomain=? AND id=? AND version="
-                    "(SELECT MAX(version) FROM Object WHERE accessDomain=? AND id=? AND status <= ? AND version < ?" );
-            queryParent << (int) obj.accessDomain << (long long) obj.id << (int) obj.accessDomain << (long long) obj.id
-                    << (int) Database::ObjectStatus::OldDeletedParent << version;
+                    "WHERE accessDomain=? AND id=? AND version=( "
+                        "SELECT MAX(version) "
+                        "FROM Object "
+                        "WHERE accessDomain=? AND id=? AND status <= ? AND version < ? )" );
+            queryParent <<
+                    (int) obj.accessDomain <<
+                    (long long) obj.id <<
+                    (int) obj.accessDomain <<
+                    (long long) obj.id <<
+                    (int) Database::ObjectStatus::OldDeletedParent <<
+                    version;
             if ( queryParent.executeStep() == 0 ) {
                 LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
                 valid = false;
                 throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
             }
 
-            Database::Statement updateObj( *connection.get(), "UPDATE Object SET status=?, transactionAction=?, parentAccessDomain=?, parent=? "
-                    "WHERE accessDomain=? AND id=? AND version=?" );
-            updateObj << (int) Database::ObjectStatus::Deleted << (int) Database::ObjectAction::Delete
-                    << queryParent.getColumn( "parentAccessDomain" ).getUInt() << (long long) queryParent.getColumn( "parent" ).getInt64()
-                    << (int) obj.accessDomain << (long long) obj.id << version;
+            Database::Statement updateObj( *connection.get(),
+                    "UPDATE Object SET status=?, transactionAction=?, parentAccessDomain=?, parent=? "
+                    "WHERE accessDomain=? AND id=? AND version=? " );
+            updateObj <<
+                    (int) Database::ObjectStatus::Deleted <<
+                    (int) Database::ObjectAction::Delete <<
+                    queryParent.getColumn( "parentAccessDomain" ).getUInt() <<
+                    (long long) queryParent.getColumn( "parent" ).getInt64() <<
+                    (int) obj.accessDomain <<
+                    (long long) obj.id <<
+                    version;
             if ( updateObj.exec() == 0 ) {
                 LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
                 valid = false;
                 throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
             }
         } else { // Database::ObjectAction::.Update
-            Database::Statement updateObj( *connection.get(), "UPDATE Object SET status=?, transactionAction=? "
+            Database::Statement updateObj( *connection.get(),
+                    "UPDATE Object SET status=?, transactionAction=? "
                     "WHERE accessDomain=? AND id=? AND version=?" );
-            updateObj << (int) Database::ObjectStatus::Deleted << (int) Database::ObjectAction::Delete
-                    << (int) obj.accessDomain << (long long) obj.id << version;
+            updateObj <<
+                    (int) Database::ObjectStatus::Deleted <<
+                    (int) Database::ObjectAction::Delete <<
+                    (int) obj.accessDomain <<
+                    (long long) obj.id <<
+                    version;
             if ( updateObj.exec() == 0 ) {
                 LOG( WARNING ) << "Unexpected Database Error, transaction no longer valid";
                 valid = false;
@@ -609,11 +727,6 @@ void Transaction::deleteObject( unsigned long id ) {
             }
         }
     }
-
-    /*
-    db->objectChanged( obj.parent );
-    db->objectChanged( obj.accessDomain, obj.id );
-    //*/
 
     affectedObjects.insert( obj.parent );
     affectedObjects.insert( { obj.accessDomain, obj.id } );
