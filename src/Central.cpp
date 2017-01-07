@@ -921,16 +921,10 @@ Mist::Central::PeerSyncState::queryTransactions()
 {
     std::lock_guard<std::recursive_mutex> lock(mux);
     state = State::QueryTransactions;
-    LOG(DBUG) << shortFinger() << "Submitting sample request";
-    central.dbService.submitRequest(peer, "GET", "/",
-        [this](mist::Peer& peer, mist::h2::ClientRequest request)
-    {
-        LOG(DBUG) << shortFinger() << "Sample request!";
-        request.end();
-    });
-    /*databaseHashes = central.listDatabasePermissions( keyHash );
+
+    databaseHashes = central.listDatabasePermissions( keyHash );
     databaseHashesIterator = databaseHashes.begin();
-    queryTransactionsNext();*/
+    queryTransactionsNext();
 }
 
 void
@@ -1034,7 +1028,9 @@ Mist::Central::PeerSyncState::queryTransactionsGetNextParent()
         auto trHash = *(transactionParentsToDownload.begin());
 
         transactionParentsToDownload.erase( trHash );
-        central.dbService.submitRequest(peer, "HEAD", "/transactions/" + currentDatabase->getManifest()->getHash().toString() + "/" + trHash,
+        central.dbService.submitRequest(peer, "HEAD", "/transactions/"
+            + mist::h2::urlEncode(currentDatabase->getManifest()->getHash().toString()
+            + "/" + mist::h2::urlEncode(trHash)),
             [=](mist::Peer& peer, mist::h2::ClientRequest request)
         {
             getJsonResponse(request,
@@ -1181,7 +1177,7 @@ Mist::Central::PeerSyncState::queryAddressServersNext(address_vector_t::iterator
 void
 Mist::Central::PeerSyncState::queryAddressServersDone()
 {
-    LOG(DBUG) << shortFinger() << "Done querying for onion address of peer SHA3:" << pubKey.fingerprint();
+    LOG(DBUG) << shortFinger() << "Done querying for onion address";
     std::lock_guard<std::recursive_mutex> lock(mux);
     connectTor();
 }
@@ -1189,7 +1185,7 @@ Mist::Central::PeerSyncState::queryAddressServersDone()
 void
 Mist::Central::PeerSyncState::connectDirect()
 {
-    LOG(DBUG) << shortFinger() << "Direct connect to peer SHA3:" << pubKey.fingerprint();
+    LOG(DBUG) << shortFinger() << "Direct connect";
     std::lock_guard<std::recursive_mutex> lock(mux);
     state = State::ConnectDirect;
     //central.connCtx.connectPeerDirect(peer, addr,
@@ -1692,8 +1688,8 @@ void Mist::Central::RestRequest::replyBadRequest() {
 }
 
 void Mist::Central::RestRequest::replyBadMethod() {
-    // 403 Bad method
-    request.stream().submitResponse(403, {});
+    // 405 Method not allowed
+    request.stream().submitResponse(405, {});
     request.stream().response().end();
 }
 
@@ -1704,8 +1700,7 @@ void Mist::Central::RestRequest::replyNotFound() {
 }
 
 void Mist::Central::RestRequest::replyNotAuthorized() {
-    // ??? Not authorized
-    // TODO:
-    request.stream().submitResponse(400, {});
+    // 403 Forbidden
+    request.stream().submitResponse(403, {});
     request.stream().response().end();
 }
