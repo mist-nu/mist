@@ -404,7 +404,7 @@ void
 ConnectContextImpl::incomingDirectConnection(
   std::shared_ptr<io::SSLSocket> socket)
 {
-  std::cerr << "New direct connection!" << std::endl;
+  //std::cerr << "New direct connection!" << std::endl;
   
   handshakePeer(*socket, boost::none,
     [socket]
@@ -424,7 +424,7 @@ void
 ConnectContextImpl::incomingTorConnection(
   std::shared_ptr<io::SSLSocket> socket)
 {
-  std::cerr << "New Tor connection!" << std::endl;
+  //std::cerr << "New Tor connection!" << std::endl;
   
   handshakePeer(*socket, boost::none,
     [socket]

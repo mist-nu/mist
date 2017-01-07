@@ -97,7 +97,7 @@ PeerImpl::connection(std::shared_ptr<io::Socket> socket,
 {
   if (_socket) {
     /* TODO: Migrate to the new socket, if we accept this migration */
-    std::cerr << "New connection to peer when already connected" << std::endl;
+    //std::cerr << "New connection to peer when already connected" << std::endl;
   }
 
   _socket = socket;

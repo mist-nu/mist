@@ -15,7 +15,8 @@ CentralWrap::CentralWrap(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
   v8::HandleScope scope(isolate);
   std::string path(convBack<std::string>(info[0]));
-  self() = std::make_shared<Mist::Central>(path);
+  bool isLoggerInitialized(convBack<bool>(info[1]));
+  self() = std::make_shared<Mist::Central>(path, isLoggerInitialized);
 }
 
 CentralWrap::CentralWrap(std::shared_ptr<Mist::Central> _self)
@@ -167,13 +168,14 @@ CentralWrap::startServeTor(const Nan::FunctionCallbackInfo<v8::Value>& info)
     auto exitFunc(info[8].As<v8::Function>());
 
     auto startCb(makeAsyncCallback<>(startFunc));
-    auto exitCb(makeAsyncCallback<boost::system::error_code>(exitFunc,
-        [](v8::Local<v8::Function> fn, boost::system::error_code ec)
-    {
+    std::function<void(v8::Local<v8::Function>, boost::system::error_code ec)>
+        adapter = [](v8::Local<v8::Function> fn,
+            boost::system::error_code ec) {
         // TODO: Make a converter for the error code
         Nan::Callback cb(fn);
         cb();
-    }));
+    };
+    auto exitCb(makeAsyncCallback<boost::system::error_code>(exitFunc, adapter));
 
     self()->startServeTor(torPath,
         mist::io::port_range_list{ { torIncomingPortLow, torIncomingPortHigh } },
