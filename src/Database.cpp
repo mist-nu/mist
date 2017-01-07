@@ -17,22 +17,22 @@
 
 namespace Mist {
 
+// Initialize static member
+unsigned Database::Database::subId = 0u;
+
 Database::Database( Central *central, std::string path ) :
         _isOK( true ),
         manifest( nullptr ),
         central( central ),
         path( path ),
-        db( nullptr ),
         userHash( nullptr == central ? "" : central->getPublicKey().hash().toString() ),
+        db( nullptr ),
         deserializer( new Deserializer( this ) ),
         serializer( new Serializer( this ) ) {
 
 }
 
 Database::~Database() {
-    if ( db != nullptr ) {
-        delete db;
-    }
 }
 
 bool Database::isOK() {
@@ -42,7 +42,7 @@ bool Database::isOK() {
 void Database::create( unsigned localId, std::unique_ptr<Manifest> manifest ) {
     LOG ( DBUG ) << "Creating database";
     // TODO: Do something with manifest?
-    if ( db != nullptr ) {
+    if ( db ) {
         _isOK = false;
         throw std::runtime_error( "Database already set." );
     }
@@ -72,23 +72,21 @@ void Database::create( unsigned localId, std::unique_ptr<Manifest> manifest ) {
     }
 
     //try {
-        db = new Connection( path, Helper::Database::OPEN_CREATE | Helper::Database::OPEN_READWRITE );
+        db.reset( new Connection( path, Helper::Database::OPEN_CREATE | Helper::Database::OPEN_READWRITE ) );
 
         // Make sure the db is in WAL-mode so that multiple readers can read at the same time as one writer is writing.
         int rc = db->exec( "PRAGMA journal_mode=WAL;" );
         if ( rc == Helper::Database::OK ) {
             // TODO: check if db is WAL here, can avoid unnecessary dtor ctor calls.
-            delete db;
-            db = new Connection( path, Helper::Database::OPEN_READWRITE );
+            db.reset( new Connection( path, Helper::Database::OPEN_READWRITE ) );
         } else {
             // TODO: figure out why it failed.
             _isOK = false;
         }
 
-        Helper::Database::Transaction transaction( *db );
+        Helper::Database::Transaction transaction( *db.get() );
         //db->exec( "CREATE TABLE AccessDomain (hash TEXT, localId INTEGER, parent INTEGER, creator INTEGER, name TEXT)" );
         db->exec( "CREATE TABLE Object (accessDomain INTEGER, id INTEGER, version INTEGER, status INTEGER, parent INTEGER, parentAccessDomain INTEGER, transactionAction INTEGER)" );
-        //db->exec( "CREATE TABLE Attribute (accessDomain INTEGER, id INTEGER, version INTEGER, name TEXT, value, json TEXT)" ); // TODO: set datatype on value
         db->exec( "CREATE TABLE Attribute (accessDomain INTEGER, id INTEGER, version INTEGER, name TEXT, type INTEGER, value)" );
         db->exec( "CREATE TABLE 'Transaction' (accessDomain INTEGER, version INTEGER, timestamp DATETIME, userHash TEXT, hash TEXT, signature TEXT)" );
         db->exec( "CREATE TABLE TransactionParent (version INTEGER, parentAccessDomain INTEGER, parentVersion INTEGER)" );
@@ -109,8 +107,8 @@ void Database::init( std::unique_ptr<Manifest> manifest ) {
             // TODO: verify manifest
             this->manifest = std::move( manifest );
         }
-        if ( db == nullptr ) { // TODO: what to do if this.create() have been called?
-            db = new Connection( path, Helper::Database::OPEN_READWRITE );
+        if ( !db ) { // TODO: what to do if this.create() have been called?
+            db.reset( new Connection( path, Helper::Database::OPEN_READWRITE ) );
         }
     } catch ( Helper::Database::Exception &e ) {
         // TODO: handle errors.
@@ -132,16 +130,13 @@ void Database::load() {
 
 void Database::close() {
     LOG ( DBUG ) << "Closing database";
-    if ( db != nullptr ) {
-        delete db;
-        db = nullptr;
-    }
+    db.reset();
 }
 
 void Database::dump( const std::string& filename ) {
     LOG( INFO ) << "Dumping database to exchange format.";
     if( manifest ) {
-        std::fstream fs( filename + ".manifest", std::fstream::out | std::fstream::trunc | std::fstream::binary );
+        std::fstream fs( filename + ".manifest.json", std::fstream::out | std::fstream::trunc | std::fstream::binary );
         fs << manifest->toString();
         fs.close();
     }
@@ -217,7 +212,7 @@ void Database::readUsersFrom( std::basic_streambuf<char>& sb, const std::vector<
 
 Database::Transaction Database::getTransactionMeta( unsigned version,
         Connection* connection ) const {
-    Connection* conn{ db };
+    Connection* conn{ db.get() };
     if ( nullptr != connection ) {
         conn = connection;
     }
@@ -235,7 +230,7 @@ Database::Transaction Database::getTransactionMeta( unsigned version,
 
 Database::Transaction Database::getTransactionMeta( const std::string& hash,
         Connection* connection ) const {
-    Connection* conn{ db };
+    Connection* conn{ db.get() };
     if ( nullptr != connection ) {
         conn = connection;
     }
@@ -270,9 +265,10 @@ std::vector<Database::Transaction> Database::getTransactionLatest() const {
 }
 
 std::vector<Database::Transaction> Database::getTransactionList() const {
-    Database::Statement qAll( *db,
+    Database::Statement qAll( *db.get(),
             "SELECT accessDomain, version, timestamp, userHash, hash, signature "
-            " FROM 'Transaction' ");
+            "FROM 'Transaction' "
+            "ORDER BY version ASC ");
     std::vector<Database::Transaction> all{};
     while( qAll.executeStep() ) {
         all.push_back( statementRowToTransaction( qAll ) );
@@ -287,7 +283,7 @@ std::vector<Database::Transaction> Database::getTransactionsFrom( const std::vec
         return std::vector<Database::Transaction>{};
     }
 
-    Connection* conn{ db };
+    Connection* conn{ db.get() };
     if ( nullptr != connection ) {
         conn = connection;
     }
@@ -334,7 +330,7 @@ std::vector<Database::Transaction> Database::getTransactionsFrom( const std::vec
 
 Database::Meta Database::transactionToMeta( const Database::Transaction& trans,
         Connection* connection ) const {
-    Connection* conn{ db };
+    Connection* conn{ db.get() };
     if ( nullptr != connection ) {
         conn = connection;
     }
@@ -360,14 +356,14 @@ std::vector<Database::Meta> Database::streamToMeta( std::basic_streambuf<char>& 
 
 void Database::mapTransactions( map_trans_f fn,
         Connection* connection ) const {
-    Connection* conn{ db };
+    Connection* conn{ db.get() };
     if ( nullptr != connection ) {
         conn = connection;
     }
     Database::Statement all( *conn,
             "SELECT accessDomain, version, timestamp, userHash, hash, signature "
             "FROM 'Transaction' "
-            "ORDER BY version ");
+            "ORDER BY version ASC ");
     while( all.executeStep() ) {
         fn( statementRowToTransaction( all ) );
     }
@@ -375,7 +371,7 @@ void Database::mapTransactions( map_trans_f fn,
 
 void Database::mapTransactionLatest( map_trans_f fn,
         Connection* connection ) const {
-    Connection* conn{ db };
+    Connection* conn{ db.get() };
     if ( nullptr != connection ) {
         conn = connection;
     }
@@ -384,7 +380,8 @@ void Database::mapTransactionLatest( map_trans_f fn,
             "FROM 'Transaction' AS t "
             "LEFT OUTER JOIN TransactionParent tp "
                 "ON t.version=tp.parentVersion " // AND t.accessDomain=tp.parentAccessDomain
-            "WHERE tp.version IS NULL " );
+            "WHERE tp.version IS NULL "
+            "ORDER BY t.version ASC " );
 
     while( openTransactions.executeStep() ) {
         fn( statementRowToTransaction( openTransactions ) );
@@ -393,14 +390,15 @@ void Database::mapTransactionLatest( map_trans_f fn,
 
 void Database::mapParents( map_trans_f fn, const Database::Transaction& transaction,
         Connection* connection ) const {
-    Connection* conn{ db };
+    Connection* conn{ db.get() };
     if ( nullptr != connection ) {
         conn = connection;
     }
     Database::Statement parent( *conn,
             "SELECT accessDomain, t.version AS version, timestamp, userHash, hash, signature "
             "FROM TransactionParent AS tp, 'Transaction' AS t "
-            "WHERE tp.version=? AND t.accessDomain=tp.parentAccessDomain AND t.version=tp.parentVersion " );
+            "WHERE tp.version=? AND t.accessDomain=tp.parentAccessDomain AND t.version=tp.parentVersion "
+            "ORDER BY t.version ASC ");
     parent << transaction.version;
     while ( parent.executeStep() ) {
         fn( statementRowToTransaction( parent ) );
@@ -418,15 +416,15 @@ void Database::mapTransactionsFrom( map_trans_f fn, const std::vector<std::strin
         throw Exception( Error::ErrorCode::NotFound );
     }
 
-    Connection* conn{ db };
+    Connection* conn{ db.get() };
     if ( nullptr != connection ) {
         conn = connection;
     }
 
     std::string getOldest {
         "SELECT version, timestamp "
-        " FROM 'Transaction' "
-        " WHERE hash IN ( "
+        "FROM 'Transaction' "
+        "WHERE hash IN ( "
     };
 
     for ( const std::string id: ids ) {
@@ -457,7 +455,7 @@ void Database::mapTransactionsFrom( map_trans_f fn, const std::vector<std::strin
 
 void Database::mapObject( map_obj_f fn, const Database::Transaction& transaction,
         Connection* connection ) const {
-    Connection* conn{ db };
+    Connection* conn{ db.get() };
     if ( nullptr != connection ) {
         conn = connection;
     }
@@ -488,7 +486,7 @@ void Database::mapObject( map_obj_f fn, const Database::Transaction& transaction
 
 void Database::mapObjectId( map_obj_f fn, const long long id,
         Connection* connection ) const {
-    Connection* conn{ db };
+    Connection* conn{ db.get() };
     if ( nullptr != connection ) {
         conn = connection;
     }
@@ -522,7 +520,7 @@ bool Database::haveAll( const std::vector<std::string>& transactionHashes ,
         LOG( DBUG ) << "Not found";
         throw Exception( "Can not find transactions for an empty array of hashes.", Mist::Error::ErrorCode::NotFound );
     }
-    Connection* conn{ db };
+    Connection* conn{ db.get() };
     if ( nullptr != connection ) {
         conn = connection;
     }
@@ -549,7 +547,7 @@ bool Database::haveAll( const std::vector<std::string>& transactionHashes ,
 }
 
 std::shared_ptr<UserAccount> Database::getUser( const std::string& userHash ) const {
-    Database::Statement userId( *db,
+    Database::Statement userId( *db.get(),
             "SELECT id "
             "FROM Attribute "
             "WHERE name='id' AND value=? AND version IN ( "
@@ -565,7 +563,7 @@ std::shared_ptr<UserAccount> Database::getUser( const std::string& userHash ) co
     }
 
     // TODO: check object status to make sure that the user still is valid
-    Database::Statement user( *db,
+    Database::Statement user( *db.get(),
             "SELECT accessDomain, id, version, name, value "
             "FROM Attribute "
             "WHERE id=? ");
@@ -601,7 +599,7 @@ std::shared_ptr<UserAccount> Database::getUser( const std::string& userHash ) co
 // TODO: check that the account is still valid?
 void Database::mapUser( map_user_f fn, const std::string& userHash ) const {
     // TODO: do everything with a single query with some join magic to replace sql "pivot"
-    Database::Statement userId( *db,
+    Database::Statement userId( *db.get(),
             "SELECT version "
             "FROM Attribute "
             "WHERE name='id' AND value=? AND version IN ( "
@@ -616,7 +614,7 @@ void Database::mapUser( map_user_f fn, const std::string& userHash ) const {
         return;
     }
 
-    Database::Statement user( *db,
+    Database::Statement user( *db.get(),
             "SELECT accessDomain, id, version, name, value "
             "FROM Attribute "
             "WHERE version=? ");
@@ -647,7 +645,7 @@ void Database::mapUser( map_user_f fn, const std::string& userHash ) const {
 
 void Database::mapUsers( map_user_f fn ) const {
     // TODO: do everything with a single query with some join magic to replace sql "pivot"
-    Database::Statement userId( *db,
+    Database::Statement userId( *db.get(),
             "SELECT version "
             "FROM Attribute "
             "WHERE name='id' AND version IN ( "
@@ -658,7 +656,7 @@ void Database::mapUsers( map_user_f fn ) const {
             "ORDER BY value ASC " );
     userId << USERS_OBJECT_ID;
 
-    Database::Statement user( *db,
+    Database::Statement user( *db.get(),
             "SELECT accessDomain, id, version, name, value "
             "FROM Attribute "
             "WHERE version=? ");
@@ -710,10 +708,10 @@ void Database::mapUsersFrom( map_user_f fn, const std::vector<std::string>& user
     queryUserIds += " )"
             "ORDER BY value ASC ";
 
-    Database::Statement userId( *db, queryUserIds );
+    Database::Statement userId( *db.get(), queryUserIds );
     userId << USERS_OBJECT_ID;
 
-    Database::Statement user( *db,
+    Database::Statement user( *db.get(),
             "SELECT accessDomain, id, version, name, value "
             "FROM Attribute "
             "WHERE version=? ");
@@ -768,13 +766,13 @@ void Database::inviteUser( const UserAccount& user ) {
 }
 
 Database::Object Database::getObject( int accessDomain, long long id, bool includeDeleted ) const {
-    Database::Statement object( *db,
+    Database::Statement object( *db.get(),
             "SELECT accessDomain, id, MAX( version ) as version, status, parent, parentAccessDomain, transactionAction "
             "FROM Object "
             "WHERE accessDomain=? AND id=? ");
     object << accessDomain << id;
 
-    Database::Statement attribute( *db,
+    Database::Statement attribute( *db.get(),
             "SELECT accessDomain, id, version, name, type, value "
             "FROM Attribute "
             "WHERE accessDomain=? AND id=? " );
@@ -802,19 +800,19 @@ Database::Object Database::getObject( int accessDomain, long long id, bool inclu
 }
 
 Database::Value Database::queryRowToValue( SQLite::Statement& query ) {
-    Value::T type{ static_cast<Database::Value::T>( query.getColumn( "type" ).getInt() ) };
+    Value::Type type{ static_cast<Database::Value::Type>( query.getColumn( "type" ).getInt() ) };
     switch( type ) {
-    case Value::T::NoType:
+    case Value::Type::Typeless:
         return {};
-    case Value::T::Null:
+    case Value::Type::Null:
         return { nullptr };
-    case Value::T::Boolean:
+    case Value::Type::Boolean:
         return static_cast<bool>( query.getColumn( "value" ).getUInt() );
-    case Value::T::Number:
+    case Value::Type::Number:
         return query.getColumn( "value" ).getDouble();
-    case Value::T::String:
+    case Value::Type::String:
         return query.getColumn( "value" ).getString();
-    case Value::T::Json:
+    case Value::Type::Json:
         return { query.getColumn( "value" ).getString(), true };
     default:
         LOG( WARNING ) << "Unhandled case, this needs to be fixed in the source code!";
@@ -824,67 +822,59 @@ Database::Value Database::queryRowToValue( SQLite::Statement& query ) {
 
 unsigned Database::subscribeObject( std::function<void(Object)> cb, int accessDomain,
         long long id, bool includeDeleted ) {
-    static unsigned subId{ 0 };
     ++subId;
     if ( !includeDeleted ) {
         LOG( DBUG ) << "Checking if object exists";
         getObject( accessDomain, id, includeDeleted ); // Test if the object exists, otherwise throw
     }
     try {
-        subscribeObjectIdSub.at( id ).insert( subId );
+        objectSubscribers.at( id ).insert( subId );
     } catch ( const std::out_of_range& ) {
         // No subscirbers for this object yet
-        subscribeObjectIdSub[ id ] = {};
-        subscribeObjectIdSub.at( id ).insert( subId );
+        objectSubscribers[ id ] = {};
+        objectSubscribers.at( id ).insert( subId );
     }
-
-    subscribeObjectSubId[subId] = id;
-    subscriberCallback[subId] = cb;
+    try {
+        subscriberObjects.at( subId ).insert( id );
+    } catch ( const std::out_of_range& ) {
+        // No objects for this subscriber yet.
+        subscriberObjects[ subId ] = {};
+        subscriberObjects.at( subId ).insert( id );
+    }
+    objectSubscriberCallback[ subId ] = cb;
 
     return subId;
 }
 
-void Database::unsubscribeObject( unsigned subId ) {
+void Database::unsubscribe( unsigned subId ) {
+    LOG( DBUG ) << "Unsubscribing";
     try {
-        long long objId{ subscribeObjectSubId.at( subId ) };
-        subscribeObjectIdSub.at( objId ).erase( subId );
-        subscribeObjectSubId.erase( subId );
-        subscriberCallback.erase( subId );
+        for( const long long& objId: subscriberObjects.at( subId ) ) {
+            objectSubscribers.at( objId ).erase( subId );
+            if ( objectSubscribers.at( objId ).empty() ) {
+                objectSubscribers.erase( objId );
+            }
+        }
+        subscriberObjects.erase( subId );
     } catch ( const std::out_of_range& ) {
         LOG( DBUG ) << "Tried to remove non-subscriber";
     }
+    objectSubscriberCallback.erase( subId );
+    querySubscriberCallback.erase( subId );
 }
 
 Database::QueryResult Database::query( int accessDomain, long long id, const std::string& select,
         const std::string& filter, const std::string& sort,
         const std::map<std::string, ArgumentVT>& args,
         int maxVersion, bool includeDeleted ) {
+    Mist::Query querier{};
     querier.parseQuery( accessDomain, id, select, filter, sort, args, maxVersion, includeDeleted );
+    return query( querier );
+}
 
-    Database::Statement dbQuery( *db, querier.getSqlQuery() );
-    for ( const std::pair<std::string,ArgumentVT>& arg : args ) {
-        dbQuery << arg.first;
-        switch ( arg.second.type() ) {
-        case Type::Typeless:
-            dbQuery << nullptr;
-            break;
-        case Type::Null:
-            dbQuery << "null";
-            break;
-        case Type::Boolean:
-            dbQuery << arg.second.boolValue();
-            break;
-        case Type::Number:
-            dbQuery << arg.second.numberValue();
-            break;
-        case Type::String:
-            dbQuery << arg.second.stringValue();
-            break;
-        case Type::JSON:
-            dbQuery << arg.second.stringValue();
-            break;
-        }
-    }
+
+Database::QueryResult Database::query( const Query& querier ) {
+    Database::Statement dbQuery( *db.get(), querier.getSqlQuery() );
     QueryResult result;
     if ( querier.isFunctionCall() ) {
         try {
@@ -917,34 +907,49 @@ Database::QueryResult Database::query( int accessDomain, long long id, const std
     return result;
 }
 
+unsigned Database::subscribeQuery( std::function<void(QueryResult)> cb,
+            int accessDomain, long long id, const std::string& select,
+            const std::string& filter, const std::string& sort,
+            const std::map<std::string, ArgumentVT>& args,
+            int maxVersion, bool includeDeleted ) {
+
+    ++subId;
+    if ( !includeDeleted ) {
+        // TODO: verify this behaviour
+        LOG( DBUG ) << "Checking if object exists";
+        getObject( accessDomain, id, includeDeleted ); // Test if the object exists, otherwise throw
+    }
+    try {
+        objectSubscribers.at( id ).insert( subId );
+    } catch ( const std::out_of_range& ) {
+        // No subscirbers for this object yet
+        objectSubscribers[ id ] = {};
+        objectSubscribers.at( id ).insert( subId );
+    }
+    try {
+        subscriberObjects.at( subId ).insert( id );
+    } catch ( const std::out_of_range& ) {
+        // No objects for this subscriber yet.
+        subscriberObjects[ subId ] = {};
+        subscriberObjects.at( subId ).insert( id );
+    }
+    querySubscriberCallback[ subId ] =  {};
+    querySubscriberCallback.at( subId ).first.reset( new Query() );
+    querySubscriberCallback.at( subId ).second = cb;
+    querySubscriberCallback.at( subId ).first->parseQuery( accessDomain, id, select, filter, sort, args, maxVersion, includeDeleted );
+
+    return subId;
+}
+
 Database::QueryResult Database::queryVersion( int accessDomain, long long id, const std::string& select,
         const std::string& filter, const std::map<std::string, ArgumentVT>& args, bool includeDeleted ) {
+    Query querier{};
     querier.parseVersionQuery( accessDomain, id, select, filter, args, includeDeleted );
+    return queryVersion( querier );
+}
 
-    Database::Statement dbQuery( *db, querier.getSqlQuery() );
-    for ( const std::pair<std::string,ArgumentVT>& arg : args ) {
-        dbQuery << arg.first;
-        switch ( arg.second.type() ) {
-        case Type::Typeless:
-            dbQuery << nullptr;
-            break;
-        case Type::Null:
-            dbQuery << "null";
-            break;
-        case Type::Boolean:
-            dbQuery << arg.second.boolValue();
-            break;
-        case Type::Number:
-            dbQuery << arg.second.numberValue();
-            break;
-        case Type::String:
-            dbQuery << arg.second.stringValue();
-            break;
-        case Type::JSON:
-            dbQuery << arg.second.stringValue();
-            break;
-        }
-    }
+Database::QueryResult Database::queryVersion( const Query& querier ) {
+    Database::Statement dbQuery( *db.get(), querier.getSqlQuery() );
     QueryResult result;
     if ( querier.isFunctionCall() ) {
         try {
@@ -975,6 +980,39 @@ Database::QueryResult Database::queryVersion( int accessDomain, long long id, co
         }
     }
     return result;
+}
+
+unsigned Database::subscribeQueryVersion( std::function<void(QueryResult)> cb,
+        int accessDomain, long long id, const std::string& select,
+        const std::string& filter, const std::map<std::string, ArgumentVT>& args,
+        bool includeDeleted ) {
+
+    ++subId;
+    if ( !includeDeleted ) {
+        // TODO: verify this behaviour
+        LOG( DBUG ) << "Checking if object exists";
+        getObject( accessDomain, id, includeDeleted ); // Test if the object exists, otherwise throw
+    }
+    try {
+        objectSubscribers.at( id ).insert( subId );
+    } catch ( const std::out_of_range& ) {
+        // No subscirbers for this object yet
+        objectSubscribers[ id ] = {};
+        objectSubscribers.at( id ).insert( subId );
+    }
+    try {
+        subscriberObjects.at( subId ).insert( id );
+    } catch ( const std::out_of_range& ) {
+        // No objects for this subscriber yet.
+        subscriberObjects[ subId ] = {};
+        subscriberObjects.at( subId ).insert( id );
+    }
+    querySubscriberCallback[ subId ] =  {};
+    querySubscriberCallback.at( subId ).first.reset( new Query() );
+    querySubscriberCallback.at( subId ).second = cb;
+    querySubscriberCallback.at( subId ).first->parseVersionQuery( accessDomain, id, select, filter, args, includeDeleted );
+
+    return subId;
 }
 
 std::unique_ptr<Mist::RemoteTransaction> Database::beginRemoteTransaction(
@@ -990,13 +1028,7 @@ std::unique_ptr<Mist::RemoteTransaction> Database::beginRemoteTransaction(
         throw std::runtime_error( "Can not begin remote transaction, database error state." );
     }
 
-
-    // TODO:  if it is the creator of the database,
-            // as the creator has implicit admin rights.
-            // Currently there is no other way to create the first user,
-            // if no one has the right to make the first transaction to the database,
-            // the system is unusable. This might change in the future.
-    // if ( db->creator != userHash ) {
+    if( !manifest || !( manifest->getCreator().hash() == userHash ) ) {
         std::shared_ptr<UserAccount> userAccount{ nullptr };
         try {
             userAccount = getUser( userHash.toString() );
@@ -1004,14 +1036,14 @@ std::unique_ptr<Mist::RemoteTransaction> Database::beginRemoteTransaction(
             LOG( WARNING ) << "Could not get user: " << e.what();
         }
 
-        #pragma message "Uncomment this code to enable AC when we have usable public keys" // TODO
+        //#pragma message "Uncomment this code to enable AC when we have usable public keys" // TODO
         if ( !userAccount || userAccount->getPermission() == Permission::P::read ) {
             LOG ( WARNING ) << "Invalid user or user permission";
-            //throw Mist::Exception( Mist::Error::ErrorCode::AccessDenied );
+            throw Mist::Exception( Mist::Error::ErrorCode::AccessDenied );
         }
-    // }
+    }
 
-    Database::Statement query(*db, "SELECT IFNULL(MAX(version),0)+1 AS newVersion "
+    Database::Statement query(*db.get(), "SELECT IFNULL(MAX(version),0)+1 AS newVersion "
             "FROM 'Transaction'");
     if ( !query.executeStep() ) {
         _isOK = false;
@@ -1041,7 +1073,7 @@ std::unique_ptr<Mist::Transaction> Database::beginTransaction( AccessDomain acce
         throw std::runtime_error( "Invalid database state: Can not begin transaction" );
     }
     //Helper::Database::Transaction newVersion( *db );
-    Database::Statement getVersion(*db, "SELECT IFNULL(MAX(version),0)+1 AS newVersion "
+    Database::Statement getVersion(*db.get(), "SELECT IFNULL(MAX(version),0)+1 AS newVersion "
             "FROM 'Transaction'");
     if ( !getVersion.executeStep() ) {
         _isOK = false;
@@ -1107,7 +1139,7 @@ unsigned Database::reorderTransaction( const Database::Transaction& tranasaction
             "Reordering: version: " << tranasaction.version <<
             " date: " << tranasaction.date.toString() <<
             " hash: " << tranasaction.hash.toString();
-    Connection* conn{ db };
+    Connection* conn{ db.get() };
     if ( nullptr != connection ) {
         conn = connection;
     }
@@ -1226,7 +1258,7 @@ CryptoHelper::Signature Database::signTransaction( const CryptoHelper::SHA3& has
 void Database::objectChanged( const Database::ObjectRef& objectRef ) {
     if ( AccessDomain::Settings == objectRef.accessDomain && USERS_OBJECT_ID == objectRef.id ) {
         // Handle user changes
-        Database::Statement affectedUsers( *db,
+        Database::Statement affectedUsers( *db.get(),
                 "SELECT id, status, transactionAction "
                 "FROM Attribute "
                 "WHERE id IN ( "
@@ -1236,7 +1268,7 @@ void Database::objectChanged( const Database::ObjectRef& objectRef ) {
                 ") "
                 "ORDER BY id DESC " );
 
-        Database::Statement user( *db,
+        Database::Statement user( *db.get(),
                 "SELECT accessDomain, id, version, name, value "
                 "FROM Attribute "
                 "WHERE id=? ");
@@ -1281,14 +1313,37 @@ void Database::objectChanged( const Database::ObjectRef& objectRef ) {
         }
     }
     try {
-        const std::set<unsigned>& subs { subscribeObjectIdSub.at( objectRef.id ) };
+        const std::set<unsigned>& subs { objectSubscribers.at( objectRef.id ) };
         Object obj{ getObject( static_cast<long long>( objectRef.accessDomain ),
                 static_cast<long long>( objectRef.id ), true ) };
         for ( const unsigned sub : subs ) {
-            subscriberCallback.at( sub )( obj );
+            objectSubscriberCallback.at( sub )( obj );
         }
     } catch ( const std::out_of_range& ) {
         // OK, no subscribers found
+    }
+}
+
+void Database::objectsChanged( const std::set<Database::ObjectRef, Database::lessObjectRef>& objects ) {
+    std::set<unsigned> subscribers{};
+    for( const ObjectRef& objectRef: objects ) {
+        objectChanged( objectRef );
+        try {
+            const std::set<unsigned>& subs { objectSubscribers.at( objectRef.id ) };
+            Object obj{ getObject( static_cast<long long>( objectRef.accessDomain ),
+                    static_cast<long long>( objectRef.id ), true ) };
+            for ( const unsigned sub : subs ) {
+                if ( objectSubscriberCallback.count( sub ) ) {
+                    objectSubscriberCallback.at( sub )( obj );
+                }
+                if (  querySubscriberCallback.count( sub ) ) {
+                    QueryResult newQueryResults{ query( *querySubscriberCallback.at( sub ).first.get() ) };
+                    querySubscriberCallback.at( sub ).second( newQueryResults );
+                }
+            }
+        } catch ( const std::out_of_range& ) {
+            // OK, no subscribers found
+        }
     }
 }
 
@@ -1314,7 +1369,7 @@ void Database::commit( Mist::Transaction* transaction ) {
 
 std::vector<CryptoHelper::SHA3> Database::getParents( unsigned version,
         Connection* connection ) const {
-    Database::Statement parent( *db,
+    Database::Statement parent( *db.get(),
             "SELECT hash"
             "FROM TransactionParent AS tp, 'Transaction' AS t "
             "WHERE tp.version=? AND t.accessDomain=tp.parentAccessDomain AND t.version=tp.parentVersion "
@@ -1330,7 +1385,7 @@ std::vector<CryptoHelper::SHA3> Database::getParents( unsigned version,
 
 std::vector<CryptoHelper::SHA3> Database::getParents( CryptoHelper::SHA3 transactionHash,
         Connection* connection ) const {
-    Database::Statement parent( *db,
+    Database::Statement parent( *db.get(),
             "SELECT hash "
             "FROM TransactionParent AS tp, 'Transaction' AS t "
             "WHERE t.hash=? AND tp.version=t.version AND tp.accessDomain=t.parentAccessDomain "
@@ -1439,19 +1494,19 @@ Database::ObjectMeta Database::statementRowToObjectMeta( Database::Statement& ob
 
 Database::Value Database::statementRowToValue( Database::Statement& attribute ) {
     try {
-        Value::T type{ static_cast<Value::T>( attribute.getColumn( "type" ).getInt() ) };
+        Value::Type type{ static_cast<Value::Type>( attribute.getColumn( "type" ).getInt() ) };
         switch( type ) {
-        case Value::T::NoType:
+        case Value::Type::Typeless:
             return {};
-        case Value::T::Null:
+        case Value::Type::Null:
             return { nullptr };
-        case Value::T::Boolean:
+        case Value::Type::Boolean:
             return { static_cast<bool>( attribute.getColumn( "value" ).getInt() ) };
-        case Value::T::Number:
+        case Value::Type::Number:
             return { attribute.getColumn( "value" ).getDouble() };
-        case Value::T::String:
+        case Value::Type::String:
             return { attribute.getColumn( "value" ).getString() };
-        case Value::T::Json:
+        case Value::Type::Json:
             return { attribute.getColumn( "value" ).getString(), true };
         default:
             LOG( WARNING ) << "Attribute statement does not contain correct type.";
@@ -1480,6 +1535,30 @@ bool Database::dbExists( std::string filename ) {
     return exists;
 }
 
+Database::Manifest *Database::getManifest() {
+    return manifest.get();
+}
+
+bool Database::Value::operator<( const Value& rhs ) {
+    if ( t == rhs.t ) {
+        switch( t ){
+        case Type::Typeless:
+        case Type::Null:
+            return false;
+        case Type::Boolean:
+            return b < rhs.b;
+        case Type::Number:
+            return n < rhs.n;
+        case Type::String:
+        case Type::Json:
+            return v.compare( rhs.v ) < 0;
+        }
+    } else {
+        return static_cast<int>( t ) < static_cast<int>( rhs.t );
+    }
+    return false;
+}
+
 Database::Manifest::Manifest( Signer signer, Verifier verifier, std::string name, Helper::Date created, CryptoHelper::PublicKey creator, CryptoHelper::Signature signature, CryptoHelper::SHA3 hash ) :
     name( name ), created( created ), creator( creator ), hash( hash ), signature( signature ), signer( signer ), verifier( verifier ) {
 }
@@ -1502,20 +1581,45 @@ bool Database::Manifest::verify() const {
 }
 
 std::string Database::Manifest::inner() const {
-    return R"({"created":")" + created.toString()
-            + R"(","creator":")" + creator.toString()
-            + R"(","name":")" + name
-            + R"("})";
+    std::stringstream ss{};
+    JSON::Serialize s{};
+    std::ostream os( ss.rdbuf() );
+    s.set_ostream( os );
+    s.start_object();
+        s.put( "created" );
+        s.put( created.toString() );
+        s.put( "creator" );
+        s.put( creator.toString() );
+        s.put( "name" );
+        s.put( name );
+    s.close_object();
+    return ss.str();
 }
 
 std::string Database::Manifest::toString() const {
-    return R"("{"hash":")" + hash.toString()
-            + R"(","manifest":)" + inner()
-            + R"(,"signature":"})" + signature.toString()
-            + R"("})";
+    std::stringstream ss{};
+    JSON::Serialize s{};
+    std::ostream os( ss.rdbuf() );
+    s.set_ostream( os );
+    s.start_object();
+        s.put( "hash" );
+        s.put( hash.toString() );
+        s.put( "manifest" );
+        s.start_object();
+            s.put( "created" );
+            s.put( created.toString() );
+            s.put( "creator" );
+            s.put( creator.toString() );
+            s.put( "name" );
+            s.put( name );
+        s.close_object();
+        s.put( "signature" );
+        s.put( signature.toString() );
+    s.close_object();
+    return ss.str();
 }
 
-Database::Manifest Database::Manifest::fromString( const std::string& serialized, Signer signer, Verifier verifier ) {
+Database::Manifest Database::Manifest::fromString( const std::string& serialized, Verifier verifier, Signer signer ) {
     JSON::Value json{ JSON::Deserialize::generate_json_value( serialized ) };
 
     std::string name{ json.at( "manifest" ).at( "name" ).get_string() };
@@ -1525,30 +1629,6 @@ Database::Manifest Database::Manifest::fromString( const std::string& serialized
     CryptoHelper::SHA3 hash { CryptoHelper::SHA3::fromString( json.at( "hash" ).get_string() ) };
 
     return Manifest( signer, verifier, name, created, creator, signature, hash );
-}
-
-Database::Manifest *Database::getManifest() {
-    return manifest.get();
-}
-
-bool Database::Value::operator<( const Value& rhs ) {
-    if ( t == rhs.t ) {
-        switch( t ){
-        case T::NoType:
-        case T::Null:
-            return false;
-        case T::Boolean:
-            return b < rhs.b;
-        case T::Number:
-            return n < rhs.n;
-        case T::String:
-        case T::Json:
-            return v.compare( rhs.v ) < 0;
-        }
-    } else {
-        return static_cast<int>( t ) < static_cast<int>( rhs.t );
-    }
-    return false;
 }
 
 } /* namespace Mist */

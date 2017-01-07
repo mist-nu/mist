@@ -386,8 +386,52 @@ Mist::Database* Mist::Central::createDatabase( std::string name ) {
     return nullptr; // TODO: make sure this does not happen?
 }
 
-Mist::Database* Mist::Central::receiveDatabase( const Mist::Database::Manifest& manifest ) {
-    return nullptr;
+Mist::Database* Mist::Central::receiveDatabase( const Mist::Database::Manifest& receivedManifest ) {
+    if( !verify( receivedManifest.getCreator(),
+            receivedManifest.getHash(),
+            receivedManifest.getSignature() ) ) {
+        // TODO: some sort of error
+        throw std::runtime_error( "Could not receive database, manifest failed verification." );
+    }
+
+    Helper::Database::Transaction transaction( *settingsDatabase );
+    Helper::Database::Statement query( *settingsDatabase, "SELECT IFNULL(MAX(localId),0)+1 AS localId FROM Database" );
+    try {
+        if ( query.executeStep() ) {
+            unsigned localId = query.getColumn( "localId" );
+            // TODO: check if the file '${localID}.db' exists.
+            using namespace std::placeholders;
+            std::unique_ptr<Database::Manifest> manifest( new Database::Manifest(
+                    nullptr,
+                    std::bind( &Central::verify, this, _1, _2, _3),
+                    receivedManifest.getName(),
+                    receivedManifest.getCreated(),
+                    receivedManifest.getCreator(),
+                    receivedManifest.getSignature(),
+                    receivedManifest.getHash() ) );
+            if( !manifest->verify() ) {
+                throw std::runtime_error( "Could not copy manifest, manifest failed verification." );
+            }
+
+            this->databases.emplace(localId, new Mist::Database( this, path + "/" + std::to_string( localId ) + ".db" ) );
+            Mist::Database* db = databases.at( localId );
+            Helper::Database::Statement query( *settingsDatabase, "INSERT INTO Database (hash, localId, creator, name, manifest) VALUES (?, ?, ?, ?, ?)" );
+            query.bind( 1, manifest->getHash().toString() );
+            query.bind( 2, localId );
+            query.bind( 3, manifest->getCreator().hash().toString() );
+            query.bind( 4, manifest->getName() );
+            query.bind( 5, manifest->toString() );
+            query.exec();
+            transaction.commit();
+            db->create( localId, std::move( manifest ) );
+            return db;
+        } else {
+            // TODO: handle this
+        }
+    } catch ( Helper::Database::Exception &e ) {
+        // TODO: handle this.
+    }
+    return nullptr; // TODO: make sure this does not happen?
 }
 
 std::vector<Mist::Database::Manifest> Mist::Central::listDatabases() {
@@ -405,9 +449,9 @@ std::vector<Mist::Database::Manifest> Mist::Central::listDatabases() {
             using namespace std::placeholders;
             manifests.push_back(
                     Database::Manifest::fromString( query.getColumn( "manifest" ).getString(),
-                            std::bind( &Central::sign, this, _1),
-                            std::bind( &Central::verify, this, _1, _2, _3) )
-            );
+                            std::bind( &Central::verify, this, _1, _2, _3),
+                            std::bind( &Central::sign, this, _1)
+            ) );
         } catch (Helper::Database::Exception& e) {
             // TODO: column error on manifest
             continue;

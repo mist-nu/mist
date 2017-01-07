@@ -301,8 +301,8 @@ public:
             std::string filterStr,
             std::map<std::string,ArgumentVT> args,
             bool includeDeleted );
-    std::string getSqlQuery() { return sqlQuery; }
-    std::vector<ArgumentVT> getArgs() { return args; }
+    std::string getSqlQuery() const { return sqlQuery; }
+    std::vector<ArgumentVT> getArgs() const { return args; }
 
     bool isFunctionCall() const { return select.isFunctionCall(); }
     std::string getFunctionName() const { return select.getFunctionName(); }

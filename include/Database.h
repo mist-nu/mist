@@ -74,12 +74,15 @@ public:
                 CryptoHelper::Signature signature = {},
                 CryptoHelper::SHA3 hash = {} );
         virtual ~Manifest() = default;
-        CryptoHelper::SHA3 getHash() const { return hash; }
+        std::string getName() const { return name; }
+        Helper::Date getCreated() const { return created; }
         CryptoHelper::PublicKey getCreator() const { return creator; }
+        CryptoHelper::SHA3 getHash() const { return hash; }
+        CryptoHelper::Signature getSignature() const { return signature; }
         void sign();
         bool verify() const;
         std::string toString() const;
-        static Manifest fromString( const std::string& serialized, Signer signer, Verifier verifier );
+        static Manifest fromString( const std::string& serialized, Verifier verifier, Signer signer = nullptr );
     };
 
     enum class AccessDomain
@@ -146,18 +149,22 @@ public:
 
     class Value {
     public:
-        enum class T { NoType, Null, Boolean, Number, String, Json } t;
+        enum class Type { Typeless, Null, Boolean, Number, String, Json } t;
         bool b;
         double n;
         std::string v;
-        Value() : t( T::NoType ),b(),n(),v() {}
-        Value( std::nullptr_t ) : t( T::NoType ),b(),n(),v() {}
-        Value( bool b ) : t( T::Boolean ),b(b),n(),v() {}
-        Value( double n ) : t( T::Number), b(),n(n),v() {}
-        Value( int i ) : t( T::Number ), b(),n(i),v() {}
+        Value() : t( Type::Typeless ),b(),n(),v() {}
+        Value( std::nullptr_t ) : t( Type::Typeless ),b(),n(),v() {}
+        Value( bool b ) : t( Type::Boolean ),b(b),n(),v() {}
+        Value( double n ) : t( Type::Number), b(),n(n),v() {}
+        Value( int i ) : t( Type::Number ), b(),n(i),v() {}
         Value( const char* c, bool json = false ) : Value( std::string( c), json ) {}
-        Value( const std::string& v, bool json = false ) : t( json? T::Json: T::String ),b(),n(),v(v) {}
+        Value( const std::string& v, bool json = false ) : t( json? Type::Json: Type::String ),b(),n(),v(v) {}
         bool operator<(const Value& rhs );
+        std::string string() const { return v; }
+        double number() const { return n; }
+        bool boolean() const { return b; }
+        Type type() const { return t; }
     };
 
     // TODO: split Object and attributes to allow for better reading.
@@ -218,17 +225,29 @@ public:
         std::map<std::string,Value> attributes{};
     };
 
+    void unsubscribe( unsigned subscriberId );
+
     Object getObject( int accessDomain, long long id, bool includeDeleted = false ) const;
     unsigned subscribeObject( std::function<void(Object)> cb, int accessDomain,
             long long id, bool includeDeleted = false );
-    void unsubscribeObject( unsigned subscriberId );
 
     QueryResult query( int accessDomain, long long id, const std::string& select,
             const std::string& filter, const std::string& sort,
             const std::map<std::string, ArgumentVT>& args,
             int maxVersion, bool includeDeleted = false );
+    QueryResult query( const Query& querier );
+    unsigned subscribeQuery( std::function<void(QueryResult)> cb,
+            int accessDomain, long long id, const std::string& select,
+            const std::string& filter, const std::string& sort,
+            const std::map<std::string, ArgumentVT>& args,
+            int maxVersion, bool includeDeleted = false );
 
     QueryResult queryVersion( int accessDomain, long long id, const std::string& select,
+            const std::string& filter, const std::map<std::string, ArgumentVT>& args,
+            bool includeDeleted = false );
+    QueryResult queryVersion( const Query& quierier );
+    unsigned subscribeQueryVersion( std::function<void(QueryResult)> cb,
+            int accessDomain, long long id, const std::string& select,
             const std::string& filter, const std::map<std::string, ArgumentVT>& args,
             bool includeDeleted = false );
 
@@ -284,6 +303,8 @@ public:
     Database::Meta transactionToMeta( const Database::Transaction& tranaction,
             Connection* connection = nullptr ) const;
     static std::vector<Database::Meta> streamToMeta( std::basic_streambuf<char>& sb );
+
+    Manifest *getManifest();
 
 protected:
     // Friend Transaction and RemoteTransaction so they may call
@@ -351,6 +372,7 @@ protected:
     CryptoHelper::Signature signTransaction( const CryptoHelper::SHA3& hash ) const;
 
     void objectChanged( const ObjectRef& objectRef );
+    void objectsChanged( const std::set<Database::ObjectRef, Database::lessObjectRef>& objects );
     void rollback( Mist::RemoteTransaction *transaction );
     void rollback( Mist::Transaction *transaction );
     void commit( Mist::RemoteTransaction *transaction );
@@ -369,7 +391,6 @@ protected:
             Connection* connection = nullptr ) const;
 
     const std::string& getUserHash() { return userHash; }
-    Manifest *getManifest();
 private:
 
     static bool dbExists( std::string filename );
@@ -379,15 +400,18 @@ private:
     std::unique_ptr<Manifest> manifest;
     Central *central;
     std::string path;
-    Connection *db;
     std::string userHash;
+    std::unique_ptr<Connection> db;
     std::unique_ptr<Deserializer> deserializer;
     std::unique_ptr<Serializer> serializer;
-    Mist::Query querier{};
 
-    std::map<long long,std::set<unsigned>> subscribeObjectIdSub{};
-    std::map<unsigned,long long> subscribeObjectSubId{};
-    std::map<unsigned,std::function<void(Object)>> subscriberCallback{};
+    static unsigned subId;
+    std::map<long long,std::set<unsigned>> objectSubscribers{};
+    std::map<unsigned,std::set<long long>> subscriberObjects{};
+    std::map<unsigned,std::function<void(Object)>> objectSubscriberCallback{};
+    std::map<unsigned,std::pair<
+        std::unique_ptr<Query>,
+        std::function<void(QueryResult)>>> querySubscriberCallback{};
 };
 
 // Database utils

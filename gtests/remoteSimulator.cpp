@@ -10,16 +10,18 @@
 #include <string>
 
 #include "Central.h"
+#include "CryptoHelper.h"
 #include "Database.h"
 #include "Helper.h"
 #include "JSONstream.h"
-#include "RemoteTransaction.h"
 #include "Transaction.h"
 
 #include "gtest/gtest.h"
 
 namespace M = Mist;
 namespace FS = M::Helper::filesystem;
+
+using namespace std::placeholders;
 
 using T = M::Transaction;
 using RT = M::RemoteTransaction;
@@ -58,7 +60,6 @@ void removeCentral(std::string p) {
 
 } // namespace
 
-const std::string transaction_file( "transactions.json" );
 const std::string central_remote{ FS::path( "central_remote" ).string() };
 
 TEST( RemoteCentral, CreateTransactions ) {
@@ -71,6 +72,17 @@ TEST( RemoteCentral, CreateTransactions ) {
 
     // Create db
     D* db{ central.createDatabase( "test" ) };
+
+    // Test manifest
+    M::Database::Manifest* m{ db->getManifest() };
+    EXPECT_TRUE( m->verify() );
+
+    // Test Manifest::fromString( toString() )
+    std::string storedManifest{ db->getManifest()->toString() };
+    M::Database::Manifest manifest{ M::Database::Manifest::fromString( storedManifest,
+            std::bind( &M::Central::verify, &central, _1, _2, _3 )
+    ) };
+    EXPECT_TRUE( manifest.verify() );
 
     // Start transaction
     std::unique_ptr<T> t{ std::move( db->beginTransaction() ) };
@@ -91,7 +103,7 @@ TEST( RemoteCentral, CreateTransactions ) {
     t->commit();
     t.reset();
 
-    db->dump( central_remote + ".1" );
+    db->dump( central_remote );
 
     // Shutdown
     db->close();

@@ -171,13 +171,13 @@ Database::Value toDatabaseValue(v8::Local<v8::Value> val)
 
 v8::Local<v8::Value> fromDatabaseValue(Database::Value val)
 {
-  if (val.t == Database::Value::T::Boolean) {
+  if (val.t == Database::Value::Type::Boolean) {
     return Nan::New(val.b);
-  } else if (val.t == Database::Value::T::Number) {
+  } else if (val.t == Database::Value::Type::Number) {
     return Nan::New(val.n);
-  } else if (val.t == Database::Value::T::String) {
+  } else if (val.t == Database::Value::Type::String) {
     return Nan::New(val.v).ToLocalChecked();
-  } else if (val.t == Database::Value::T::Json) {
+  } else if (val.t == Database::Value::Type::Json) {
     // TODO: Convert from Json
     return v8::Local<v8::Value>();
   } else {

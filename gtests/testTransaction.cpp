@@ -22,7 +22,7 @@ namespace FS = M::Helper::filesystem;
 using ORef = M::Database::ObjectRef;
 using AD = M::Database::AccessDomain;
 using V = M::Database::Value;
-using VT = M::Database::Value::T;
+using VT = M::Database::Value::Type;
 
 void removeTestDb( const FS::path &p ) {
     LOG ( INFO ) << "Removing db: " << p;
