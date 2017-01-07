@@ -57,15 +57,20 @@ void SavePoint::rollback() {
 
 std::string Date::now( int diffSeconds ) {
     auto now = std::chrono::system_clock::now();
-    auto seconds = std::chrono::time_point_cast<std::chrono::seconds>(now);
-    auto fraction = now - seconds;
-    auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(fraction);
+    auto now_ms = std::chrono::time_point_cast<std::chrono::milliseconds>( now );
+    auto now_s = std::chrono::time_point_cast<std::chrono::seconds>( now );
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>( now_ms - now_s ).count();
 
     time_t cnow = std::chrono::system_clock::to_time_t(now);
     char buffer[100];
     std::size_t len = std::strftime( buffer, sizeof( buffer ), "%F %T", std::gmtime( &cnow ) );
     std::string time( buffer, len );
-    time += milliseconds.count();
+    time += '.';
+    if ( ms < 10 )
+        time += '0';
+    if ( ms < 100 )
+        time += '0';
+    time += std::to_string( ms );
     return time;
 }
 
