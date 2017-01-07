@@ -350,7 +350,7 @@ void Transaction::updateObject( unsigned long id, const std::map<std::string, Da
             "FROM Object "
             "WHERE accessDomain=? AND id=? AND status < ?" );
     query << (int) accessDomain << (long long) id << (int) Database::ObjectStatus::DeletedParent;
-    if ( query.executeStep() == 0 ) { // Got 0 rows
+    if ( !query.executeStep() ) {
         LOG( WARNING ) << "Not Found, transaction no longer valid";
         valid = false;
         throw Mist::Exception( Mist::Error::ErrorCode::NotFound );
@@ -364,9 +364,12 @@ void Transaction::updateObject( unsigned long id, const std::map<std::string, Da
         Database::Statement parentQuery( *connection.get(), "SELECT id, version, transactionAction "
                 "FROM Object "
                 "WHERE accessDomain=? AND id=? AND status=?" );
-        parentQuery << (int) Database::ObjectStatus::DeletedParent << (long long) obj.parent.id << (int) obj.status;
+        parentQuery <<
+                query.getColumn( "parentAccessDomain" ).getUInt() <<
+                query.getColumn( "parent" ).getInt64() <<
+                static_cast<int>( Database::ObjectStatus::Current );
         if ( !parentQuery.executeStep() ) {
-            LOG( WARNING ) << "Not Found, transaction no longer valid";
+            LOG( WARNING ) << "Parent object not found";
             valid = false;
             throw Mist::Exception( Mist::Error::ErrorCode::NotFound );
         }

@@ -467,13 +467,15 @@ void Database::mapObject( map_obj_f fn, const Database::Transaction& transaction
     Database::Statement object( *conn,
             "SELECT accessDomain, id, version, status, parent, parentAccessDomain, transactionAction "
             "FROM Object "
-            "WHERE version=? ");
+            "WHERE version=? "
+            "ORDER BY id ASC " );
     object << transaction.version;
     Database::Statement attribute( *conn,
             //"SELECT accessDomain, id, version, name, value, json "
             "SELECT accessDomain, id, version, name, type, value "
             "FROM Attribute "
-            "WHERE version=?" );
+            "WHERE version=?"
+            "ORDER BY id ASC " );
     while( object.executeStep() ) {
         std::map<std::string,Value> attributes{};
         attribute << object.getColumn( "version" ).getInt64();
@@ -498,12 +500,14 @@ void Database::mapObjectId( map_obj_f fn, const long long id,
     Database::Statement object( *conn,
             "SELECT accessDomain, id, version, status, parent, parentAccessDomain, transactionAction "
             "FROM Object "
-            "WHERE id=? ");
+            "WHERE id=? "
+            "ORDER BY version ASC ");
     object << id;
     Database::Statement attribute( *conn,
             "SELECT accessDomain, id, version, name, type, value "
             "FROM Attribute "
-            "WHERE version=?" );
+            "WHERE version=?"
+            "ORDER BY id ASC " );
     while( object.executeStep() ) {
         std::map<std::string,Value> attributes{};
         attribute << object.getColumn( "version" ).getInt64();
@@ -571,7 +575,8 @@ std::shared_ptr<UserAccount> Database::getUser( const std::string& userHash ) co
     Database::Statement user( *db.get(),
             "SELECT accessDomain, id, version, name, value "
             "FROM Attribute "
-            "WHERE id=? ");
+            "WHERE id=? "
+            "ORDER BY version DESC ");
     user << userId.getColumn( "id" ).getString();
 
     std::string id{}, name{}, permission{}, publicKeyPem{};
@@ -774,13 +779,15 @@ Database::Object Database::getObject( int accessDomain, long long id, bool inclu
     Database::Statement object( *db.get(),
             "SELECT accessDomain, id, MAX( version ) as version, status, parent, parentAccessDomain, transactionAction "
             "FROM Object "
-            "WHERE accessDomain=? AND id=? ");
+            "WHERE accessDomain=? AND id=? "
+            "ORDER BY version DESC ");
     object << accessDomain << id;
 
     Database::Statement attribute( *db.get(),
             "SELECT accessDomain, id, version, name, type, value "
             "FROM Attribute "
-            "WHERE accessDomain=? AND id=? " );
+            "WHERE accessDomain=? AND id=? AND version=? "
+            "ORDER BY version DESC ");
 
     if( object.executeStep() ) {
         ObjectStatus status{ static_cast<ObjectStatus>( object.getColumn( "status" ).getUInt() ) };
@@ -790,7 +797,7 @@ Database::Object Database::getObject( int accessDomain, long long id, bool inclu
         }
 
         std::map<std::string,Value> attributes{};
-        attribute << accessDomain << id;
+        attribute << accessDomain << id << object.getColumn( "version" ).getUInt();
         while ( attribute.executeStep() ) {
             attributes.emplace(
                     attribute.getColumn( "name" ).getString(),

@@ -155,6 +155,7 @@ void RemoteTransaction::init() {
  */
 void RemoteTransaction::newObject( unsigned long id, const Database::ObjectRef& parent, const std::map<std::string, Database::Value>& attributes ) {
     if ( !valid ) {
+        LOG( WARNING ) << "Invalid transaction";
         throw Mist::Exception( Mist::Error::ErrorCode::InvalidTransaction );
     }
 
@@ -168,6 +169,7 @@ void RemoteTransaction::newObject( unsigned long id, const Database::ObjectRef& 
             version;
     if ( queryId.executeStep() ) {
         valid = false;
+        LOG( WARNING ) << "Object collision: " << queryId.getColumn( "id" ).getInt64();
         throw Mist::Exception( Mist::Error::ErrorCode::ObjectCollisionInTransaction );
     }
 
@@ -185,6 +187,7 @@ void RemoteTransaction::newObject( unsigned long id, const Database::ObjectRef& 
     if ( queryInsertIntoObject.exec() == 0 ) {
         // TODO: query failed, handle it.
         valid = false;
+        LOG( WARNING ) << "Could not insert object";
         throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
     }
 
@@ -243,15 +246,17 @@ void RemoteTransaction::newObject( unsigned long id, const Database::ObjectRef& 
 void RemoteTransaction::moveObject( unsigned long id, Database::ObjectRef newParent ) {
     if ( !valid ) {
         valid = false;
+        LOG( WARNING ) << "Invalid transaction";
         throw Mist::Exception( Mist::Error::ErrorCode::InvalidTransaction );
     }
 
+    /* Not implemented yet.
     Database::ObjectRef obj { accessDomain, id };
     auto reObj = renumber.find( obj );
     if ( reObj != renumber.end() ) {
-        // TODO: Not sure what this does. Can someone comment this?
         id = reObj->second;
     }
+    //*/
 
     Database::Statement queryId( *connection.get(),
             "SELECT id FROM Object WHERE accessDomain=? AND id=? AND version=?" );
@@ -260,6 +265,7 @@ void RemoteTransaction::moveObject( unsigned long id, Database::ObjectRef newPar
     queryId.bind( 3, version );
     if ( queryId.executeStep() ) {
         valid = false;
+        LOG( WARNING ) << "Object collision";
         throw Mist::Exception( Mist::Error::ErrorCode::ObjectCollisionInTransaction );
     }
 
@@ -271,7 +277,8 @@ void RemoteTransaction::moveObject( unsigned long id, Database::ObjectRef newPar
                 "FROM Object "
                 "WHERE id=? "
                 "ORDER BY version DESC "
-            ") " );
+            ") "
+            "ORDER BY version DESC " );
     getOldParent << static_cast<long long>( id );
     Database::ObjectRef oldParent{ accessDomain, 0 };
     if ( getOldParent.executeStep() ) {
@@ -285,13 +292,15 @@ void RemoteTransaction::moveObject( unsigned long id, Database::ObjectRef newPar
     queryInsertIntoObject.bind( 1, (unsigned) accessDomain );
     queryInsertIntoObject.bind( 2, (long long) id );
     queryInsertIntoObject.bind( 3, version );
-    queryInsertIntoObject.bind( 4, 0 ); // TODO: Do we really want to insert 0/null here? trying to read this value into Database::ObjectStatus later on will not work.
+    //queryInsertIntoObject.bind( 4, 0 ); // TODO: Do we really want to insert 0/null here? trying to read this value into Database::ObjectStatus later on will not work.
+    queryInsertIntoObject.bind( 4, static_cast<int>( Database::ObjectStatus::Current ) );
     queryInsertIntoObject.bind( 5, (long long) newParent.id );
     queryInsertIntoObject.bind( 6, (unsigned) newParent.accessDomain );
     queryInsertIntoObject.bind( 7, (unsigned) Database::ObjectAction::Move );
     if ( queryInsertIntoObject.exec() == 0 ) {
         // TODO: query failed, handle it.
         valid = false;
+        LOG( WARNING ) << "Could not insert object";
         throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
     }
 
@@ -315,7 +324,8 @@ void RemoteTransaction::moveObject( unsigned long id, Database::ObjectRef newPar
                 "WHERE accessDomain=? AND id=? AND version=?" );
         queryAttribute.bind( 1, version );
         queryAttribute.bind( 2, (unsigned) accessDomain );
-        queryAttribute.bind( 3, queryObject.getColumn( "version" ).getInt64() );
+        queryAttribute.bind( 3, static_cast<long long>( id ) );
+        queryAttribute.bind( 4, queryObject.getColumn( "version" ).getUInt() );
         queryAttribute.exec();
         /*
         if ( queryAttribute.exec() == 0 ) {
@@ -341,15 +351,17 @@ void RemoteTransaction::moveObject( unsigned long id, Database::ObjectRef newPar
 void RemoteTransaction::updateObject( unsigned long id, std::map<std::string, Database::Value> attributes ) {
     if ( !valid ) {
         valid = false;
+        LOG( WARNING ) << "Invalid transaction";
         throw Mist::Exception( Mist::Error::ErrorCode::InvalidTransaction );
     }
 
+    /* Not implemented yet.
     Database::ObjectRef obj { accessDomain, id };
     auto const & reObj = renumber.find( obj );
     if ( reObj != renumber.end() ) {
-        // TODO: Not sure what this does. Can someone comment this?
         id = reObj->second;
     }
+    //*/
 
     Database::Statement getParent( *connection.get(),
             "SELECT accessDomain, id "
@@ -359,7 +371,8 @@ void RemoteTransaction::updateObject( unsigned long id, std::map<std::string, Da
                 "FROM Object "
                 "WHERE id=? "
                 "ORDER BY version DESC "
-            ") " );
+            ") "
+            "ORDER BY version DESC " );
     getParent << static_cast<long long>( id );
     Database::ObjectRef parent{ accessDomain, 0 };
     if ( getParent.executeStep() ) {
@@ -374,20 +387,24 @@ void RemoteTransaction::updateObject( unsigned long id, std::map<std::string, Da
     queryId.bind( 1, (unsigned) accessDomain );
     queryId.bind( 2, (long long) id );
     queryId.bind( 3, version );
-    if ( queryId.executeStep() > 0 ) {
+    if ( queryId.executeStep() ) {
         if ( ( (Database::ObjectAction) queryId.getColumn( "transactionAction" ).getUInt() ) == Database::ObjectAction::Move ) {
             Database::Statement queryUpdateObject( *connection.get(),
                     "UPDATE Object SET transactionAction=? "
                     "WHERE accessDomain=? AND id=? AND version=?" );
-            queryUpdateObject.bind( 1, (unsigned) accessDomain );
-            queryUpdateObject.bind( 2, (long long) id );
-            queryUpdateObject.bind( 3, version );
+            queryUpdateObject <<
+                    static_cast<int>( Database::ObjectAction::MoveUpdate ) <<
+                    static_cast<unsigned>( accessDomain ) <<
+                    static_cast<long long>( id ) <<
+                    version;
             if ( queryUpdateObject.exec() == 0 ) {
                 // TODO: query failed, handle it.
                 valid = false;
+                LOG( WARNING ) << "Could not update object";
                 throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
             }
 
+            // TODO: Do we really want to delete something here?
             Database::Statement quertDeleteAttribute( *connection.get(),
                     "DELETE FROM Attribute WHERE accessDomain=? AND id=? AND version=?" );
             quertDeleteAttribute.bind( 1, (unsigned) accessDomain );
@@ -396,25 +413,27 @@ void RemoteTransaction::updateObject( unsigned long id, std::map<std::string, Da
             if ( quertDeleteAttribute.exec() == 0 ) {
                 // TODO: query failed, handle it.
                 valid = false;
+                LOG( WARNING ) << "Could not delete attribute";
                 throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
             }
         } else {
             valid = false;
+            LOG( WARNING ) << "Object collision";
             throw Mist::Exception( Mist::Error::ErrorCode::ObjectCollisionInTransaction );
         }
     } else {
         Database::Statement queryObject( *connection.get(),
                 "SELECT id, parent, parentAccessDomain, version, status, transactionAction "
                 "FROM Object "
-                "WHERE accessDomain=? AND id=? AND version=(SELECT version "
-                "FROM Object WHERE accessDomain=? AND id=? AND status <= ? AND version < ?)" );
+                "WHERE accessDomain=? AND id=? AND version=(SELECT MAX(version) "
+                "FROM Object WHERE accessDomain=? AND id=? AND status <= ? AND version < ? ) ");
         queryObject.bind( 1, (unsigned) accessDomain );
         queryObject.bind( 2, (long long) id );
         queryObject.bind( 3, (unsigned) accessDomain );
         queryObject.bind( 4, (long long) id );
         queryObject.bind( 5, (unsigned) Database::ObjectStatus::OldDeletedParent );
         queryObject.bind( 6, version );
-        if ( queryObject.executeStep() == 0 ) {
+        if ( !queryObject.executeStep() ) {
             // TODO: Not found??? verify this.
             Database::Statement queryInsertIntoObject( *connection.get(),
                     "INSERT INTO Object (accessDomain, id, parent, parentAccessDomain, version, status, transactionAction) "
@@ -431,6 +450,7 @@ void RemoteTransaction::updateObject( unsigned long id, std::map<std::string, Da
             if ( queryInsertIntoObject.exec() == 0 ) {
                 // TODO: query failed, handle it.
                 valid = false;
+                LOG( WARNING ) << "Could not insert object";
                 throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
             }
         } else {
@@ -447,6 +467,7 @@ void RemoteTransaction::updateObject( unsigned long id, std::map<std::string, Da
             if ( queryInsertIntoObject.exec() == 0 ) {
                 // TODO: query failed, handle it.
                 valid = false;
+                LOG( WARNING ) << "Could not insert object";
                 throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
             }
 
@@ -502,7 +523,7 @@ void RemoteTransaction::updateObject( unsigned long id, std::map<std::string, Da
 
 void RemoteTransaction::deleteObject( unsigned long id ) {
     if ( !valid ) {
-        LOG( WARNING ) << "Invalid transaction, can not delete object";
+        LOG( WARNING ) << "Invalid transaction";
         throw Mist::Exception( Mist::Error::ErrorCode::InvalidTransaction );
     }
 
@@ -537,6 +558,7 @@ void RemoteTransaction::deleteObject( unsigned long id ) {
     queryId.bind( 3, version );
     if ( queryId.executeStep() ) {
         valid = false;
+        LOG( WARNING ) << "Object collision";
         throw Mist::Exception( Mist::Error::ErrorCode::ObjectCollisionInTransaction );
     }
 
@@ -568,6 +590,7 @@ void RemoteTransaction::deleteObject( unsigned long id ) {
         if ( queryInsertIntoObject.exec() == 0 ) {
             // TODO: query failed, handle it.
             valid = false;
+            LOG( WARNING ) << "Could not insert object";
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
     } else {
@@ -585,6 +608,7 @@ void RemoteTransaction::deleteObject( unsigned long id ) {
         if ( queryInsertIntoObject.exec() == 0 ) {
             // TODO: query failed, handle it.
             valid = false;
+            LOG( WARNING ) << "Could not insert object";
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
     }
@@ -596,7 +620,7 @@ void RemoteTransaction::deleteObject( unsigned long id ) {
 
 void RemoteTransaction::commit() {
     if ( !valid ) { // TODO: atomic test and set to make threading secure?
-        LOG( WARNING ) << "Current Transaction object is NOT valid.";
+        LOG( WARNING ) << "Invalid transaction";
         throw Mist::Exception( Mist::Error::ErrorCode::InvalidTransaction );
     }
     valid = false;
@@ -633,7 +657,7 @@ void RemoteTransaction::commit() {
             hash.toString() <<
             signature.toString();
     if ( 0 == insertTransaction.exec() ) {
-        LOG( WARNING ) << "Unexpected Database Error";
+        LOG( WARNING ) << "Could not insert transaction";
         throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
     }
 
@@ -646,7 +670,7 @@ void RemoteTransaction::commit() {
                 static_cast<int>( parent.accessDomain ) <<
                 parent.version;
         if ( 0 == insertTransactionParent.exec() ) {
-            LOG( WARNING ) << "Unexpected Database Error";
+            LOG( WARNING ) << "Could not insert transaction parent";
             throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
         }
         insertTransactionParent.clearBindings();
@@ -657,6 +681,7 @@ void RemoteTransaction::commit() {
     Database::Transaction meta{ db->getTransactionMeta( version, connection.get() ) };
     if ( !( hash == db->calculateTransactionHash( meta, connection.get() ) ) ) {
         rollback();
+        LOG( WARNING ) << "Transaction hash value is not a match";
         throw Mist::Exception( Mist::Error::ErrorCode::InvalidTransaction );
     }
 

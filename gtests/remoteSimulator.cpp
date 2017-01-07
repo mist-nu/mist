@@ -81,25 +81,27 @@ TEST( RemoteCentral, CreateTransactions ) {
     std::map<std::string, V> attributes;
 
     // Object parent
-    M::Database::ObjectRef parentObject{ M::Database::AccessDomain::Normal, 0 };
+    M::Database::ObjectRef object{ M::Database::AccessDomain::Normal, 0 };
+    M::Database::ObjectRef object2{ object };
+    M::Database::ObjectRef object3{ object };
 
     // Transaction pointer
     std::unique_ptr<T> t{};
 
-    // Start transaction
+    // Empty transaction
     t = std::move( db->beginTransaction() );
     t->commit();
     t.reset();
 
-    // Next transaction
+    // New object
     t = std::move( db->beginTransaction() );
     attributes.clear();
     attributes.emplace( "Hello", "world" );
-    parentObject.id = t->newObject( parentObject, attributes );
+    object.id = t->newObject( object, attributes );
     t->commit();
     t.reset();
 
-    // Next transaction
+    // Test value types
     t = std::move( db->beginTransaction() );
     attributes.clear();
     attributes.emplace( "Nothing", V() );
@@ -108,17 +110,42 @@ TEST( RemoteCentral, CreateTransactions ) {
     attributes.emplace( "Number", 2.0 );
     attributes.emplace( "String", "text" );
     attributes.emplace( "Json", V( "{}", true ) );
-    parentObject.id = t->newObject( parentObject, attributes );
+    object.id = t->newObject( object, attributes );
     t->commit();
     t.reset();
 
-    // Next transaction
+    // Multiple objects
     t = std::move( db->beginTransaction() );
     attributes.clear();
     attributes.emplace( "a", "v" );
-    parentObject.id = t->newObject( parentObject, attributes );
-    parentObject.id = t->newObject( parentObject, attributes );
-    parentObject.id = t->newObject( parentObject, attributes );
+    object.id = t->newObject( object, attributes );
+    object2.id = t->newObject( object, attributes );
+    object3.id = t->newObject( object, attributes );
+    t->commit();
+    t.reset();
+
+    // Change objects
+    t = std::move( db->beginTransaction() );
+    attributes.clear();
+    attributes.emplace( "changed", "object" );
+    t->updateObject( object.id, attributes );
+    attributes.clear();
+    attributes.emplace( "2", "changed" );
+    t->updateObject( object2.id, attributes );
+    t->commit();
+    t.reset();
+
+    // Move object
+    t = std::move( db->beginTransaction() );
+    attributes.clear();
+    t->moveObject( object3.id, object );
+    t->commit();
+    t.reset();
+
+    // Delete object
+    t = std::move( db->beginTransaction() );
+    attributes.clear();
+    t->deleteObject( object3.id );
     t->commit();
     t.reset();
 
