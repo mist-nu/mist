@@ -58,8 +58,6 @@ private:
   void removeAddressLookupServer(const Nan::FunctionCallbackInfo<v8::Value>& info);
   void listAddressLookupServers(const Nan::FunctionCallbackInfo<v8::Value>& info);
 
-  void addDatabasePermission(const Nan::FunctionCallbackInfo<v8::Value>& info);
-  void removeDatabasePermission(const Nan::FunctionCallbackInfo<v8::Value>& info);
   void listDatabasePermissions(const Nan::FunctionCallbackInfo<v8::Value>& info);
 
   void addServicePermission(const Nan::FunctionCallbackInfo<v8::Value>& info);
