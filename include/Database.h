@@ -234,29 +234,29 @@ public:
 
     QueryResult query( int accessDomain, long long id, const std::string& select,
             const std::string& filter, const std::string& sort,
-            const std::map<std::string, ArgumentVT>& args,
+            const std::map<std::string, Value>& args,
             int maxVersion, bool includeDeleted = false );
     QueryResult query( Connection* connection, int accessDomain, long long id, const std::string& select,
                 const std::string& filter, const std::string& sort,
-                const std::map<std::string, ArgumentVT>& args,
+                const std::map<std::string, Value>& args,
                 int maxVersion, bool includeDeleted = false );
     QueryResult query( const Query& querier, Connection* connection );
     unsigned subscribeQuery( std::function<void(QueryResult)> cb,
             int accessDomain, long long id, const std::string& select,
             const std::string& filter, const std::string& sort,
-            const std::map<std::string, ArgumentVT>& args,
+            const std::map<std::string, Value>& args,
             int maxVersion, bool includeDeleted = false );
 
     QueryResult queryVersion( int accessDomain, long long id, const std::string& select,
-            const std::string& filter, const std::map<std::string, ArgumentVT>& args,
+            const std::string& filter, const std::map<std::string, Value>& args,
             bool includeDeleted = false );
     QueryResult queryVersion( Connection* connection, int accessDomain, long long id, const std::string& select,
-                const std::string& filter, const std::map<std::string, ArgumentVT>& args,
+                const std::string& filter, const std::map<std::string, Value>& args,
                 bool includeDeleted = false );
     QueryResult queryVersion( const Query& quierier, Connection* connection );
     unsigned subscribeQueryVersion( std::function<void(QueryResult)> cb,
             int accessDomain, long long id, const std::string& select,
-            const std::string& filter, const std::map<std::string, ArgumentVT>& args,
+            const std::string& filter, const std::map<std::string, Value>& args,
             bool includeDeleted = false );
 
     /*

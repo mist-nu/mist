@@ -153,6 +153,93 @@ ObjectRefWrap::setId(v8::Local<v8::String> name,
   self().id = static_cast<unsigned long>(id);
 }
 
+//
+// QueryResult
+//
+QueryResultWrap::QueryResultWrap(const Nan::FunctionCallbackInfo<v8::Value>& info)
+  : NodeWrap(Mist::Database::QueryResult{})
+{
+}
+
+QueryResultWrap::QueryResultWrap()
+  : NodeWrap(Mist::Database::QueryResult{})
+{
+}
+
+QueryResultWrap::QueryResultWrap(const Mist::Database::QueryResult& other)
+  : NodeWrap(Mist::Database::QueryResult(other))
+{
+}
+
+v8::Local<v8::FunctionTemplate>
+QueryResultWrap::Init()
+{
+  v8::Local<v8::FunctionTemplate> tpl
+    = constructingTemplate<QueryResultWrap>(ClassName());
+
+  v8::Local<v8::ObjectTemplate> objTpl = tpl->InstanceTemplate();
+  Nan::SetAccessor(objTpl, Nan::New("isFunctionCall").ToLocalChecked(),
+           Getter<&QueryResultWrap::isFunctionCall>);
+  /*
+  Nan::SetAccessor(objTpl, Nan::New("functionName").ToLocalChecked(),
+           Getter<&QueryResultWrap::getFunctionName>);
+  Nan::SetAccessor(objTpl, Nan::New("functionAttribute").ToLocalChecked(),
+           Getter<&QueryResultWrap::getFunctionAttribute>);
+  //*/
+  Nan::SetAccessor(objTpl, Nan::New("functionValue").ToLocalChecked(),
+           Getter<&QueryResultWrap::getFunctionValue>);
+  Nan::SetAccessor(objTpl, Nan::New("id").ToLocalChecked(),
+           Getter<&QueryResultWrap::getId>);
+  Nan::SetAccessor(objTpl, Nan::New("version").ToLocalChecked(),
+           Getter<&QueryResultWrap::getVersion>);
+  /*
+  Nan::SetAccessor(objTpl, Nan::New("attributes").ToLocalChecked(),
+           Getter<&QueryResultWrap::getAttributes>);
+  //*/
+
+  constructor().Reset(Nan::GetFunction(tpl).ToLocalChecked());
+
+  return tpl;
+}
+
+NAN_GETTER(QueryResultWrap::isFunctionCall)
+{
+    bool b(static_cast<bool>(self().id));
+    info.GetReturnValue().Set(Nan::New(b));
+}
+
+/*
+NAN_GETTER(QueryResultWrap::getFunctionName)
+{
+    std::string name(static_cast<std::string>(self().functionName));
+    info.GetReturnValue().Set(Nan::New(name));
+}
+
+NAN_GETTER(QueryResultWrap::getFunctionAttribute)
+{
+    std::string attr(static_cast<std::string>(self().functionAttribute));
+    info.GetReturnValue().Set(Nan::New(attr));
+}
+//*/
+
+NAN_GETTER(QueryResultWrap::getFunctionValue)
+{
+    double value(static_cast<double>(self().functionValue));
+    info.GetReturnValue().Set(Nan::New(value));
+}
+
+NAN_GETTER(QueryResultWrap::getId)
+{
+  double id(static_cast<double>(self().id));
+  info.GetReturnValue().Set(Nan::New(id));
+}
+
+NAN_GETTER(QueryResultWrap::getVersion)
+{
+    unsigned version(static_cast<unsigned>(self().version));
+    info.GetReturnValue().Set(Nan::New(version));
+}
+
 Database::Value toDatabaseValue(v8::Local<v8::Value> val)
 {
   using val_t = Database::Value;

@@ -6,7 +6,6 @@
 #pragma once
 
 #include "Node/Module.hpp"
-#include "Node/DatabaseWrap.hpp"
 #include "Database.h"
 
 namespace Mist
@@ -85,6 +84,34 @@ private:
   void setId(v8::Local<v8::String> name,
 	     v8::Local<v8::Value> value,
 	     const Nan::PropertyCallbackInfo<void>& info);
+
+};
+
+//
+// Database.QueryResult
+//
+class QueryResultWrap
+  : public NodeWrap<QueryResultWrap, Mist::Database::QueryResult>
+{
+public:
+
+    static const char* ClassName() { return "QueryResult"; }
+
+    QueryResultWrap(const Nan::FunctionCallbackInfo<v8::Value>& info);
+    QueryResultWrap();
+    QueryResultWrap(const Mist::Database::QueryResult& other);
+
+    static v8::Local<v8::FunctionTemplate> Init();
+
+private:
+
+    NAN_GETTER(isFunctionCall);
+    NAN_GETTER(getFunctionName);
+    NAN_GETTER(getFunctionAttribute);
+    NAN_GETTER(getFunctionValue);
+    NAN_GETTER(getId);
+    NAN_GETTER(getVersion);
+    //NAN_GETTER(getAttributes);
 
 };
   

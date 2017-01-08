@@ -66,14 +66,14 @@ public:
      */
     virtual Database::QueryResult query( int accessDomain, long long id, const std::string& select,
                 const std::string& filter, const std::string& sort,
-                const std::map<std::string, ArgumentVT>& args,
+                const std::map<std::string, Database::Value>& args,
                 int maxVersion, bool includeDeleted = false );
 
     /**
      * Query version against the current transaction.
      */
     virtual Database::QueryResult queryVersion( int accessDomain, long long id, const std::string& select,
-                const std::string& filter, const std::map<std::string, ArgumentVT>& args,
+                const std::string& filter, const std::map<std::string, Database::Value>& args,
                 bool includeDeleted = false );
 
 private:

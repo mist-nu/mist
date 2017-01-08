@@ -879,19 +879,47 @@ void Database::unsubscribe( unsigned subId ) {
     querySubscriberCallback.erase( subId );
 }
 
+ArgumentVT convertValueToArg( const Database::Value& val ) {
+    using T = Database::Value::Type;
+    switch( val.type() ) {
+    case T::Typeless:
+        return ArgumentVT();
+    case T::Null:
+        return ArgumentVT( nullptr );
+    case T::Boolean:
+        return ArgumentVT( val.boolean() );
+    case T::Number:
+        return ArgumentVT( val.number() );
+    case T::String:
+        return ArgumentVT( val.string() );
+    case T::Json:
+        return ArgumentVT( val.string(), true );
+    default:
+        throw std::logic_error( "Unhandled conversion of Database::Value to Argument" );
+    }
+}
+
+std::map<std::string,ArgumentVT> valueMapToArgumentMap( const std::map<std::string, Database::Value>& args ) {
+    std::map<std::string,ArgumentVT> res{};
+    for ( const auto& p : args ) {
+        res.emplace( p.first, convertValueToArg( p.second ) );
+    }
+    return res;
+}
+
 Database::QueryResult Database::query( int accessDomain, long long id, const std::string& select,
         const std::string& filter, const std::string& sort,
-        const std::map<std::string, ArgumentVT>& args,
+        const std::map<std::string, Value>& args,
         int maxVersion, bool includeDeleted ) {
     return query( db.get(), accessDomain, id, select, filter, sort, args, maxVersion, includeDeleted );
 }
 
 Database::QueryResult Database::query( Connection* connection, int accessDomain, long long id, const std::string& select,
         const std::string& filter, const std::string& sort,
-        const std::map<std::string, ArgumentVT>& args,
+        const std::map<std::string, Value>& args,
         int maxVersion, bool includeDeleted ) {
     Mist::Query querier{};
-    querier.parseQuery( accessDomain, id, select, filter, sort, args, maxVersion, includeDeleted );
+    querier.parseQuery( accessDomain, id, select, filter, sort, valueMapToArgumentMap( args ), maxVersion, includeDeleted );
     return query( querier, connection );
 }
 
@@ -933,7 +961,7 @@ Database::QueryResult Database::query( const Query& querier, Connection* connect
 unsigned Database::subscribeQuery( std::function<void(QueryResult)> cb,
             int accessDomain, long long id, const std::string& select,
             const std::string& filter, const std::string& sort,
-            const std::map<std::string, ArgumentVT>& args,
+            const std::map<std::string, Value>& args,
             int maxVersion, bool includeDeleted ) {
 
     ++subId;
@@ -959,22 +987,22 @@ unsigned Database::subscribeQuery( std::function<void(QueryResult)> cb,
     querySubscriberCallback[ subId ] =  {};
     querySubscriberCallback.at( subId ).first.reset( new Query() );
     querySubscriberCallback.at( subId ).second = cb;
-    querySubscriberCallback.at( subId ).first->parseQuery( accessDomain, id, select, filter, sort, args, maxVersion, includeDeleted );
+    querySubscriberCallback.at( subId ).first->parseQuery( accessDomain, id, select, filter, sort, valueMapToArgumentMap( args ), maxVersion, includeDeleted );
 
     return subId;
 }
 
 
 Database::QueryResult Database::queryVersion( int accessDomain, long long id, const std::string& select,
-        const std::string& filter, const std::map<std::string, ArgumentVT>& args, bool includeDeleted ) {
+        const std::string& filter, const std::map<std::string, Value>& args, bool includeDeleted ) {
     return queryVersion( db.get(), accessDomain, id, select, filter, args, includeDeleted );
 }
 
 Database::QueryResult Database::queryVersion( Connection* connection, int accessDomain, long long id, const std::string& select,
-        const std::string& filter, const std::map<std::string, ArgumentVT>& args, bool includeDeleted ) {
+        const std::string& filter, const std::map<std::string, Value>& args, bool includeDeleted ) {
     Query querier{};
-    querier.parseVersionQuery( accessDomain, id, select, filter, args, includeDeleted );
-    return queryVersion( querier );
+    querier.parseVersionQuery( accessDomain, id, select, filter, valueMapToArgumentMap( args ), includeDeleted );
+    return queryVersion( querier, connection );
 }
 
 Database::QueryResult Database::queryVersion( const Query& querier, Connection* connection ) {
@@ -1013,7 +1041,7 @@ Database::QueryResult Database::queryVersion( const Query& querier, Connection* 
 
 unsigned Database::subscribeQueryVersion( std::function<void(QueryResult)> cb,
         int accessDomain, long long id, const std::string& select,
-        const std::string& filter, const std::map<std::string, ArgumentVT>& args,
+        const std::string& filter, const std::map<std::string, Value>& args,
         bool includeDeleted ) {
 
     ++subId;
@@ -1039,7 +1067,7 @@ unsigned Database::subscribeQueryVersion( std::function<void(QueryResult)> cb,
     querySubscriberCallback[ subId ] =  {};
     querySubscriberCallback.at( subId ).first.reset( new Query() );
     querySubscriberCallback.at( subId ).second = cb;
-    querySubscriberCallback.at( subId ).first->parseVersionQuery( accessDomain, id, select, filter, args, includeDeleted );
+    querySubscriberCallback.at( subId ).first->parseVersionQuery( accessDomain, id, select, filter, valueMapToArgumentMap( args ), includeDeleted );
 
     return subId;
 }
@@ -1368,7 +1396,7 @@ void Database::objectsChanged( const std::set<Database::ObjectRef, Database::les
                     objectSubscriberCallback.at( sub )( obj );
                 }
                 if (  querySubscriberCallback.count( sub ) ) {
-                    QueryResult newQueryResults{ query( *querySubscriberCallback.at( sub ).first.get() ) };
+                    QueryResult newQueryResults{ query( *querySubscriberCallback.at( sub ).first.get(), db.get() ) };
                     querySubscriberCallback.at( sub ).second( newQueryResults );
                 }
             }
