@@ -79,10 +79,6 @@ CentralWrap::Init()
   Nan::SetPrototypeMethod(tpl, "listAddressLookupServers",
 			  Method<&CentralWrap::listAddressLookupServers>);
   
-  Nan::SetPrototypeMethod(tpl, "addDatabasePermission",
-			  Method<&CentralWrap::addDatabasePermission>);
-  Nan::SetPrototypeMethod(tpl, "removeDatabasePermission",
-			  Method<&CentralWrap::removeDatabasePermission>);
   Nan::SetPrototypeMethod(tpl, "listDatabasePermissions",
 			  Method<&CentralWrap::listDatabasePermissions>);
 
@@ -360,24 +356,6 @@ CentralWrap::listAddressLookupServers(const Nan::FunctionCallbackInfo<v8::Value>
         arr->Set(i, obj);
     }
     info.GetReturnValue().Set(arr);
-}
-
-void
-CentralWrap::addDatabasePermission(const Nan::FunctionCallbackInfo<v8::Value>& info)
-{
-  v8::HandleScope scope(isolate);
-  auto keyHash(SHA3Wrap::self(info[0]));
-  auto dbHash(SHA3Wrap::self(info[1]));
-  self()->addDatabasePermission(keyHash, dbHash);
-}
-
-void
-CentralWrap::removeDatabasePermission(const Nan::FunctionCallbackInfo<v8::Value>& info)
-{
-  v8::HandleScope scope(isolate);
-  auto keyHash(SHA3Wrap::self(info[0]));
-  auto dbHash(SHA3Wrap::self(info[1]));
-  self()->removeDatabasePermission(keyHash, dbHash);
 }
 
 void

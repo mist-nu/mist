@@ -111,14 +111,6 @@ function listAddressLookupServers() {
     });
 }
 
-function addDatabasePermission(peerHash, dbHash) {
-    central.addDatabasePermission(peerHash, dbHash);
-}
-
-function removeDatabasePermission(peerHash, dbHash) {
-    central.removeDatabasePermission(peerHash, dbHash);
-}
-
 function listDatabasePermissions() {
     central.listDatabasePermissions().forEach(function (permission) {
         console.log(permission);
@@ -194,13 +186,13 @@ var userQuery = function () {
                 listDatabases();
             } else if (xs[0] == "add-peer") {
                 if (xs.length < 5) {
-                    console.log("Usage: add-peer NAME KEYFILE STATUS ANONYMOUS");
+                    console.log("Usage: add-peer KEYFILE NAME STATUS ANONYMOUS");
                 } else {
-                    var name = xs[1];
-                    var keyFile = xs[2];
+                    var keyFile = xs[1];
+                    var name = xs[2];
                     var peerStatus = xs[3];
                     var anonymous = xs[4];
-                    addPeer(name, keyFile, peerStatus, anonymous);
+                    addPeer(keyFile, name, peerStatus, anonymous);
                 }
             } else if (xs[0] == "change-peer") {
                 if (xs.length < 3) {
@@ -245,22 +237,6 @@ var userQuery = function () {
                 }
             } else if (xs[0] == "list-address-lookup-servers") {
                 listAddressLookupServers();
-            } else if (xs[0] == "add-database-permission") {
-                if (xs.length < 3) {
-                    console.log("Usage: add-database-permission PEER_HASH DB_HASH");
-                } else {
-                    var peerHash = mist.SHA3.fromString(xs[1]);
-                    var dbHash = mist.SHA3.fromString(xs[2]);
-                    addDatabasePermission(peerHash, dbHash);
-                }
-            } else if (xs[0] == "remove-database-permission") {
-                if (xs.length < 3) {
-                    console.log("Usage: remove-database-permission PEER_HASH DB_HASH");
-                } else {
-                    var peerHash = mist.SHA3.fromString(xs[1]);
-                    var dbHash = mist.SHA3.fromString(xs[2]);
-                    removeDatabasePermission(peerHash, dbHash);
-                }
             } else if (xs[0] == "list-database-permissions") {
                 listDatabasePermissions();
             } else if (xs[0] == "add-service-permission") {
@@ -309,9 +285,8 @@ var userQuery = function () {
                 console.log("  get-peer PEER_HASH");
                 console.log("  list-peers");
                 console.log("  add-address-lookup-server ADDRESS PORT");
-                console.log("  remove-address-lookup-server ADDRESS PORT");
-                console.log("  add-database-permission PEER_HASH DB_HASH");
-                console.log("  remove-database-permission PEER_HASH DB_HASH");
+                console.log("  remove-address-lookup-server ADDRESS PORT"); 
+                console.log("  list-address-lookup-servers");
                 console.log("  list-database-permissions PEER_HASH");
                 console.log("  add-service-permission PEER_HASH SERVICE PATH");
                 console.log("  remove-service-permission PEER_HASH SERVICE PATH");
