@@ -7,6 +7,7 @@
 
 #include <fstream>
 #include <string>
+#include <unistd.h>
 
 #include "Central.h"
 #include "Database.h"
@@ -1174,6 +1175,8 @@ std::unique_ptr<Mist::RemoteTransaction> Database::beginRemoteTransaction(
 }
 
 std::unique_ptr<Mist::Transaction> Database::beginTransaction( AccessDomain accessDomain ) {
+    unsigned newVersion;
+
     LOG ( DBUG ) << "Begin transaction";
     // TODO: Is this completely wrong?
     if(!_isOK) {
@@ -1181,20 +1184,32 @@ std::unique_ptr<Mist::Transaction> Database::beginTransaction( AccessDomain acce
         throw std::runtime_error( "Invalid database state: Can not begin transaction" );
     }
     //Helper::Database::Transaction newVersion( *db );
-    Database::Statement getVersion(*db.get(), "SELECT IFNULL(MAX(version),0)+1 AS newVersion "
+    Database::Statement getVersion(*db.get(), "SELECT MAX(version) AS version, timestamp, STRFTIME('%Y-%m-%d %H:%M:%f','now') AS now "
             "FROM 'Transaction'");
     if ( !getVersion.executeStep() ) {
         _isOK = false;
         LOG ( WARNING ) << "Invalid database state: Can not begin transaction";
         throw std::runtime_error( "Invalid database state: Can not begin transaction" );
     }
+    if ( getVersion.getColumn( "version" ).isNull()) {
+        newVersion = 1;
+    } else if (getVersion.getColumn( "timestamp" ).getString() == getVersion.getColumn( "now" ).getString()) {
+      newVersion = getVersion.getColumn( "version" ).getUInt() + 1;
+      usleep( 1 );
+    } else if (getVersion.getColumn( "timestamp" ).getString() > getVersion.getColumn( "now" ).getString()) {
+        LOG ( WARNING ) << "Last transaction is from the future. Cannot begin a new transaction";
+        throw std::runtime_error( "Last transaction is from the future. Cannot begin a new transaction" );
+    } else {
+      newVersion = getVersion.getColumn( "version" ).getUInt() + 1;
+    }
+    
     //Transaction* transaction{ new Transaction( this, accessDomain, query.getColumn("newVersion").getUInt() ) };
     //newVersion.commit();
     return std::unique_ptr<Mist::Transaction>(
         new Mist::Transaction(
             this,
             accessDomain,
-            getVersion.getColumn("newVersion").getUInt()
+	    newVersion
         )
     );
 }
