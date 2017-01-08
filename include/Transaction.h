@@ -51,9 +51,30 @@ public:
      */
     virtual void commit();
     /**
-     * Rollback the transaction. Nothing is stored.
+     * Roll back the transaction. Nothing is stored.
      */
     virtual void rollback();
+
+    /**
+     * Get object from the current transaction. With this method you can access objects before they have
+     * been committed to the database.
+     */
+    virtual Database::Object getObject( int accessDomain, long long id, bool includeDeleted = false ) const;
+
+    /**
+     * Query the current transaction.
+     */
+    virtual Database::QueryResult query( int accessDomain, long long id, const std::string& select,
+                const std::string& filter, const std::string& sort,
+                const std::map<std::string, ArgumentVT>& args,
+                int maxVersion, bool includeDeleted = false );
+
+    /**
+     * Query version against the current transaction.
+     */
+    virtual Database::QueryResult queryVersion( int accessDomain, long long id, const std::string& select,
+                const std::string& filter, const std::map<std::string, ArgumentVT>& args,
+                bool includeDeleted = false );
 
 private:
     Database *db;

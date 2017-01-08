@@ -776,14 +776,18 @@ void Database::inviteUser( const UserAccount& user ) {
 }
 
 Database::Object Database::getObject( int accessDomain, long long id, bool includeDeleted ) const {
-    Database::Statement object( *db.get(),
+    return getObject( db.get(), accessDomain, id, includeDeleted );
+}
+
+Database::Object Database::getObject( Connection* connection, int accessDomain, long long id, bool includeDeleted ) const {
+    Database::Statement object( *connection,
             "SELECT accessDomain, id, MAX( version ) as version, status, parent, parentAccessDomain, transactionAction "
             "FROM Object "
             "WHERE accessDomain=? AND id=? "
             "ORDER BY version DESC ");
     object << accessDomain << id;
 
-    Database::Statement attribute( *db.get(),
+    Database::Statement attribute( *connection,
             "SELECT accessDomain, id, version, name, type, value "
             "FROM Attribute "
             "WHERE accessDomain=? AND id=? AND version=? "
@@ -879,14 +883,21 @@ Database::QueryResult Database::query( int accessDomain, long long id, const std
         const std::string& filter, const std::string& sort,
         const std::map<std::string, ArgumentVT>& args,
         int maxVersion, bool includeDeleted ) {
+    return query( db.get(), accessDomain, id, select, filter, sort, args, maxVersion, includeDeleted );
+}
+
+Database::QueryResult Database::query( Connection* connection, int accessDomain, long long id, const std::string& select,
+        const std::string& filter, const std::string& sort,
+        const std::map<std::string, ArgumentVT>& args,
+        int maxVersion, bool includeDeleted ) {
     Mist::Query querier{};
     querier.parseQuery( accessDomain, id, select, filter, sort, args, maxVersion, includeDeleted );
-    return query( querier );
+    return query( querier, connection );
 }
 
 
-Database::QueryResult Database::query( const Query& querier ) {
-    Database::Statement dbQuery( *db.get(), querier.getSqlQuery() );
+Database::QueryResult Database::query( const Query& querier, Connection* connection ) {
+    Database::Statement dbQuery( *connection, querier.getSqlQuery() );
     QueryResult result;
     if ( querier.isFunctionCall() ) {
         try {
@@ -953,15 +964,21 @@ unsigned Database::subscribeQuery( std::function<void(QueryResult)> cb,
     return subId;
 }
 
+
 Database::QueryResult Database::queryVersion( int accessDomain, long long id, const std::string& select,
+        const std::string& filter, const std::map<std::string, ArgumentVT>& args, bool includeDeleted ) {
+    return queryVersion( db.get(), accessDomain, id, select, filter, args, includeDeleted );
+}
+
+Database::QueryResult Database::queryVersion( Connection* connection, int accessDomain, long long id, const std::string& select,
         const std::string& filter, const std::map<std::string, ArgumentVT>& args, bool includeDeleted ) {
     Query querier{};
     querier.parseVersionQuery( accessDomain, id, select, filter, args, includeDeleted );
     return queryVersion( querier );
 }
 
-Database::QueryResult Database::queryVersion( const Query& querier ) {
-    Database::Statement dbQuery( *db.get(), querier.getSqlQuery() );
+Database::QueryResult Database::queryVersion( const Query& querier, Connection* connection ) {
+    Database::Statement dbQuery( *connection, querier.getSqlQuery() );
     QueryResult result;
     if ( querier.isFunctionCall() ) {
         try {
