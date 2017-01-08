@@ -57,11 +57,18 @@ struct Peer {
  *
  * Call init to initiate the Mist library.
  *
- * To start networking call the startSync method. Mist will create a background thread to handle the network
- * connections.
+ * Call startEventLoop to start the event loop and background thread.
  *
- * Before staring networking the first time, at least one lookup server must be added with the addAddressLookupServer
- * method.
+ * Call startServeTor to be available as a TOR hidden service.
+ *
+ * (optional) Call startServeDirect to be available for direct connections.
+ *
+ * Call startSync to start syncing databases.
+ *
+ * It is necessary to add at least one address lookup server to be able to connect to other peers.
+ * Call the addAddressLookupServer method. The address lookup server is stored in a database, you only
+ * need to call addAddressLookupServer once. Therse is a public address lookup server at lookup.mist.nu
+ * 40443.
  */
 class Central {
 public:
@@ -91,6 +98,9 @@ public:
      */
     virtual void close();
 
+    /**
+     * Start the event loop and background thread.
+     */
     virtual void startEventLoop();
 
     /**
@@ -100,6 +110,9 @@ public:
 
     virtual CryptoHelper::PrivateKey getPrivateKey() const;
 
+    /**
+     * Create a signature using this peer's private key.
+     */
     virtual CryptoHelper::Signature sign(const CryptoHelper::SHA3& hash) const;
 
     /**

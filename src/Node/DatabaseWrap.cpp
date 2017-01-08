@@ -455,7 +455,7 @@ void QueryResultWrap::getObjects(v8::Local<v8::String> name,
 {
     v8::HandleScope scope(isolate);
     auto arr(Nan::New<v8::Array>());
-    auto objects(self().object);
+    auto objects(self().objects);
     int i{0};
     for ( const auto& object: objects) {
         arr->Set(i++, MistObjectWrap::make(object));
