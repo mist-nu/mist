@@ -246,7 +246,8 @@ void
 CentralWrap::receiveDatabase(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
     v8::HandleScope scope(isolate);
-    // TODO:
+    auto manifest(ManifestWrap::self(info[0]));
+    info.GetReturnValue().Set(conv(self()->receiveDatabase(manifest)));
 }
 
 void
