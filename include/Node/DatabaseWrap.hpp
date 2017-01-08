@@ -29,6 +29,20 @@ public:
 
 private:
 
+  void beginTransaction(const Nan::FunctionCallbackInfo<v8::Value>& info);
+
+  void inviteUser(const Nan::FunctionCallbackInfo<v8::Value>& info);
+
+  void getObject(const Nan::FunctionCallbackInfo<v8::Value>& info);
+  void query(const Nan::FunctionCallbackInfo<v8::Value>& info);
+  void queryVersion(const Nan::FunctionCallbackInfo<v8::Value>& info);
+  void subscribeObject(const Nan::FunctionCallbackInfo<v8::Value>& info);
+  void subscribeQuery(const Nan::FunctionCallbackInfo<v8::Value>& info);
+  void subscribeQueryVersion(const Nan::FunctionCallbackInfo<v8::Value>& info);
+  void unsubscribe(const Nan::FunctionCallbackInfo<v8::Value>& info);
+
+  void getManifest(const Nan::FunctionCallbackInfo<v8::Value>& info);
+
 };
 
 //
@@ -88,6 +102,41 @@ private:
 };
 
 //
+// Database.Object
+//
+class MistObjectWrap
+  : public NodeWrap<MistObjectWrap, Mist::Database::Object>
+{
+public:
+
+    static const char* ClassName() { return "Object"; }
+
+    MistObjectWrap(const Nan::FunctionCallbackInfo<v8::Value>& info);
+    MistObjectWrap();
+    MistObjectWrap(const Mist::Database::Object& other);
+
+    static v8::Local<v8::FunctionTemplate> Init();
+
+private:
+
+    void getAccessDomain(v8::Local<v8::String> name,
+                 const Nan::PropertyCallbackInfo<v8::Value>& info);
+    void getId(v8::Local<v8::String> name,
+           const Nan::PropertyCallbackInfo<v8::Value>& info);
+    void getVersion(v8::Local<v8::String> name,
+           const Nan::PropertyCallbackInfo<v8::Value>& info);
+    void getParent(v8::Local<v8::String> name,
+           const Nan::PropertyCallbackInfo<v8::Value>& info);
+    void getAttributes(v8::Local<v8::String> name,
+           const Nan::PropertyCallbackInfo<v8::Value>& info);
+    void getStatus(v8::Local<v8::String> name,
+           const Nan::PropertyCallbackInfo<v8::Value>& info);
+    void getAction(v8::Local<v8::String> name,
+           const Nan::PropertyCallbackInfo<v8::Value>& info);
+
+};
+
+//
 // Database.QueryResult
 //
 class QueryResultWrap
@@ -105,13 +154,16 @@ public:
 
 private:
 
-    NAN_GETTER(isFunctionCall);
-    NAN_GETTER(getFunctionName);
-    NAN_GETTER(getFunctionAttribute);
-    NAN_GETTER(getFunctionValue);
-    NAN_GETTER(getId);
-    NAN_GETTER(getVersion);
-    //NAN_GETTER(getAttributes);
+    void isFunctionCall(v8::Local<v8::String> name,
+            const Nan::PropertyCallbackInfo<v8::Value>& info);
+    void getFunctionName(v8::Local<v8::String> name,
+            const Nan::PropertyCallbackInfo<v8::Value>& info);
+    void getFunctionAttribute(v8::Local<v8::String> name,
+            const Nan::PropertyCallbackInfo<v8::Value>& info);
+    void getFunctionValue(v8::Local<v8::String> name,
+            const Nan::PropertyCallbackInfo<v8::Value>& info);
+    void getObjects(v8::Local<v8::String> name,
+            const Nan::PropertyCallbackInfo<v8::Value>& info);
 
 };
   

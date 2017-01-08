@@ -11,6 +11,8 @@
 
 namespace Mist {
 
+namespace {
+
 unsigned long long cryptoRandom() {
     // TODO: Consider a max recursion counter.
     unsigned long long randomValue = CryptoHelper::cryptoRandom();
@@ -34,6 +36,8 @@ Database::ObjectStatus convertStatusToOld( Database::ObjectStatus objectStatus )
     default:
         throw Mist::Exception( "Transaction: Can not convert status" );
     }
+}
+
 }
 
 Transaction::Transaction( Database *db, Database::AccessDomain accessDomain, unsigned version ) :

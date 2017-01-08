@@ -20,6 +20,38 @@ namespace Mist {
 // Initialize static member
 unsigned Database::Database::subId = 0u;
 
+namespace {
+
+ArgumentVT convertValueToArg( const Database::Value& val ) {
+    using T = Database::Value::Type;
+    switch( val.type() ) {
+    case T::Typeless:
+        return ArgumentVT();
+    case T::Null:
+        return ArgumentVT( nullptr );
+    case T::Boolean:
+        return ArgumentVT( val.boolean() );
+    case T::Number:
+        return ArgumentVT( val.number() );
+    case T::String:
+        return ArgumentVT( val.string() );
+    case T::Json:
+        return ArgumentVT( val.string(), true );
+    default:
+        throw std::logic_error( "Unhandled conversion of Database::Value to Argument" );
+    }
+}
+
+std::map<std::string,ArgumentVT> valueMapToArgumentMap( const std::map<std::string, Database::Value>& args ) {
+    std::map<std::string,ArgumentVT> res{};
+    for ( const auto& p : args ) {
+        res.emplace( p.first, convertValueToArg( p.second ) );
+    }
+    return res;
+}
+
+} /* anonymous namespace */
+
 Database::Database( Central *central, std::string path ) :
         _isOK( true ),
         manifest( nullptr ),
@@ -814,7 +846,7 @@ Database::Object Database::getObject( Connection* connection, int accessDomain, 
         throw Exception( Error::ErrorCode::NotFound );
     }
 }
-
+/*
 Database::Value Database::queryRowToValue( SQLite::Statement& query ) {
     Value::Type type{ static_cast<Database::Value::Type>( query.getColumn( "type" ).getInt() ) };
     switch( type ) {
@@ -835,7 +867,7 @@ Database::Value Database::queryRowToValue( SQLite::Statement& query ) {
         throw std::logic_error( "Unhandled case" );
     }
 }
-
+//*/
 unsigned Database::subscribeObject( std::function<void(Object)> cb, int accessDomain,
         long long id, bool includeDeleted ) {
     ++subId;
@@ -879,34 +911,6 @@ void Database::unsubscribe( unsigned subId ) {
     querySubscriberCallback.erase( subId );
 }
 
-ArgumentVT convertValueToArg( const Database::Value& val ) {
-    using T = Database::Value::Type;
-    switch( val.type() ) {
-    case T::Typeless:
-        return ArgumentVT();
-    case T::Null:
-        return ArgumentVT( nullptr );
-    case T::Boolean:
-        return ArgumentVT( val.boolean() );
-    case T::Number:
-        return ArgumentVT( val.number() );
-    case T::String:
-        return ArgumentVT( val.string() );
-    case T::Json:
-        return ArgumentVT( val.string(), true );
-    default:
-        throw std::logic_error( "Unhandled conversion of Database::Value to Argument" );
-    }
-}
-
-std::map<std::string,ArgumentVT> valueMapToArgumentMap( const std::map<std::string, Database::Value>& args ) {
-    std::map<std::string,ArgumentVT> res{};
-    for ( const auto& p : args ) {
-        res.emplace( p.first, convertValueToArg( p.second ) );
-    }
-    return res;
-}
-
 Database::QueryResult Database::query( int accessDomain, long long id, const std::string& select,
         const std::string& filter, const std::string& sort,
         const std::map<std::string, Value>& args,
@@ -926,7 +930,7 @@ Database::QueryResult Database::query( Connection* connection, int accessDomain,
 
 Database::QueryResult Database::query( const Query& querier, Connection* connection ) {
     Database::Statement dbQuery( *connection, querier.getSqlQuery() );
-    QueryResult result;
+    QueryResult result{};
     if ( querier.isFunctionCall() ) {
         try {
             if ( !dbQuery.executeStep() ) {
@@ -944,15 +948,39 @@ Database::QueryResult Database::query( const Query& querier, Connection* connect
         result.functionValue = dbQuery.getColumn( "value" ).getDouble();
     } else {
         if( dbQuery.executeStep() ) {
-            result.id = dbQuery.getColumn( "id" ).getInt64();
-            result.version = dbQuery.getColumn( "version" ).getInt64();
-            result.attributes.emplace( dbQuery.getColumn( "name" ).getString(), queryRowToValue( dbQuery ) );
+            // TODO: fix queries so we get all info needed?
+            result.object.push_back({
+                AccessDomain::Normal, // TODO //static_cast<AccessDomain>( dbQuery.getColumn( "accessDomain" ).getInt() ),
+                static_cast<unsigned long>( dbQuery.getColumn( "_id" ).getUInt() ),
+                static_cast<unsigned>( dbQuery.getColumn( "_version" ) ),
+                { AccessDomain::Normal, 0 }, // TODO
+                { { dbQuery.getColumn( "name" ).getString(), statementRowToValue( dbQuery ) } },
+                ObjectStatus::Current, // TODO
+                ObjectAction::New // TODO
+            });
         } else {
             LOG( DBUG ) << "No results";
             throw Exception( Error::ErrorCode::NotFound );
         }
         while ( dbQuery.executeStep() ) {
-            result.attributes.emplace( dbQuery.getColumn( "name" ).getString(), queryRowToValue( dbQuery ) );
+            Object& object{ *(result.object.end() - 1) };
+            unsigned long id{ dbQuery.getColumn( "_id" ).getUInt() };
+            unsigned version{ dbQuery.getColumn( "_version" ) };
+            std::string name{ dbQuery.getColumn( "name" ).getString() };
+            Value value{ statementRowToValue( dbQuery ) };
+            if ( id == object.id && version == object.version ) {
+                object.attributes.emplace( name, value );
+            } else {
+                result.object.push_back({
+                    AccessDomain::Normal, // TODO //static_cast<AccessDomain>( dbQuery.getColumn( "accessDomain" ).getInt() ),
+                    id,
+                    version,
+                    { AccessDomain::Normal, 0 }, // TODO
+                    { { name, value } },
+                    ObjectStatus::Current, // TODO
+                    ObjectAction::New // TODO
+                });
+            }
         }
     }
     return result;
@@ -1007,7 +1035,7 @@ Database::QueryResult Database::queryVersion( Connection* connection, int access
 
 Database::QueryResult Database::queryVersion( const Query& querier, Connection* connection ) {
     Database::Statement dbQuery( *connection, querier.getSqlQuery() );
-    QueryResult result;
+    QueryResult result{};
     if ( querier.isFunctionCall() ) {
         try {
             if ( !dbQuery.executeStep() ) {
@@ -1025,15 +1053,39 @@ Database::QueryResult Database::queryVersion( const Query& querier, Connection* 
         result.functionValue = dbQuery.getColumn( "value" ).getDouble();
     } else {
         if( dbQuery.executeStep() ) {
-            result.id = dbQuery.getColumn( "id" ).getInt64();
-            result.version = dbQuery.getColumn( "version" ).getInt64();
-            result.attributes.emplace( dbQuery.getColumn( "name" ).getString(), queryRowToValue( dbQuery ) );
+            // TODO: fix queries so we get all info needed?
+            result.object.push_back({
+                AccessDomain::Normal, // TODO //static_cast<AccessDomain>( dbQuery.getColumn( "accessDomain" ).getInt() ),
+                static_cast<unsigned long>( dbQuery.getColumn( "_id" ).getUInt() ),
+                static_cast<unsigned>( dbQuery.getColumn( "_version" ) ),
+                { AccessDomain::Normal, 0 }, // TODO
+                { { dbQuery.getColumn( "name" ).getString(), statementRowToValue( dbQuery ) } },
+                ObjectStatus::Current, // TODO
+                ObjectAction::New // TODO
+            });
         } else {
             LOG( DBUG ) << "No results";
             throw Exception( Error::ErrorCode::NotFound );
         }
         while ( dbQuery.executeStep() ) {
-            result.attributes.emplace( dbQuery.getColumn( "name" ).getString(), queryRowToValue( dbQuery ) );
+            Object& object{ *(result.object.end() - 1) };
+            unsigned long id{ dbQuery.getColumn( "_id" ).getUInt() };
+            unsigned version{ dbQuery.getColumn( "_version" ) };
+            std::string name{ dbQuery.getColumn( "name" ).getString() };
+            Value value{ statementRowToValue( dbQuery ) };
+            if ( id == object.id && version == object.version ) {
+                object.attributes.emplace( name, value );
+            } else {
+                result.object.push_back({
+                    AccessDomain::Normal, // TODO //static_cast<AccessDomain>( dbQuery.getColumn( "accessDomain" ).getInt() ),
+                    id,
+                    version,
+                    { AccessDomain::Normal, 0 }, // TODO
+                    { { name, value } },
+                    ObjectStatus::Current, // TODO
+                    ObjectAction::New // TODO
+                });
+            }
         }
     }
     return result;
@@ -1315,23 +1367,19 @@ void Database::objectChanged( const Database::ObjectRef& objectRef ) {
     if ( AccessDomain::Settings == objectRef.accessDomain && USERS_OBJECT_ID == objectRef.id ) {
         // Handle user changes
         Database::Statement affectedUsers( *db.get(),
-                "SELECT id "
-                "FROM Attribute "
-                "WHERE id IN ( "
-                    "SELECT id "
-                    "FROM Object "
-                    "WHERE parent=? "
-                ") "
-                "ORDER BY id DESC " );
+                "SELECT id, max(version) AS version, status "
+                "FROM Object " );
 
         Database::Statement user( *db.get(),
                 "SELECT accessDomain, id, version, name, value "
                 "FROM Attribute "
-                "WHERE id=? ");
+                "WHERE id=? AND version=? ");
 
         affectedUsers << USERS_OBJECT_ID;
         while( affectedUsers.executeStep() ) {
-            user << affectedUsers.getColumn( "id" ).getInt64();
+            user <<
+                    affectedUsers.getColumn( "id" ).getInt64() <<
+                    affectedUsers.getColumn( "version" ).getUInt();
             std::string id{}, name{}, permission{}, publicKeyPem{};
             for( int i{0}; i < 4; ++i ) {
                 if ( !user.executeStep() ) {
@@ -1359,14 +1407,11 @@ void Database::objectChanged( const Database::ObjectRef& objectRef ) {
             }
 
             // TODO: add/remove user from central.
-            /*
-            if ( ObjectStatus::Current != static_cast<ObjectStatus>( affectedUsers.getColumn( "status" ).getUInt() ) ||
-                    ObjectAction::Delete == static_cast<ObjectAction>( affectedUsers.getColumn( "transactionAction" ).getUInt() ) ) {
+            if ( ObjectStatus::Current != static_cast<ObjectStatus>( affectedUsers.getColumn( "status" ).getUInt() ) ) {
                 central->removePeer( CryptoHelper::PublicKeyHash::fromString( id ) );
             } else {
                 central->addPeer( CryptoHelper::PublicKey::fromPem( publicKeyPem ), name, PeerStatus::IndirectAnonymous, true );
             }
-            //*/
             user.clearBindings();
             user.reset();
         }

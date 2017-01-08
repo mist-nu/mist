@@ -10,6 +10,7 @@
 
 #include "CryptoHelper.h"
 #include "ExchangeFormat.h"
+#include "Helper.h"
 #include "JSONstream.h"
 #include "RemoteTransaction.h"
 

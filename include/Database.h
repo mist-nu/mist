@@ -220,9 +220,8 @@ public:
         std::string functionName{};
         std::string functionAttribute{};
         double functionValue{};
-        unsigned long id{};
-        unsigned long version{};
-        std::map<std::string,Value> attributes{};
+
+        std::vector<Object> object;
     };
 
     void unsubscribe( unsigned subscriberId );
@@ -314,6 +313,11 @@ public:
 
     Manifest *getManifest();
 
+    /**
+     * Start a transaction that will perform changes to a specified access domain of the database.
+     */
+    std::unique_ptr<Mist::Transaction> beginTransaction( AccessDomain accessDomain );
+
 protected:
     // Friend Transaction and RemoteTransaction so they may call
     friend class Mist::Central;
@@ -367,11 +371,6 @@ protected:
             CryptoHelper::SHA3 hash,
             CryptoHelper::Signature signature );
 
-    /**
-     * Start a transaction that will perform changes to a specified access domain of the database.
-     */
-    std::unique_ptr<Mist::Transaction> beginTransaction( AccessDomain accessDomain );
-
     std::unique_ptr<Connection> getIsolatedDbConnection() const;
     CryptoHelper::SHA3 calculateTransactionHash( const Database::Transaction& transaction,
             Connection* connection = nullptr ) const;
@@ -391,7 +390,7 @@ protected:
     static Database::ObjectMeta statementRowToObjectMeta( Database::Statement& stmt );
     static Database::Value statementRowToValue( Database::Statement& attribute );
     //static UserAccount statementRowToUser( Database::Statement& user );
-    static Database::Value queryRowToValue( Database::Statement& query );
+    //static Database::Value queryRowToValue( Database::Statement& query );
 
     std::vector<CryptoHelper::SHA3> getParents( unsigned version,
             Connection* connection = nullptr ) const;
