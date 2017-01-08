@@ -35,6 +35,10 @@ private:
   void commit(const Nan::FunctionCallbackInfo<v8::Value>& info);
   void rollback(const Nan::FunctionCallbackInfo<v8::Value>& info);
 
+  void getObject(const Nan::FunctionCallbackInfo<v8::Value>& info);
+  void query(const Nan::FunctionCallbackInfo<v8::Value>& info);
+  void queryVersion(const Nan::FunctionCallbackInfo<v8::Value>& info);
+
 };
 
 namespace detail

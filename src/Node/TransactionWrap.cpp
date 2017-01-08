@@ -116,5 +116,55 @@ TransactionWrap::rollback(const Nan::FunctionCallbackInfo<v8::Value>& info)
   self()->rollback();
 }
 
+void TransactionWrap::getObject(const Nan::FunctionCallbackInfo<v8::Value>& info)
+{
+    int accessDomain{convBack<int>(info[0])};
+    long long id{convBack<long long>(info[1])};
+    bool includeDeleted{convBack<bool>(info[2])};
+    info.GetReturnValue().Set(MistObjectWrap::make(self()->getObject(accessDomain,id,includeDeleted)));
+}
+
+void TransactionWrap::query(const Nan::FunctionCallbackInfo<v8::Value>& info)
+{
+    int accessDomain{convBack<int>(info[0])};
+    long long id{convBack<long long>(info[1])};
+    const std::string select{convBack<std::string>(info[2])};
+    const std::string filter{convBack<std::string>(info[3])};
+    const std::string sort{convBack<std::string>(info[4])};
+    auto attrs(objectAttributes(info[5]));
+    int maxVersion{convBack<int>(info[6])};
+    bool includeDeleted{convBack<bool>(info[7])};
+
+    info.GetReturnValue().Set(QueryResultWrap::make(self()->query(
+            accessDomain,
+            id,
+            select,
+            filter,
+            sort,
+            attrs,
+            maxVersion,
+            includeDeleted
+            )));
+}
+
+void TransactionWrap::queryVersion(const Nan::FunctionCallbackInfo<v8::Value>& info)
+{
+    int accessDomain{convBack<int>(info[0])};
+    long long id{convBack<long long>(info[1])};
+    const std::string select{convBack<std::string>(info[2])};
+    const std::string filter{convBack<std::string>(info[3])};
+    auto attrs(objectAttributes(info[5]));
+    bool includeDeleted{convBack<bool>(info[7])};
+
+    info.GetReturnValue().Set(QueryResultWrap::make(self()->queryVersion(
+            accessDomain,
+            id,
+            select,
+            filter,
+            attrs,
+            includeDeleted
+            )));
+}
+
 } // namespace Node
 } // namespace Mist
