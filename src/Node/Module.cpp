@@ -192,32 +192,36 @@ Init(v8::Local<v8::Object> target, v8::Local<v8::Object> module)
   Nan::Set(target, Nan::New(ClientRequestWrap::ClassName()).ToLocalChecked(),
 	   Nan::GetFunction(ClientRequestWrap::Init()).ToLocalChecked());
   Nan::Set(target, Nan::New(ClientResponseWrap::ClassName()).ToLocalChecked(),
-	   Nan::GetFunction(ClientResponseWrap::Init()).ToLocalChecked());
+    Nan::GetFunction(ClientResponseWrap::Init()).ToLocalChecked());
   Nan::Set(target, Nan::New(ServerStreamWrap::ClassName()).ToLocalChecked(),
-	   Nan::GetFunction(ServerStreamWrap::Init()).ToLocalChecked());
+    Nan::GetFunction(ServerStreamWrap::Init()).ToLocalChecked());
   Nan::Set(target, Nan::New(ServerRequestWrap::ClassName()).ToLocalChecked(),
-	   Nan::GetFunction(ServerRequestWrap::Init()).ToLocalChecked());
+    Nan::GetFunction(ServerRequestWrap::Init()).ToLocalChecked());
   Nan::Set(target, Nan::New(ServerResponseWrap::ClassName()).ToLocalChecked(),
-	   Nan::GetFunction(ServerResponseWrap::Init()).ToLocalChecked());
+    Nan::GetFunction(ServerResponseWrap::Init()).ToLocalChecked());
   Nan::Set(target, Nan::New(CentralWrap::ClassName()).ToLocalChecked(),
-	   Nan::GetFunction(CentralWrap::Init()).ToLocalChecked());
+    Nan::GetFunction(CentralWrap::Init()).ToLocalChecked());
   Nan::Set(target, Nan::New(SHA3Wrap::ClassName()).ToLocalChecked(),
-	   Nan::GetFunction(SHA3Wrap::Init()).ToLocalChecked());
+    Nan::GetFunction(SHA3Wrap::Init()).ToLocalChecked());
   Nan::Set(target, Nan::New(SHA3HasherWrap::ClassName()).ToLocalChecked(),
-	   Nan::GetFunction(SHA3HasherWrap::Init()).ToLocalChecked());
+    Nan::GetFunction(SHA3HasherWrap::Init()).ToLocalChecked());
   Nan::Set(target, Nan::New(PublicKeyWrap::ClassName()).ToLocalChecked(),
-	   Nan::GetFunction(PublicKeyWrap::Init()).ToLocalChecked());
+    Nan::GetFunction(PublicKeyWrap::Init()).ToLocalChecked());
   Nan::Set(target, Nan::New(PrivateKeyWrap::ClassName()).ToLocalChecked(),
-	   Nan::GetFunction(PrivateKeyWrap::Init()).ToLocalChecked());
+    Nan::GetFunction(PrivateKeyWrap::Init()).ToLocalChecked());
 
-    Nan::Set(target, Nan::New(DatabaseWrap::ClassName()).ToLocalChecked(),
-	   Nan::GetFunction(DatabaseWrap::Init()).ToLocalChecked());
-    // TODO: Find out how to make these classes properties
-    // of DatabaseWrap, and remove them from here.
-    Nan::Set(target, Nan::New(ManifestWrap::ClassName()).ToLocalChecked(),
-	   Nan::GetFunction(ManifestWrap::Init()).ToLocalChecked());
-    Nan::Set(target, Nan::New(ObjectRefWrap::ClassName()).ToLocalChecked(),
-	   Nan::GetFunction(ObjectRefWrap::Init()).ToLocalChecked());
+  Nan::Set(target, Nan::New(DatabaseWrap::ClassName()).ToLocalChecked(),
+    Nan::GetFunction(DatabaseWrap::Init()).ToLocalChecked());
+  // TODO: Find out how to make these classes properties
+  // of DatabaseWrap, and remove them from here.
+  Nan::Set(target, Nan::New(ManifestWrap::ClassName()).ToLocalChecked(),
+    Nan::GetFunction(ManifestWrap::Init()).ToLocalChecked());
+  Nan::Set(target, Nan::New(ObjectRefWrap::ClassName()).ToLocalChecked(),
+    Nan::GetFunction(ObjectRefWrap::Init()).ToLocalChecked());
+  Nan::Set(target, Nan::New(MistObjectWrap::ClassName()).ToLocalChecked(),
+    Nan::GetFunction(MistObjectWrap::Init()).ToLocalChecked());
+  Nan::Set(target, Nan::New(QueryResultWrap::ClassName()).ToLocalChecked(),
+    Nan::GetFunction(QueryResultWrap::Init()).ToLocalChecked());
 
   // Nan::Set(target, Nan::New("initializeNSS").ToLocalChecked(),
   //   Nan::GetFunction(Nan::New<v8::FunctionTemplate>(initializeNSS)).ToLocalChecked());

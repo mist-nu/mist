@@ -98,7 +98,7 @@ template<typename T>
 struct PointerTraits<std::shared_ptr<T>>
 {
   using type = typename std::add_pointer<T>::type;
-  static type getPointer(std::shared_ptr<T> ptr)
+  static type getPointer(std::shared_ptr<T>& ptr)
   {
     return ptr.get();
   }
@@ -108,7 +108,7 @@ template<typename T>
 struct PointerTraits<std::unique_ptr<T>>
 {
   using type = typename std::add_pointer<T>::type;
-  static type getPointer(std::unique_ptr<T> ptr)
+  static type getPointer(std::unique_ptr<T>& ptr)
   {
     return ptr.get();
   }
@@ -191,8 +191,15 @@ protected:
   static void Method(
     const Nan::FunctionCallbackInfo<v8::Value>& info)
   {
-    T* obj = ObjectWrap::Unwrap<T>(info.This());
-    (obj->*m)(info);
+    try {
+      T* obj = ObjectWrap::Unwrap<T>(info.This());
+      (obj->*m)(info);
+    } catch (boost::exception& e) {
+      std::cerr << "Exception in wrapped method: "
+        << boost::diagnostic_information(e);
+    } catch (...) {
+      std::cerr << "Exception in wrapped method" << std::endl;
+    }
   }
 
   using wrapped_getter_type = void(T::*)
@@ -204,8 +211,15 @@ protected:
     v8::Local<v8::String> name,
     const Nan::PropertyCallbackInfo<v8::Value>& info)
   {
-    T* obj = ObjectWrap::Unwrap<T>(info.This());
-    (obj->*m)(name, info);
+    try {
+      T* obj = ObjectWrap::Unwrap<T>(info.This());
+      (obj->*m)(name, info);
+    } catch (boost::exception& e) {
+      std::cerr << "Exception in wrapped getter: "
+        << boost::diagnostic_information(e);
+    } catch (...) {
+      std::cerr << "Exception in wrapped getter" << std::endl;
+    }
   }
 
   using wrapped_setter_type = void(T::*)
@@ -219,8 +233,15 @@ protected:
     v8::Local<v8::Value> value,
     const Nan::PropertyCallbackInfo<void>& info)
   {
-    T* obj = ObjectWrap::Unwrap<T>(info.This());
-    (obj->*m)(name, value, info);
+    try {
+      T* obj = ObjectWrap::Unwrap<T>(info.This());
+      (obj->*m)(name, value, info);
+    } catch (boost::exception& e) {
+      std::cerr << "Exception in wrapped setter: "
+        << boost::diagnostic_information(e);
+    } catch (...) {
+      std::cerr << "Exception in wrapped setter" << std::endl;
+    }
   }
 
   static Nan::Persistent<v8::Function> &constructor() { return _ctor; }

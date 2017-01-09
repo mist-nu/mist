@@ -53,6 +53,27 @@ DatabaseWrap::Init()
   // 	   conv(ObjectRefWrap::ClassName()),
   // 	   Nan::GetFunction(ObjectRefWrap::Init()).ToLocalChecked());
 
+  Nan::SetPrototypeMethod(tpl, "beginTransaction",
+    Method<&DatabaseWrap::beginTransaction>);
+  Nan::SetPrototypeMethod(tpl, "inviteUser",
+    Method<&DatabaseWrap::inviteUser>);
+  Nan::SetPrototypeMethod(tpl, "getObject",
+    Method<&DatabaseWrap::getObject>);
+  Nan::SetPrototypeMethod(tpl, "query",
+    Method<&DatabaseWrap::query>);
+  Nan::SetPrototypeMethod(tpl, "queryVersion",
+    Method<&DatabaseWrap::queryVersion>);
+  Nan::SetPrototypeMethod(tpl, "subscribeObject",
+    Method<&DatabaseWrap::subscribeObject>);
+  Nan::SetPrototypeMethod(tpl, "subscribeQuery",
+    Method<&DatabaseWrap::subscribeQuery>);
+  Nan::SetPrototypeMethod(tpl, "subscribeQueryVersion",
+    Method<&DatabaseWrap::subscribeQueryVersion>);
+  Nan::SetPrototypeMethod(tpl, "unsubscribe",
+    Method<&DatabaseWrap::unsubscribe>);
+  Nan::SetPrototypeMethod(tpl, "getManifest",
+    Method<&DatabaseWrap::getManifest>);
+
   constructor().Reset(Nan::GetFunction(tpl).ToLocalChecked());
 
   return tpl;
@@ -162,8 +183,16 @@ ManifestWrap::Init()
 {
   v8::Local<v8::FunctionTemplate> tpl = defaultTemplate(ClassName());
 
-  //Nan::SetPrototypeMethod(tpl, "_write",
-  //  Method<&ServerResponse::_write>);
+  Nan::SetPrototypeMethod(tpl, "getHash",
+    Method<&ManifestWrap::getHash>);
+  Nan::SetPrototypeMethod(tpl, "getCreator",
+    Method<&ManifestWrap::getCreator>);
+  Nan::SetPrototypeMethod(tpl, "sign",
+    Method<&ManifestWrap::sign>);
+  Nan::SetPrototypeMethod(tpl, "verify",
+    Method<&ManifestWrap::verify>);
+  Nan::SetPrototypeMethod(tpl, "toString",
+    Method<&ManifestWrap::toString>);
 
   constructor().Reset(Nan::GetFunction(tpl).ToLocalChecked());
 
