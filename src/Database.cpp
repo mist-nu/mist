@@ -1385,25 +1385,23 @@ void Database::objectChanged( const Database::ObjectRef& objectRef ) {
         // Handle user changes
         Database::Statement affectedUsers( *db.get(),
                 "SELECT id, max(version) AS version, status "
-                "FROM Object " );
+                "FROM Object WHERE accessDomain=? AND parent=? "
+                "GROUP BY id " );
 
         Database::Statement user( *db.get(),
                 "SELECT accessDomain, id, version, name, value "
                 "FROM Attribute "
-                "WHERE id=? AND version=? ");
+                "WHERE accessDomain=? AND id=? AND version=? ");
 
-        affectedUsers << USERS_OBJECT_ID;
+        affectedUsers << static_cast<int>( AccessDomain::Settings )
+            << USERS_OBJECT_ID;
         while( affectedUsers.executeStep() ) {
-            user <<
-                    affectedUsers.getColumn( "id" ).getInt64() <<
-                    affectedUsers.getColumn( "version" ).getUInt();
+            user << static_cast<int>( AccessDomain::Settings )
+                << affectedUsers.getColumn( "id" ).getInt64()
+                << affectedUsers.getColumn( "version" ).getUInt();
             std::string id{}, name{}, permission{}, publicKeyPem{};
-            for( int i{0}; i < 4; ++i ) {
-                if ( !user.executeStep() ) {
-                    LOG( WARNING ) << "Unexpected Error, either failed to read from db, or the user object is invalid.";
-                    break;
-                    //throw Exception( Error::ErrorCode::UnexpectedDatabaseError );
-                }
+            //for( int i{0}; i < 4; ++i ) {
+            while( user.executeStep() ) {
                 std::string what{ user.getColumn( "name" ).getString() };
                 if ( "id" == what ) {
                     id = user.getColumn( "value" ).getString();

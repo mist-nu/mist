@@ -347,10 +347,23 @@ Mist::Database* Mist::Central::getDatabase( unsigned localId ) {
     if (iter != databases.end()) { // found in databases
         return iter->second;
     } else {
-        Mist::Database* db = new Mist::Database(this, path + "/" + std::to_string(localId) + ".db");
-        db->init(); // TODO: get manifest send it as an argument here
-        databases.insert(std::make_pair(localId, db));
-        return db;
+        Helper::Database::Statement query(*settingsDatabase, "SELECT hash FROM Database WHERE localId=?");
+        query.bind(1, localId);
+
+        if (query.executeStep()) {
+            try {
+                Mist::Database* db = new Mist::Database(this, path + "/" + std::to_string(localId) + ".db");
+                db->init( std::unique_ptr<Database::Manifest>(new Database::Manifest(getDatabaseManifest( CryptoHelper::SHA3::fromString( query.getColumn( "hash" ).getString() ) ))) );
+                databases.insert(std::make_pair(localId, db));
+                return db;
+            } catch (Helper::Database::Exception &e) {
+                // TODO: could not get "localId" column from settingsDb
+                return nullptr;
+            }
+        } else {
+            // TODO: got no rows, handle this.
+            return nullptr;
+        }
     }
 }
 

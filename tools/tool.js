@@ -64,7 +64,7 @@ function createDatabase(dbName) {
 
 function listDatabases() {
     central.listDatabases().forEach(function (database) {
-	
+
         // TODO: Printing a database object crashes..!
         console.log("<database>");
 	console.log( "hej" );
@@ -306,8 +306,8 @@ var userQuery = function () {
                     console.log("Usage: invite-user-to-db DB_HASH NAME KEYFILE PERMISSION");
                 } else {
                     var dbHash = mist.SHA3.fromString(xs[1]);
-                    var keyFile = xs[2];
-                    var name = xs[3];
+                    var keyFile = xs[3];
+                    var name = xs[2];
                     var permission = xs[4];
                     inviteUserToDatabase(dbHash, keyFile, name, permission);
                 }
@@ -326,7 +326,7 @@ var userQuery = function () {
                 console.log("  get-peer PEER_HASH");
                 console.log("  list-peers");
                 console.log("  add-address-lookup-server ADDRESS PORT");
-                console.log("  remove-address-lookup-server ADDRESS PORT"); 
+                console.log("  remove-address-lookup-server ADDRESS PORT");
                 console.log("  list-address-lookup-servers");
                 console.log("  list-database-permissions PEER_HASH");
                 console.log("  add-service-permission PEER_HASH SERVICE PATH");
