@@ -85,6 +85,10 @@ public:
         std::string toString() const;
         static Manifest fromString( const std::string& serialized, Verifier verifier, Signer signer = nullptr );
         static Manifest fromJSON( const JSON::Value& value, Verifier verifier, Signer signer = nullptr );
+
+        inline bool operator<(const Manifest& other) const { return hash < other.hash; }
+        inline bool operator==(const Manifest& other) const { return hash == other.hash; }
+
     };
 
     enum class AccessDomain

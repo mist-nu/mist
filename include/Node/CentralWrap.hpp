@@ -53,11 +53,14 @@ private:
   void removePeer(const Nan::FunctionCallbackInfo<v8::Value>& info);
   void listPeers(const Nan::FunctionCallbackInfo<v8::Value>& info);
   void getPeer(const Nan::FunctionCallbackInfo<v8::Value>& info);
+  void getPendingInvites(const Nan::FunctionCallbackInfo<v8::Value>& info);
 
   void addAddressLookupServer(const Nan::FunctionCallbackInfo<v8::Value>& info);
   void removeAddressLookupServer(const Nan::FunctionCallbackInfo<v8::Value>& info);
   void listAddressLookupServers(const Nan::FunctionCallbackInfo<v8::Value>& info);
 
+  void addDatabasePermission(const Nan::FunctionCallbackInfo<v8::Value>& info);
+  void removeDatabasePermission(const Nan::FunctionCallbackInfo<v8::Value>& info);
   void listDatabasePermissions(const Nan::FunctionCallbackInfo<v8::Value>& info);
 
   void addServicePermission(const Nan::FunctionCallbackInfo<v8::Value>& info);

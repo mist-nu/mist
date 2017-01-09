@@ -114,6 +114,10 @@ function getPeer(hash) {
     central.getPeer(hash);
 }
 
+function getPendingInvites(hash) {
+    central.getPendingInvites(hash);
+}
+
 function addAddressLookupServer(address, port) {
     central.addAddressLookupServer(address, port);
 }
@@ -250,6 +254,8 @@ var userQuery = function () {
                     var hash = mist.SHA3.fromString(xs[1]);
                     getPeer(hash);
                 }
+            } else if (xs[0] == "get-pending-invites") {
+                getPendingInvites();
             } else if (xs[0] == "add-address-lookup-server") {
                 if (xs.length < 3) {
                     console.log("Usage: add-address-lookup-server ADDRESS PORT");

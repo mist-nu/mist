@@ -173,6 +173,8 @@ public:
      */
     virtual Peer getPeer( const CryptoHelper::PublicKeyHash& keyHash ) const;
 
+    virtual std::vector<Database::Manifest> getPendingInvites() const;
+
     /**
      * The address lookup server is used to store our TOR hidden service address, and to find the
      * TOR hidden service address of peers.

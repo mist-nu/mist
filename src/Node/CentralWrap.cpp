@@ -71,6 +71,8 @@ CentralWrap::Init()
 			  Method<&CentralWrap::listPeers>);
   Nan::SetPrototypeMethod(tpl, "getPeer",
 			  Method<&CentralWrap::getPeer>);
+  Nan::SetPrototypeMethod(tpl, "getPendingInvites",
+			  Method<&CentralWrap::getPendingInvites>);
 
   Nan::SetPrototypeMethod(tpl, "addAddressLookupServer",
 			  Method<&CentralWrap::addAddressLookupServer>);
@@ -250,8 +252,8 @@ void
 CentralWrap::listDatabases(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
     v8::HandleScope scope(isolate);
-    auto arr(Nan::New<v8::Array>());
     auto databases(self()->listDatabases());
+    v8::Local<v8::Array> arr(Nan::New<v8::Array>(databases.size()));
     for (std::size_t i = 0; i < databases.size(); ++i) {
         Nan::Set(arr, i, ManifestWrap::make(databases[i]));
     }
@@ -321,6 +323,18 @@ CentralWrap::getPeer(const Nan::FunctionCallbackInfo<v8::Value>& info)
     v8::HandleScope scope(isolate);
     auto keyHash(SHA3Wrap::self(info[0]));
     info.GetReturnValue().Set(peerToObject(self()->getPeer(keyHash)));
+}
+
+void
+CentralWrap::getPendingInvites(const Nan::FunctionCallbackInfo<v8::Value>& info)
+{
+    v8::HandleScope scope(isolate);
+    auto arr(Nan::New<v8::Array>());
+    auto pendingInvites(self()->getPendingInvites());
+    for (std::size_t i = 0; i < pendingInvites.size(); ++i) {
+        arr->Set(i, ManifestWrap::make(pendingInvites[i]));
+    }
+    info.GetReturnValue().Set(arr);
 }
 
 void

@@ -615,6 +615,17 @@ Mist::Peer Mist::Central::getPeer( const Mist::CryptoHelper::PublicKeyHash& keyH
     return peer;
 }
 
+std::vector<Mist::Database::Manifest>
+Mist::Central::getPendingInvites() const
+{
+  std::set<Database::Manifest> manifestSet;
+  for (auto& peerPendingInvites : pendingInvites) {
+    manifestSet.insert(peerPendingInvites.second);
+  }
+  return std::vector<Database::Manifest>(manifestSet.begin(),
+    manifestSet.end());
+}
+
 void
 Mist::Central::addDatabasePermission( const CryptoHelper::PublicKeyHash& keyHash, const CryptoHelper::SHA3& dbHash ) {
     Helper::Database::Transaction transaction(*settingsDatabase);
