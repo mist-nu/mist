@@ -7,7 +7,7 @@
 
 #include <fstream>
 #include <string>
-#include <unistd.h>
+//#include <unistd.h>
 
 #include "Central.h"
 #include "Database.h"
@@ -1195,7 +1195,7 @@ std::unique_ptr<Mist::Transaction> Database::beginTransaction( AccessDomain acce
         newVersion = 1;
     } else if (getVersion.getColumn( "timestamp" ).getString() == getVersion.getColumn( "now" ).getString()) {
       newVersion = getVersion.getColumn( "version" ).getUInt() + 1;
-      usleep( 1 );
+//      usleep( 1 );
     } else if (getVersion.getColumn( "timestamp" ).getString() > getVersion.getColumn( "now" ).getString()) {
         LOG ( WARNING ) << "Last transaction is from the future. Cannot begin a new transaction";
         throw std::runtime_error( "Last transaction is from the future. Cannot begin a new transaction" );
