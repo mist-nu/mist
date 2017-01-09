@@ -180,6 +180,21 @@ function inviteUserToDatabase(dbHash, keyFile, name, permission) {
     db.inviteUser(name, pubKey, permission);
 }
 
+function listDbInvites()
+{
+    central.getPendingInvites().forEach( m => {
+        console.log( m.getHash().toString() );
+    });
+}
+
+function acceptDbInvite( dbHash )
+{
+    central.getPendingInvites().forEach( m => {
+        if (m.getHash() == dbHash)
+            central.receiveDatabase( m );
+    });
+}
+
 var torStarted = false;
 
 var userQuery = function () {
@@ -317,6 +332,15 @@ var userQuery = function () {
                     var permission = xs[4];
                     inviteUserToDatabase(dbHash, keyFile, name, permission);
                 }
+            } else if (xs[0] == "list-db-invites") {
+                listDbInvites();
+            } else if (xs[0] == "accept-db-invite") {
+                if (xs.length < 2) {
+                    console.log("Usage: accept-db-invite DB_HASH");
+                } else {
+                    var dbHash = mist.SHA3.fromString(xs[1]);
+                    acceptDbInvite(dbHash);
+                }
             } else if (xs[0] == "help") {
                 console.log("Available commands:");
                 console.log("  create");
@@ -341,9 +365,9 @@ var userQuery = function () {
                 console.log("  start-sync");
                 console.log("  stop-sync");
                 console.log("  list-services");
-		console.log("  invite-user-to-db DB_HASH NAME KEYFILE PERMISSION");
-		console.log("  list-db-invites");
-		console.log("  accept-db-invite DB_HASH");
+		        console.log("  invite-user-to-db DB_HASH NAME KEYFILE PERMISSION");
+		        console.log("  list-db-invites");
+		        console.log("  accept-db-invite DB_HASH");
             } else {
                 console.log("Unrecognized command");
             }
