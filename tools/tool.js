@@ -55,13 +55,30 @@ function fingerprint() {
 }
 
 function createDatabase(dbName) {
-    central.createDatabase(dbName);
+    var db = central.createDatabase(dbName);
+    console.log( typeof db );
+    console.log( typeof db.getManifest() );
+    console.log( typeof db.getManifest().getHash() );
+    console.log( db.getManifest().getHash().toString() );
 }
 
 function listDatabases() {
     central.listDatabases().forEach(function (database) {
+	
         // TODO: Printing a database object crashes..!
         console.log("<database>");
+	console.log( "hej" );
+	console.log( database === undefined );
+	console.log( database === null );
+	console.log( typeof database );
+	console.log( typeof central );
+	for (var i in database) console.log( i );
+	console.log( "hej 1" );
+	database.toString();
+	console.log( "hej 2" );
+	database.getHash();
+	console.log( "hopp" );
+	console.log( database.getHash().toString() );
         //console.log(database);
     });
 }
@@ -143,6 +160,20 @@ function listServices() {
     central.listServices().forEach(function (service) {
         console.log(service)
     });
+}
+
+function inviteUserToDatabase(dbHash, keyFile, name, permission) {
+    var pubKeyPem;
+    try {
+        pubKeyPem = fs.readFileSync(keyFile);
+    } catch (e) {
+        console.log("Unable to read keyfile");
+        return;
+    }
+    var pubKey = mist.PublicKey.fromPem(pubKeyPem);
+    var db = central.getDatabase( dbHash );
+    console.log("Inviting user " + name + " with hash " + pubKey.hash() + " to database " + dbHash);
+    db.inviteUser(name, pubKey, permission);
 }
 
 var torStarted = false;
@@ -270,6 +301,16 @@ var userQuery = function () {
                 stopSync();
             } else if (xs[0] == "list-services") {
                 listServices();
+            } else if (xs[0] == "invite-user-to-db") {
+                if (xs.length < 4) {
+                    console.log("Usage: invite-user-to-db DB_HASH NAME KEYFILE PERMISSION");
+                } else {
+                    var dbHash = mist.SHA3.fromString(xs[1]);
+                    var keyFile = xs[2];
+                    var name = xs[3];
+                    var permission = xs[4];
+                    inviteUserToDatabase(dbHash, keyFile, name, permission);
+                }
             } else if (xs[0] == "help") {
                 console.log("Available commands:");
                 console.log("  create");
@@ -294,6 +335,9 @@ var userQuery = function () {
                 console.log("  start-sync");
                 console.log("  stop-sync");
                 console.log("  list-services");
+		console.log("  invite-user-to-db DB_HASH NAME KEYFILE PERMISSION");
+		console.log("  list-db-invites");
+		console.log("  accept-db-invite DB_HASH");
             } else {
                 console.log("Unrecognized command");
             }

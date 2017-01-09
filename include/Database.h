@@ -1,6 +1,6 @@
 /*
  * (c) 2016 VISIARC AB
- * 
+ *
  * Free software licensed under GPLv3.
  */
 
@@ -21,6 +21,7 @@
 #include "Helper.h"
 #include "PrivateUserAccount.h"
 #include "Query.h"
+#include "JSONstream.h"
 
 namespace Mist {
 
@@ -83,6 +84,7 @@ public:
         bool verify() const;
         std::string toString() const;
         static Manifest fromString( const std::string& serialized, Verifier verifier, Signer signer = nullptr );
+        static Manifest fromJSON( const JSON::Value& value, Verifier verifier, Signer signer = nullptr );
     };
 
     enum class AccessDomain
@@ -225,7 +227,7 @@ public:
     };
 
     /**
-     * 
+     *
      */
     void unsubscribe( unsigned subscriberId );
 

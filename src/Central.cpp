@@ -450,8 +450,7 @@ std::vector<Mist::Database::Manifest> Mist::Central::listDatabases() {
             using namespace std::placeholders;
             manifests.push_back(
                     Database::Manifest::fromString( query.getColumn( "manifest" ).getString(),
-                            std::bind( &Central::verify, this, _1, _2, _3),
-                            std::bind( &Central::sign, this, _1)
+                            std::bind( &Central::verify, this, _1, _2, _3)
             ) );
         } catch (Helper::Database::Exception& e) {
             // TODO: column error on manifest
@@ -460,6 +459,20 @@ std::vector<Mist::Database::Manifest> Mist::Central::listDatabases() {
     }
 
     return manifests;
+}
+
+Mist::Database::Manifest Mist::Central::getDatabaseManifest( const CryptoHelper::SHA3& hash) {
+    std::vector<Mist::Database::Manifest> manifests;
+
+    Helper::Database::Statement query(*settingsDatabase,
+        "SELECT hash, localId, creator, name, manifest FROM Database WHERE hash=?");
+    query.bind( 1, hash.toString() );
+    if (query.executeStep()) {
+            using namespace std::placeholders;
+            return Database::Manifest::fromString( query.getColumn( "manifest" ).getString(),
+                            std::bind( &Central::verify, this, _1, _2, _3) );
+    }
+    throw;
 }
 
 Mist::Central::~Central() {
@@ -951,7 +964,7 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
 
         std::basic_stringbuf<char> sb;
         currentDatabase->readTransactionMetadataLastest( sb );
-        central.dbService.submitRequest(peer, "GET", "/transactions/" 
+        central.dbService.submitRequest(peer, "GET", "/transactions/"
             + mist::h2::urlEncode(hash.toString())
             + "/?from=" + mist::h2::urlEncode(sb.str()),
             [=](mist::Peer& _peer, mist::h2::ClientRequest request)
@@ -1099,6 +1112,35 @@ void
 Mist::Central::PeerSyncState::queryTransactionsDone()
 {
     std::lock_guard<std::recursive_mutex> lock(mux);
+    central.dbService.submitRequest(peer, "GET", "/databases",
+        [=](mist::Peer& _peer, mist::h2::ClientRequest request) {
+        request.setOnResponse(
+            [=](mist::h2::ClientResponse response)
+        {
+            innerGetJsonResponse(response,
+                //[=](std::unique_ptr<JSON::basic_json_value> value)
+                [=](boost::optional<const JSON::Value&> value)
+            {
+                assert(value);
+                if (value->is_array()) {
+                    for (auto const &v : value->array) {
+                        using namespace std::placeholders;
+                        Database::Manifest m = Database::Manifest::fromJSON( v, std::bind( &Central::verify, &central, _1, _2, _3 ) );
+
+                        try {
+                            central.getDatabaseManifest( m.getHash() );
+                        } catch (...) {
+                            // Not found
+                            central.pendingInvites.insert( std::make_pair(m.getHash(), m) );
+                        }
+                    }
+                    // Add to transactionToDownloadInOrder
+                } else {
+                    throw;
+                }
+            });
+        });
+    });
 }
 
 void
@@ -1606,15 +1648,18 @@ void Mist::Central::RestRequest::databasesAll() {
 
     request.stream().submitResponse(200, {});
     execOutStream( central.ioCtx, request.stream().response(), [this, dbs](std::streambuf& sb) {
-        JSON::Serialize serializer;
         std::ostream os( &sb );
+        bool first = true;
 
-        serializer.set_ostream( os );
-        serializer.start_array();
+        os << '[';
         for(CryptoHelper::SHA3 dbHash : central.listDatabasePermissions( keyHash )) {
-            serializer.put( dbHash.toString() );
+            auto manifest = central.getDatabaseManifest( keyHash );
+            os << manifest.toString();
+            if (!first)
+                os << ',';
+            first = false;
         }
-        serializer.close_array();
+        os << ']';
     });
 }
 

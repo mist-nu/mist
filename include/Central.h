@@ -141,6 +141,10 @@ public:
      * List all Mist databases we have created, or replicated.
      */
     virtual std::vector<Mist::Database::Manifest> listDatabases();
+    /**
+     * Get the database manifest from a hash
+     */
+    virtual Mist::Database::Manifest getDatabaseManifest( const CryptoHelper::SHA3& hash );
 
     /**
      * Add a peer that we will accept connections from. Note that the peer must also add us, otherwise it will refuse
@@ -308,6 +312,8 @@ private:
     mist::io::IOContext ioCtx;
     mist::io::SSLContext sslCtx;
     mist::ConnectContext connCtx;
+
+    std::map<CryptoHelper::SHA3,Mist::Database::Manifest> pendingInvites;
 
     /* Mist database service */
     mist::Service& dbService;

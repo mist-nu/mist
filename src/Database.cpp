@@ -8,6 +8,7 @@
 #include <fstream>
 #include <string>
 //#include <unistd.h>
+#include <iostream>
 
 #include "Central.h"
 #include "Database.h"
@@ -951,7 +952,7 @@ Database::QueryResult Database::query( const Query& querier, Connection* connect
         if( dbQuery.executeStep() ) {
             // TODO: fix queries so we get all info needed?
             result.objects.push_back({
-                AccessDomain::Normal, // TODO //static_cast<AccessDomain>( dbQuery.getColumn( "accessDomain" ).getInt() ),
+                static_cast<AccessDomain>( dbQuery.getColumn( "_accessDomain" ).getInt() ),
                 static_cast<unsigned long>( dbQuery.getColumn( "_id" ).getUInt() ),
                 static_cast<unsigned>( dbQuery.getColumn( "_version" ) ),
                 { AccessDomain::Normal, 0 }, // TODO
@@ -960,8 +961,9 @@ Database::QueryResult Database::query( const Query& querier, Connection* connect
                 ObjectAction::New // TODO
             });
         } else {
-            LOG( DBUG ) << "No results";
-            throw Exception( Error::ErrorCode::NotFound );
+	  //            LOG( DBUG ) << "No results";
+	  //            throw Exception( Error::ErrorCode::NotFound );
+	  return result;
         }
         while ( dbQuery.executeStep() ) {
             Object& object{ *(result.objects.end() - 1) };
@@ -973,7 +975,7 @@ Database::QueryResult Database::query( const Query& querier, Connection* connect
                 object.attributes.emplace( name, value );
             } else {
                 result.objects.push_back({
-                    AccessDomain::Normal, // TODO //static_cast<AccessDomain>( dbQuery.getColumn( "accessDomain" ).getInt() ),
+                    static_cast<AccessDomain>( dbQuery.getColumn( "_accessDomain" ).getInt() ),
                     id,
                     version,
                     { AccessDomain::Normal, 0 }, // TODO
@@ -1202,7 +1204,7 @@ std::unique_ptr<Mist::Transaction> Database::beginTransaction( AccessDomain acce
     } else {
       newVersion = getVersion.getColumn( "version" ).getUInt() + 1;
     }
-    
+
     //Transaction* transaction{ new Transaction( this, accessDomain, query.getColumn("newVersion").getUInt() ) };
     //newVersion.commit();
     return std::unique_ptr<Mist::Transaction>(
@@ -1694,6 +1696,7 @@ void Database::Manifest::sign() {
 }
 
 bool Database::Manifest::verify() const {
+    // TODO Need to verify hash as well
     if ( !verifier ) {
         LOG( WARNING ) << "Manifest does not have a pointer to Central and can not verify the manifest.";
         throw std::runtime_error( "Manifest does not have a pointer to Central and can not verify the manifest." );
@@ -1743,6 +1746,16 @@ std::string Database::Manifest::toString() const {
 Database::Manifest Database::Manifest::fromString( const std::string& serialized, Verifier verifier, Signer signer ) {
     JSON::Value json{ JSON::Deserialize::generate_json_value( serialized ) };
 
+    std::string name{ json.at( "manifest" ).at( "name" ).get_string() };
+    Helper::Date created { json.at( "manifest" ).at( "created" ).get_string() };
+    CryptoHelper::PublicKey creator{ CryptoHelper::PublicKey::fromPem( json.at( "manifest" ).at( "creator" ).get_string() ) };
+    CryptoHelper::Signature signature { CryptoHelper::Signature::fromString( json.at( "signature" ).get_string() ) };
+    CryptoHelper::SHA3 hash { CryptoHelper::SHA3::fromString( json.at( "hash" ).get_string() ) };
+
+    return Manifest( signer, verifier, name, created, creator, signature, hash );
+}
+
+Database::Manifest Database::Manifest::fromJSON( const JSON::Value& json, Verifier verifier, Signer signer ) {
     std::string name{ json.at( "manifest" ).at( "name" ).get_string() };
     Helper::Date created { json.at( "manifest" ).at( "created" ).get_string() };
     CryptoHelper::PublicKey creator{ CryptoHelper::PublicKey::fromPem( json.at( "manifest" ).at( "creator" ).get_string() ) };
