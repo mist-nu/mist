@@ -7,6 +7,7 @@
 
 #include <fstream>
 #include <string>
+#include <unistd.h>
 
 #include "Central.h"
 #include "Database.h"
@@ -801,7 +802,7 @@ void Database::inviteUser( const UserAccount& user ) {
     attribute.emplace( "permission", permission );
     attribute.emplace( "publicKey", publicKey );
 
-    std::unique_ptr<Mist::Transaction> transaction{ beginTransaction( AccessDomain::Settings ) }; // TODO: is this the correct AD?
+    std::unique_ptr<Mist::Transaction> transaction{ beginTransaction( AccessDomain::Settings ) };
     ObjectRef USER{ AccessDomain::Settings, USERS_OBJECT_ID };
     unsigned long objId{ transaction->newObject( USER, attribute ) };
     transaction->commit();
@@ -949,7 +950,7 @@ Database::QueryResult Database::query( const Query& querier, Connection* connect
     } else {
         if( dbQuery.executeStep() ) {
             // TODO: fix queries so we get all info needed?
-            result.object.push_back({
+            result.objects.push_back({
                 AccessDomain::Normal, // TODO //static_cast<AccessDomain>( dbQuery.getColumn( "accessDomain" ).getInt() ),
                 static_cast<unsigned long>( dbQuery.getColumn( "_id" ).getUInt() ),
                 static_cast<unsigned>( dbQuery.getColumn( "_version" ) ),
@@ -963,7 +964,7 @@ Database::QueryResult Database::query( const Query& querier, Connection* connect
             throw Exception( Error::ErrorCode::NotFound );
         }
         while ( dbQuery.executeStep() ) {
-            Object& object{ *(result.object.end() - 1) };
+            Object& object{ *(result.objects.end() - 1) };
             unsigned long id{ dbQuery.getColumn( "_id" ).getUInt() };
             unsigned version{ dbQuery.getColumn( "_version" ) };
             std::string name{ dbQuery.getColumn( "name" ).getString() };
@@ -971,7 +972,7 @@ Database::QueryResult Database::query( const Query& querier, Connection* connect
             if ( id == object.id && version == object.version ) {
                 object.attributes.emplace( name, value );
             } else {
-                result.object.push_back({
+                result.objects.push_back({
                     AccessDomain::Normal, // TODO //static_cast<AccessDomain>( dbQuery.getColumn( "accessDomain" ).getInt() ),
                     id,
                     version,
@@ -1054,7 +1055,7 @@ Database::QueryResult Database::queryVersion( const Query& querier, Connection* 
     } else {
         if( dbQuery.executeStep() ) {
             // TODO: fix queries so we get all info needed?
-            result.object.push_back({
+            result.objects.push_back({
                 AccessDomain::Normal, // TODO //static_cast<AccessDomain>( dbQuery.getColumn( "accessDomain" ).getInt() ),
                 static_cast<unsigned long>( dbQuery.getColumn( "_id" ).getUInt() ),
                 static_cast<unsigned>( dbQuery.getColumn( "_version" ) ),
@@ -1068,7 +1069,7 @@ Database::QueryResult Database::queryVersion( const Query& querier, Connection* 
             throw Exception( Error::ErrorCode::NotFound );
         }
         while ( dbQuery.executeStep() ) {
-            Object& object{ *(result.object.end() - 1) };
+            Object& object{ *(result.objects.end() - 1) };
             unsigned long id{ dbQuery.getColumn( "_id" ).getUInt() };
             unsigned version{ dbQuery.getColumn( "_version" ) };
             std::string name{ dbQuery.getColumn( "name" ).getString() };
@@ -1076,7 +1077,7 @@ Database::QueryResult Database::queryVersion( const Query& querier, Connection* 
             if ( id == object.id && version == object.version ) {
                 object.attributes.emplace( name, value );
             } else {
-                result.object.push_back({
+                result.objects.push_back({
                     AccessDomain::Normal, // TODO //static_cast<AccessDomain>( dbQuery.getColumn( "accessDomain" ).getInt() ),
                     id,
                     version,
@@ -1174,6 +1175,8 @@ std::unique_ptr<Mist::RemoteTransaction> Database::beginRemoteTransaction(
 }
 
 std::unique_ptr<Mist::Transaction> Database::beginTransaction( AccessDomain accessDomain ) {
+    unsigned newVersion;
+
     LOG ( DBUG ) << "Begin transaction";
     // TODO: Is this completely wrong?
     if(!_isOK) {
@@ -1181,20 +1184,32 @@ std::unique_ptr<Mist::Transaction> Database::beginTransaction( AccessDomain acce
         throw std::runtime_error( "Invalid database state: Can not begin transaction" );
     }
     //Helper::Database::Transaction newVersion( *db );
-    Database::Statement getVersion(*db.get(), "SELECT IFNULL(MAX(version),0)+1 AS newVersion "
+    Database::Statement getVersion(*db.get(), "SELECT MAX(version) AS version, timestamp, STRFTIME('%Y-%m-%d %H:%M:%f','now') AS now "
             "FROM 'Transaction'");
     if ( !getVersion.executeStep() ) {
         _isOK = false;
         LOG ( WARNING ) << "Invalid database state: Can not begin transaction";
         throw std::runtime_error( "Invalid database state: Can not begin transaction" );
     }
+    if ( getVersion.getColumn( "version" ).isNull()) {
+        newVersion = 1;
+    } else if (getVersion.getColumn( "timestamp" ).getString() == getVersion.getColumn( "now" ).getString()) {
+      newVersion = getVersion.getColumn( "version" ).getUInt() + 1;
+      usleep( 1 );
+    } else if (getVersion.getColumn( "timestamp" ).getString() > getVersion.getColumn( "now" ).getString()) {
+        LOG ( WARNING ) << "Last transaction is from the future. Cannot begin a new transaction";
+        throw std::runtime_error( "Last transaction is from the future. Cannot begin a new transaction" );
+    } else {
+      newVersion = getVersion.getColumn( "version" ).getUInt() + 1;
+    }
+    
     //Transaction* transaction{ new Transaction( this, accessDomain, query.getColumn("newVersion").getUInt() ) };
     //newVersion.commit();
     return std::unique_ptr<Mist::Transaction>(
         new Mist::Transaction(
             this,
             accessDomain,
-            getVersion.getColumn("newVersion").getUInt()
+	    newVersion
         )
     );
 }
@@ -1408,9 +1423,11 @@ void Database::objectChanged( const Database::ObjectRef& objectRef ) {
 
             // TODO: add/remove user from central.
             if ( ObjectStatus::Current != static_cast<ObjectStatus>( affectedUsers.getColumn( "status" ).getUInt() ) ) {
-                central->removePeer( CryptoHelper::PublicKeyHash::fromString( id ) );
+		central->removeDatabasePermission( CryptoHelper::PublicKeyHash::fromString( id ), getManifest()->getHash() );
+		//                central->removePeer( CryptoHelper::PublicKeyHash::fromString( id ) );
             } else {
                 central->addPeer( CryptoHelper::PublicKey::fromPem( publicKeyPem ), name, PeerStatus::IndirectAnonymous, true );
+		central->addDatabasePermission( CryptoHelper::PublicKeyHash::fromString( id ), getManifest()->getHash() );
             }
             user.clearBindings();
             user.reset();

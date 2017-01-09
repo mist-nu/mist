@@ -221,9 +221,12 @@ public:
         std::string functionAttribute{};
         double functionValue{};
 
-        std::vector<Object> object;
+        std::vector<Object> objects;
     };
 
+    /**
+     * 
+     */
     void unsubscribe( unsigned subscriberId );
 
     Object getObject( int accessDomain, long long id, bool includeDeleted = false ) const;

@@ -842,12 +842,12 @@ void Transaction::commit() {
     }
     //*/
 
-    try {
+    /*    try {
         version = db->reorderTransaction( thisMeta, connection.get() );
     } catch (...) {
         LOG( WARNING ) << "Reordering failed.";
         throw;
-    }
+	}*/
 
     // TODO: some sort of lock here,
     // to prevent changes to the database before "objectChanged" has finished
