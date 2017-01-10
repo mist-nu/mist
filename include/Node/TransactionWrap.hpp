@@ -47,9 +47,9 @@ namespace detail
 template<>
 struct NodeValueConverter<Mist::Transaction*>
 {
-  static v8::Local<v8::Value> conv(Mist::Transaction* v)
+  static v8::Local<v8::Value> conv(const Mist::Transaction* const v)
   {
-    return TransactionWrap::object(v);
+    return TransactionWrap::object(const_cast< Mist::Transaction*>(v));
   }
 };
 

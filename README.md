@@ -48,16 +48,18 @@ method. Mist will automatically create an RSA key pair and some SQLite
 databases. Next time you want to start Mist, call `init` since it has
 already created everything needed.
 
+To start the networking you need to call `startEventLoop`,
+`startServeTor` and optionally `startServeDirect`. You must also add
+an address lookup server by calling `addAddressLookupServer`. There is
+a public address lookup server at `lookup.mist.nu` port `40443`. The
+Mist library stores your address lookup servers, you only have to add
+them once. 
+
 Then you have a few choices. You can either interact with Mist
 databases, or start direct connections with peers. Databases are
 managed by the `getDatabase`, `createDatabase`, `receiveDatabase` and
 `listDatabases` methods. Databases can replicate their content between
 users, this is started with `startSync` and paused with `stopSync`.
-
-In order to start any networking, such as syncing databases, you need to call
-`addAddressLookupServer`. There is a public address lookup server at
-`lookup.mist.nu` port `40443`. The Mist library stores your address
-lookup servers, you only have to add them once.
 
 Connections between peers are made through services. A peer has a
 list of services, as well as a simple access control system that

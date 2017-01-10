@@ -1,3 +1,9 @@
+/*
+ * (c) 2016 VISIARC AB
+ *
+ * Free software licensed under GPLv3.
+ */
+
 #include "Node/DatabaseWrap.hpp"
 #include "Node/PrivateKeyWrap.hpp"
 #include "Node/PublicKeyWrap.hpp"

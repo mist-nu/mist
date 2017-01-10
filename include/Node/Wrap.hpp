@@ -192,13 +192,16 @@ protected:
     const Nan::FunctionCallbackInfo<v8::Value>& info)
   {
     try {
-      T* obj = ObjectWrap::Unwrap<T>(info.This());
-      (obj->*m)(info);
+        T* obj = ObjectWrap::Unwrap<T>(info.This());
+        (obj->*m)(info);
     } catch (boost::exception& e) {
-      std::cerr << "Exception in wrapped method: "
-        << boost::diagnostic_information(e);
+        std::cerr << "Exception in wrapped method: "
+		  << boost::diagnostic_information(e);
+    } catch (std::exception &e) {
+        std::cerr << "Exception in wrapped method: "
+		  << e.what() << std::endl;
     } catch (...) {
-      std::cerr << "Exception in wrapped method" << std::endl;
+        std::cerr << "Exception in wrapped method" << std::endl;
     }
   }
 

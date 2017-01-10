@@ -1,8 +1,7 @@
 /*
- * CryptoHelper.cpp
+ * (c) 2016 VISIARC AB
  *
- *  Created on: 18 Sep 2016
- *      Author: mattias
+ * Free software licensed under GPLv3.
  */
 
 #include <limits>

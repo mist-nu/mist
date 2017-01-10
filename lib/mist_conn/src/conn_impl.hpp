@@ -1,3 +1,8 @@
+/*
+ * (c) 2016 VISIARC AB
+ *
+ * Free software licensed under GPLv3.
+ */
 #ifndef __MIST_SRC_CONN_CONN_IMPL_HPP__
 #define __MIST_SRC_CONN_CONN_IMPL_HPP__
 

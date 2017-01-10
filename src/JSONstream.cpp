@@ -1,10 +1,8 @@
 /*
- * JSONstream.cpp
+ * (c) 2016 VISIARC AB
  *
- *  Created on: Nov 15, 2016
- *      Author: andreas
+ * Free software licensed under GPLv3.
  */
-
 
 #include <algorithm>
 #include <iomanip>
