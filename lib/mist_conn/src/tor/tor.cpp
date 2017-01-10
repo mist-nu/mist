@@ -670,7 +670,8 @@ TorController::synchronousResponse(std::int16_t code,
 
     if (!ok) {
       /* Unable to authenticate */
-      fail(make_mist_error(MIST_ERR_TOR_GENERAL_FAILURE));
+      _torProcess.reset();
+      //fail(make_mist_error(MIST_ERR_TOR_GENERAL_FAILURE));
       return;
     }
 
