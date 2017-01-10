@@ -1,3 +1,9 @@
+/*
+ * (c) 2016 VISIARC AB
+ *
+ * Free software licensed under GPLv3.
+ */
+
 #include "Node/ClientStreamWrap.hpp"
 #include "Node/PeerWrap.hpp"
 #include "Node/ServerStreamWrap.hpp"

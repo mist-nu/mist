@@ -1,3 +1,9 @@
+/*
+ * (c) 2016 VISIARC AB
+ *
+ * Free software licensed under GPLv3.
+ */
+
 #include <boost/system/error_code.hpp>
 #include <prerror.h>
 #include <sslerr.h>

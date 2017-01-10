@@ -1,3 +1,9 @@
+/*
+ * (c) 2016 VISIARC AB
+ *
+ * Free software licensed under GPLv3.
+ */
+
 #include "Node/SHA3HasherWrap.hpp"
 #include "Node/SHA3Wrap.hpp"
 

@@ -1,8 +1,7 @@
 /*
- * Format.cpp
+ * (c) 2016 VISIARC AB
  *
- *  Created on: Nov 26, 2016
- *      Author: andreas
+ * Free software licensed under GPLv3.
  */
 
 #include <ostream>

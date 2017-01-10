@@ -1,8 +1,7 @@
 /*
- * Exception.cpp
+ * (c) 2016 VISIARC AB
  *
- *  Created on: Oct 9, 2016
- *      Author: andreas
+ * Free software licensed under GPLv3.
  */
 
 #include "Exception.h"

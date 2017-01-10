@@ -1,3 +1,9 @@
+/*
+ * (c) 2016 VISIARC AB
+ *
+ * Free software licensed under GPLv3.
+ */
+
 #include "Node/Module.hpp"
 #include "Node/PeerWrap.hpp"
 #include "Node/CentralWrap.hpp"
