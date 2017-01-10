@@ -55,7 +55,6 @@ public:
 
   static const char* ClassName() { return "Manifest"; }
 
-  ManifestWrap(const Nan::FunctionCallbackInfo<v8::Value>& info);
   ManifestWrap(const Mist::Database::Manifest&);
 
   static v8::Local<v8::FunctionTemplate> Init();
