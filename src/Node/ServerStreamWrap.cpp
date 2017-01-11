@@ -17,7 +17,7 @@ ServerStreamWrap::ServerStreamWrap(mist::h2::ServerStream _self)
 void
 ServerStreamWrap::Init(v8::Local<v8::Object> target)
 {
-  Nan::HandleScope;
+  Nan::HandleScope scope;
 
   v8::Local<v8::FunctionTemplate> tpl = defaultTemplate(ClassName());
 

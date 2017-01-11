@@ -182,7 +182,7 @@ protected:
 
   NodeWrap(Ptr s) : _self(std::forward<Ptr>(s)) {}
 
-  inline static T* wrapper(v8::Local<v8::Object>& obj) {
+  inline static T* wrapper(v8::Local<v8::Object> obj) {
     return Nan::ObjectWrap::Unwrap<T>(obj);
   }
 
@@ -269,17 +269,16 @@ public:
           ctorArgs.data()).ToLocalChecked();
     T* wrapper = new T(std::forward<Args>(args)...);
     wrapper->Wrap(obj);
-    void* ptr = Nan::GetInternalFieldPointer(obj, 0);
     return scope.Escape(obj);
   }
 
   element_type& self() { return _self; }
 
-  inline static element_type& self(v8::Local<v8::Object>& obj) {
+  inline static element_type& self(v8::Local<v8::Object> obj) {
     return wrapper(obj)->self();
   }
 
-  inline static element_type& self(v8::Local<v8::Value>& val) {
+  inline static element_type& self(v8::Local<v8::Value> val) {
     return wrapper(val.As<v8::Object>())->self();
   }
 
