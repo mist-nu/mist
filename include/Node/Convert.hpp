@@ -176,14 +176,14 @@ struct NodeValueConverter<T,
 } // namespace detail
 
 template<typename T>
-v8::Local<v8::Value> conv(T v)
+inline v8::Local<v8::Value> conv(T v)
 {
   return detail::NodeValueConverter<detail::node_decay_t<T>>::conv(
     detail::nodeDecay<T>(v));
 }
 
 template<typename T>
-T convBack(v8::Local<v8::Value> v)
+inline T convBack(v8::Local<v8::Value> v)
 {
   return detail::NodeValueConverter<detail::node_decay_t<T>>::convBack(v);
 }

@@ -18,16 +18,13 @@ class ServiceWrap : public NodeWrapSingleton<ServiceWrap, mist::Service&>
 {
 private:
 
-  ServiceWrap(mist::Service& service)
-    : NodeWrapSingleton(service)
-  {
-  }
+  ServiceWrap(mist::Service& service);
 
 public:
 
   static const char* ClassName() { return "Service"; }
 
-  static v8::Local<v8::FunctionTemplate> Init();
+  static void Init(v8::Local<v8::Object> target);
 
 private:
 

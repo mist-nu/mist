@@ -24,11 +24,11 @@ public:
 
   static const char* ClassName() { return "Signature"; }
 
-  static v8::Local<v8::FunctionTemplate> Init();
+  static void Init(v8::Local<v8::Object> target);
 
   static void fromString(const Nan::FunctionCallbackInfo<v8::Value>& info);
   static void fromBuffer(const Nan::FunctionCallbackInfo<v8::Value>& info);
-  
+
   void toString(const Nan::FunctionCallbackInfo<v8::Value>& info);
 
 };

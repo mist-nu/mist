@@ -21,7 +21,7 @@ public:
 
   static const char* ClassName() { return "SHA3Hasher"; }
 
-  static v8::Local<v8::FunctionTemplate> Init();
+  static void Init(v8::Local<v8::Object> target);
 
   void reset(const Nan::FunctionCallbackInfo<v8::Value>& info);
 

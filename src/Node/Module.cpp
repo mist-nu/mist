@@ -26,14 +26,14 @@ v8::Isolate* isolate = nullptr;
 v8::Local<v8::Object>
 require(v8::Local<v8::Object> module, const std::string& path)
 {
-  v8::HandleScope scope(isolate);
+  Nan::EscapableHandleScope scope;
 
   v8::Local<v8::Function> require
     = module->Get(conv("require")).As<v8::Function>();
 
   v8::Local<v8::Value> args[] = { conv(path) };
 
-  return require->Call(module, 1, args).As<v8::Object>();
+  return scope.Escape(require->Call(module, 1, args).As<v8::Object>());
 }
 
 //void
@@ -52,7 +52,7 @@ require(v8::Local<v8::Object> module, const std::string& path)
 // void
 // initializeNSS(const Nan::FunctionCallbackInfo<v8::Value>& info)
 // {
-//   v8::HandleScope scope(isolate);
+//   Nan::HandleScope scope;
 
 //   std::string dbDir(convBack<std::string>(info[0]));
 //   v8::Local<v8::Function> peerAuthenticateCb = info[1].As<v8::Function>();
@@ -68,7 +68,7 @@ require(v8::Local<v8::Object> module, const std::string& path)
 // void
 // loadPKCS12(const Nan::FunctionCallbackInfo<v8::Value>& info)
 // {
-//   v8::HandleScope scope(isolate);
+//   Nan::HandleScope scope;
 
 //   std::string data(convBack<std::string>(info[0]));
 //   std::string password(convBack<std::string>(info[1]));
@@ -79,7 +79,7 @@ require(v8::Local<v8::Object> module, const std::string& path)
 // void
 // loadPKCS12File(const Nan::FunctionCallbackInfo<v8::Value>& info)
 // {
-//   v8::HandleScope scope(isolate);
+//   Nan::HandleScope scope;
 
 //   std::string filename(convBack<std::string>(info[0]));
 //   std::string password(convBack<std::string>(info[1]));
@@ -90,7 +90,7 @@ require(v8::Local<v8::Object> module, const std::string& path)
 // void
 // serveDirect(const Nan::FunctionCallbackInfo<v8::Value>& info)
 // {
-//   v8::HandleScope scope(isolate);
+//   Nan::HandleScope scope;
 
 //   std::uint16_t incomingPort(convBack<std::uint16_t>(info[0]));
 
@@ -100,7 +100,7 @@ require(v8::Local<v8::Object> module, const std::string& path)
 // void
 // startServeTor(const Nan::FunctionCallbackInfo<v8::Value>& info)
 // {
-//   v8::HandleScope scope(isolate);
+//   Nan::HandleScope scope;
 
 //   try {
 
@@ -131,7 +131,7 @@ require(v8::Local<v8::Object> module, const std::string& path)
 // void
 // connectPeerDirect(const Nan::FunctionCallbackInfo<v8::Value>& info)
 // {
-//   v8::HandleScope scope(isolate);
+//   Nan::HandleScope scope;
 
 //   mist::Peer& peer = Peer::self(info[0].As<v8::Object>());
 //   std::string addrStr(convBack<std::string>(info[1]));
@@ -144,7 +144,7 @@ require(v8::Local<v8::Object> module, const std::string& path)
 // void
 // connectPeerTor(const Nan::FunctionCallbackInfo<v8::Value>& info)
 // {
-//   v8::HandleScope scope(isolate);
+//   Nan::HandleScope scope;
 
 //   mist::Peer& peer = Peer::self(info[0].As<v8::Object>());
 
@@ -154,7 +154,7 @@ require(v8::Local<v8::Object> module, const std::string& path)
 // void
 // addAuthenticatedPeer(const Nan::FunctionCallbackInfo<v8::Value>& info)
 // {
-//   v8::HandleScope scope(isolate);
+//   Nan::HandleScope scope;
 
 //   std::string derPublicKey(convBack<std::string>(info[0]));
 
@@ -171,7 +171,7 @@ require(v8::Local<v8::Object> module, const std::string& path)
 // void
 // onionAddress(const Nan::FunctionCallbackInfo<v8::Value>& info)
 // {
-//   v8::HandleScope scope(isolate);
+//   Nan::HandleScope scope;
 
 //   try {
 //     auto func = info[0].As<v8::Function>();
@@ -187,47 +187,31 @@ void
 Init(v8::Local<v8::Object> target, v8::Local<v8::Object> module)
 {
   isolate = target->GetIsolate();
-  v8::HandleScope scope(isolate);
 
-  Nan::Set(target, Nan::New(ServiceWrap::ClassName()).ToLocalChecked(),
-	   Nan::GetFunction(ServiceWrap::Init()).ToLocalChecked());
-  Nan::Set(target, Nan::New(PeerWrap::ClassName()).ToLocalChecked(),
-	   Nan::GetFunction(PeerWrap::Init()).ToLocalChecked());
-  Nan::Set(target, Nan::New(ClientStreamWrap::ClassName()).ToLocalChecked(),
-	   Nan::GetFunction(ClientStreamWrap::Init()).ToLocalChecked());
-  Nan::Set(target, Nan::New(ClientRequestWrap::ClassName()).ToLocalChecked(),
-	   Nan::GetFunction(ClientRequestWrap::Init()).ToLocalChecked());
-  Nan::Set(target, Nan::New(ClientResponseWrap::ClassName()).ToLocalChecked(),
-    Nan::GetFunction(ClientResponseWrap::Init()).ToLocalChecked());
-  Nan::Set(target, Nan::New(ServerStreamWrap::ClassName()).ToLocalChecked(),
-    Nan::GetFunction(ServerStreamWrap::Init()).ToLocalChecked());
-  Nan::Set(target, Nan::New(ServerRequestWrap::ClassName()).ToLocalChecked(),
-    Nan::GetFunction(ServerRequestWrap::Init()).ToLocalChecked());
-  Nan::Set(target, Nan::New(ServerResponseWrap::ClassName()).ToLocalChecked(),
-    Nan::GetFunction(ServerResponseWrap::Init()).ToLocalChecked());
-  Nan::Set(target, Nan::New(CentralWrap::ClassName()).ToLocalChecked(),
-    Nan::GetFunction(CentralWrap::Init()).ToLocalChecked());
-  Nan::Set(target, Nan::New(SHA3Wrap::ClassName()).ToLocalChecked(),
-    Nan::GetFunction(SHA3Wrap::Init()).ToLocalChecked());
-  Nan::Set(target, Nan::New(SHA3HasherWrap::ClassName()).ToLocalChecked(),
-    Nan::GetFunction(SHA3HasherWrap::Init()).ToLocalChecked());
-  Nan::Set(target, Nan::New(PublicKeyWrap::ClassName()).ToLocalChecked(),
-    Nan::GetFunction(PublicKeyWrap::Init()).ToLocalChecked());
-  Nan::Set(target, Nan::New(PrivateKeyWrap::ClassName()).ToLocalChecked(),
-    Nan::GetFunction(PrivateKeyWrap::Init()).ToLocalChecked());
+  Nan::HandleScope scope;
 
-  Nan::Set(target, Nan::New(DatabaseWrap::ClassName()).ToLocalChecked(),
-    Nan::GetFunction(DatabaseWrap::Init()).ToLocalChecked());
+  ServiceWrap::Init(target);
+  PeerWrap::Init(target);
+  ClientStreamWrap::Init(target);
+  ClientRequestWrap::Init(target);
+  ClientResponseWrap::Init(target);
+  ServerStreamWrap::Init(target);
+  ServerRequestWrap::Init(target);
+  ServerResponseWrap::Init(target);
+  CentralWrap::Init(target);
+  SHA3Wrap::Init(target);
+  SHA3HasherWrap::Init(target);
+  PublicKeyWrap::Init(target);
+  PrivateKeyWrap::Init(target);
+
+  DatabaseWrap::Init(target);
   // TODO: Find out how to make these classes properties
   // of DatabaseWrap, and remove them from here.
-  Nan::Set(target, Nan::New(ManifestWrap::ClassName()).ToLocalChecked(),
-    Nan::GetFunction(ManifestWrap::Init()).ToLocalChecked());
-  Nan::Set(target, Nan::New(ObjectRefWrap::ClassName()).ToLocalChecked(),
-    Nan::GetFunction(ObjectRefWrap::Init()).ToLocalChecked());
-  Nan::Set(target, Nan::New(MistObjectWrap::ClassName()).ToLocalChecked(),
-    Nan::GetFunction(MistObjectWrap::Init()).ToLocalChecked());
-  Nan::Set(target, Nan::New(QueryResultWrap::ClassName()).ToLocalChecked(),
-    Nan::GetFunction(QueryResultWrap::Init()).ToLocalChecked());
+  ManifestWrap::Init(target);
+  ObjectRefWrap::Init(target);
+  MistObjectWrap::Init(target);
+  QueryResultWrap::Init(target);
+
 
   // Nan::Set(target, Nan::New("initializeNSS").ToLocalChecked(),
   //   Nan::GetFunction(Nan::New<v8::FunctionTemplate>(initializeNSS)).ToLocalChecked());

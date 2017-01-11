@@ -21,19 +21,22 @@ SHA3Wrap::SHA3Wrap(const Mist::CryptoHelper::SHA3& other)
 {
 }
 
-v8::Local<v8::FunctionTemplate> SHA3Wrap::Init()
+void
+SHA3Wrap::Init(v8::Local<v8::Object> target)
 {
   v8::Local<v8::FunctionTemplate> tpl = defaultTemplate(ClassName());
 
   Nan::SetMethod(tpl, "fromBuffer", &SHA3Wrap::fromBuffer);
   Nan::SetMethod(tpl, "fromString", &SHA3Wrap::fromString);
-  
-  Nan::SetPrototypeMethod(tpl, "toString",
-			  Method<&SHA3Wrap::toString>);
-  
-  constructor().Reset(Nan::GetFunction(tpl).ToLocalChecked());
 
-  return tpl;
+  Nan::SetPrototypeMethod(tpl, "toString",
+    Method<&SHA3Wrap::toString>);
+
+  auto func(Nan::GetFunction(tpl).ToLocalChecked());
+
+  constructor().Reset(func);
+
+  Nan::Set(target, Nan::New(ClassName()).ToLocalChecked(), func);
 }
 
 void
@@ -47,6 +50,7 @@ void
 SHA3Wrap::fromBuffer(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
   Nan::HandleScope scope;
+  // TODO:
   //info.GetReturnValue().Set(conv(self().toString()));
 }
 

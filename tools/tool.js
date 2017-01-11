@@ -64,22 +64,7 @@ function createDatabase(dbName) {
 
 function listDatabases() {
     central.listDatabases().forEach(function (database) {
-
-        // TODO: Printing a database object crashes..!
-        console.log("<database>");
-	console.log( "hej" );
-	console.log( database === undefined );
-	console.log( database === null );
-	console.log( typeof database );
-	console.log( typeof central );
-	for (var i in database) console.log( i );
-	console.log( "hej 1" );
-	database.toString();
-	console.log( "hej 2" );
-	database.getHash();
-	console.log( "hopp" );
-	console.log( database.getHash().toString() );
-        //console.log(database);
+        console.log(database);
     });
 }
 

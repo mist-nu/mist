@@ -23,8 +23,8 @@ public:
   PrivateKeyWrap(const Mist::CryptoHelper::PrivateKey& other);
 
   static const char* ClassName() { return "PrivateKey"; }
-
-  static v8::Local<v8::FunctionTemplate> Init();
+  
+  static void Init(v8::Local<v8::Object> target);
 
   void getPublicKey(const Nan::FunctionCallbackInfo<v8::Value>& info);
 

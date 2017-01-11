@@ -11,7 +11,7 @@ namespace Mist
 {
 namespace Node
 {
-  
+
 /*****************************************************************************
  * ServerStream, ServerRequest, ServerResponse
  *****************************************************************************/
@@ -23,23 +23,9 @@ public:
 
   static const char *ClassName() { return "ServerStream"; }
 
-  ServerStreamWrap(const Nan::FunctionCallbackInfo<v8::Value>& info);
-  ServerStreamWrap(mist::h2::ServerStream _self)
-    : NodeWrapSingleton(_self) {}
+  ServerStreamWrap(mist::h2::ServerStream _self);
 
-  static v8::Local<v8::FunctionTemplate> Init()
-  {
-    v8::Local<v8::FunctionTemplate> tpl = defaultTemplate(ClassName());
-
-    Nan::SetPrototypeMethod(tpl, "request",
-      Method<&ServerStreamWrap::request>);
-    Nan::SetPrototypeMethod(tpl, "response",
-      Method<&ServerStreamWrap::response>);
-
-    constructor().Reset(Nan::GetFunction(tpl).ToLocalChecked());
-
-    return tpl;
-  }
+  static void Init(v8::Local<v8::Object> target);
 
 private:
 
@@ -55,25 +41,9 @@ public:
 
   static const char *ClassName() { return "ServerRequest"; }
 
-  ServerRequestWrap(const Nan::FunctionCallbackInfo<v8::Value>& info);
-  ServerRequestWrap(mist::h2::ServerRequest _self)
-    : NodeWrapSingleton(_self) {}
+  ServerRequestWrap(mist::h2::ServerRequest _self);
 
-  static v8::Local<v8::FunctionTemplate> Init()
-  {
-    v8::Local<v8::FunctionTemplate> tpl = defaultTemplate(ClassName());
-
-    Nan::SetPrototypeMethod(tpl, "setOnData",
-      Method<&ServerRequestWrap::setOnData>);
-    Nan::SetPrototypeMethod(tpl, "headers",
-      Method<&ServerRequestWrap::headers>);
-    Nan::SetPrototypeMethod(tpl, "stream",
-      Method<&ServerRequestWrap::stream>);
-
-    constructor().Reset(Nan::GetFunction(tpl).ToLocalChecked());
-
-    return tpl;
-  }
+  static void Init(v8::Local<v8::Object> target);
 
 private:
 
@@ -97,30 +67,9 @@ public:
 
   static const char* ClassName() { return "ServerResponse"; }
 
-  ServerResponseWrap(const Nan::FunctionCallbackInfo<v8::Value>& info);
-  ServerResponseWrap(mist::h2::ServerResponse _self)
-    : NodeWrapSingleton(_self),
-    _inWrite(false), _lengthToWrite(0), _dataToWrite(nullptr)
-  {
-    using namespace std::placeholders;
-    self().setOnRead(std::bind(&ServerResponseWrap::onRead, this, _1, _2));
-  }
+  ServerResponseWrap(mist::h2::ServerResponse _self);
 
-  static v8::Local<v8::FunctionTemplate> Init()
-  {
-    v8::Local<v8::FunctionTemplate> tpl = defaultTemplate(ClassName());
-
-    Nan::SetPrototypeMethod(tpl, "_write",
-      Method<&ServerResponseWrap::_write>);
-    Nan::SetPrototypeMethod(tpl, "headers",
-      Method<&ServerResponseWrap::headers>);
-    Nan::SetPrototypeMethod(tpl, "stream",
-      Method<&ServerResponseWrap::stream>);
-
-    constructor().Reset(Nan::GetFunction(tpl).ToLocalChecked());
-
-    return tpl;
-  }
+  static void Init(v8::Local<v8::Object> target);
 
 private:
 
@@ -138,7 +87,7 @@ namespace detail
 template<>
 struct NodeValueConverter<const mist::h2::ServerRequest>
 {
-  static v8::Local<v8::Value> conv(const mist::h2::ServerRequest v)
+  static inline v8::Local<v8::Value> conv(const mist::h2::ServerRequest v)
   {
     return ServerRequestWrap::object(v);
   }
@@ -147,7 +96,7 @@ struct NodeValueConverter<const mist::h2::ServerRequest>
 template<>
 struct NodeValueConverter<const mist::h2::ServerResponse>
 {
-  static v8::Local<v8::Value> conv(const mist::h2::ServerResponse v)
+  static inline v8::Local<v8::Value> conv(const mist::h2::ServerResponse v)
   {
     return ServerResponseWrap::object(v);
   }
@@ -156,7 +105,7 @@ struct NodeValueConverter<const mist::h2::ServerResponse>
 template<>
 struct NodeValueConverter<const mist::h2::ServerStream>
 {
-  static v8::Local<v8::Value> conv(const mist::h2::ServerStream v)
+  static inline v8::Local<v8::Value> conv(const mist::h2::ServerStream v)
   {
     return ServerStreamWrap::object(v);
   }

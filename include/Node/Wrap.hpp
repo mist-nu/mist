@@ -119,6 +119,7 @@ struct PointerTraits<std::unique_ptr<T>>
 static v8::Local<v8::FunctionTemplate>
 defaultTemplate(const char* className)
 {
+  Nan::EscapableHandleScope scope;
   v8::Local<v8::FunctionTemplate> tpl = Nan::New<v8::FunctionTemplate>(
     [](const Nan::FunctionCallbackInfo<v8::Value>& info) -> void
   {
@@ -134,13 +135,14 @@ defaultTemplate(const char* className)
   });
   tpl->SetClassName(Nan::New(className).ToLocalChecked());
   tpl->InstanceTemplate()->SetInternalFieldCount(1);
-  return tpl;
+  return scope.Escape(tpl);
 }
 
 template<typename T>
 static v8::Local<v8::FunctionTemplate>
 constructingTemplate(const char* className)
 {
+  Nan::EscapableHandleScope scope;
   v8::Local<v8::FunctionTemplate> tpl = Nan::New<v8::FunctionTemplate>(
     [](const Nan::FunctionCallbackInfo<v8::Value>& info) -> void
   {
@@ -157,7 +159,7 @@ constructingTemplate(const char* className)
   });
   tpl->SetClassName(Nan::New(className).ToLocalChecked());
   tpl->InstanceTemplate()->SetInternalFieldCount(1);
-  return tpl;
+  return scope.Escape(tpl);
 }
 
 template<typename T, typename Ptr>
@@ -180,7 +182,7 @@ protected:
 
   NodeWrap(Ptr s) : _self(std::forward<Ptr>(s)) {}
 
-  static T* wrapper(v8::Local<v8::Object> obj) {
+  inline static T* wrapper(v8::Local<v8::Object>& obj) {
     return Nan::ObjectWrap::Unwrap<T>(obj);
   }
 
@@ -192,16 +194,16 @@ protected:
     const Nan::FunctionCallbackInfo<v8::Value>& info)
   {
     try {
-        T* obj = ObjectWrap::Unwrap<T>(info.This());
-        (obj->*m)(info);
+      T* obj = ObjectWrap::Unwrap<T>(info.This());
+      (obj->*m)(info);
     } catch (boost::exception& e) {
-        std::cerr << "Exception in wrapped method: "
-		  << boost::diagnostic_information(e);
-    } catch (std::exception &e) {
-        std::cerr << "Exception in wrapped method: "
-		  << e.what() << std::endl;
+      std::cerr << "Exception in wrapped method: "
+        << boost::diagnostic_information(e);
+    } catch (std::exception& e) {
+      std::cerr << "Exception in wrapped method: "
+        << boost::diagnostic_information(e);
     } catch (...) {
-        std::cerr << "Exception in wrapped method" << std::endl;
+      std::cerr << "Exception in wrapped method" << std::endl;
     }
   }
 
@@ -218,6 +220,9 @@ protected:
       T* obj = ObjectWrap::Unwrap<T>(info.This());
       (obj->*m)(name, info);
     } catch (boost::exception& e) {
+      std::cerr << "Exception in wrapped getter: "
+        << boost::diagnostic_information(e);
+    } catch (std::exception& e) {
       std::cerr << "Exception in wrapped getter: "
         << boost::diagnostic_information(e);
     } catch (...) {
@@ -242,34 +247,39 @@ protected:
     } catch (boost::exception& e) {
       std::cerr << "Exception in wrapped setter: "
         << boost::diagnostic_information(e);
+    } catch (std::exception& e) {
+      std::cerr << "Exception in wrapped setter: "
+        << boost::diagnostic_information(e);
     } catch (...) {
       std::cerr << "Exception in wrapped setter" << std::endl;
     }
   }
 
   static Nan::Persistent<v8::Function> &constructor() { return _ctor; }
-  
+
 public:
 
   template<typename... Args>
   static v8::Local<v8::Object> make(Args&&... args) {
-    Nan::HandleScope scope;
+    Nan::EscapableHandleScope scope;
     v8::Local<v8::Function> ctor = Nan::New(constructor());
     std::array<v8::Local<v8::Value>, 1> ctorArgs{noCtorSentinel()};
     v8::Local<v8::Object> obj
-      = ctor->NewInstance(ctorArgs.size(), ctorArgs.data());
+      = Nan::NewInstance(ctor, ctorArgs.size(),
+          ctorArgs.data()).ToLocalChecked();
     T* wrapper = new T(std::forward<Args>(args)...);
     wrapper->Wrap(obj);
-    return obj;
+    void* ptr = Nan::GetInternalFieldPointer(obj, 0);
+    return scope.Escape(obj);
   }
 
   element_type& self() { return _self; }
 
-  static element_type& self(v8::Local<v8::Object> obj) {
+  inline static element_type& self(v8::Local<v8::Object>& obj) {
     return wrapper(obj)->self();
   }
 
-  static element_type& self(v8::Local<v8::Value> val) {
+  inline static element_type& self(v8::Local<v8::Value>& val) {
     return wrapper(val.As<v8::Object>())->self();
   }
 
@@ -290,32 +300,30 @@ private:
 
 public:
 
-  v8::Local<v8::Object> object()
+  // TODO: Make use of already existing function handle
+  inline v8::Local<v8::Object> object()
   {
     return _objMap[this->self()];
   }
 
   static v8::Local<v8::Object> object(Ptr key)
   {
+    Nan::EscapableHandleScope scope;
     auto ptrKey = detail::PointerTraits<Ptr>::getPointer(key);
     if (!_objMap.hasKey(ptrKey)) {
       v8::Local<v8::Function> ctor = Nan::New(NodeWrap<T, Ptr>::constructor());
       std::array<v8::Local<v8::Value>, 1> ctorArgs{noCtorSentinel()};
       v8::Local<v8::Object> obj
-	= ctor->NewInstance(ctorArgs.size(), ctorArgs.data());
+        = ctor->NewInstance(ctorArgs.size(), ctorArgs.data());
       T* wrapper = new T(key);
       wrapper->Wrap(obj);
-      //T* 
-      //v8::Local<v8::Object> obj = ctor->NewInstance(0, nullptr);
-      //T* wrapper = Nan::ObjectWrap::Unwrap<T>(obj);
       _objMap.insert(ptrKey, obj);
     }
-    return _objMap[ptrKey];
+    return scope.Escape(_objMap[ptrKey]);
   }
 
 protected:
 
-  //NodeWrapSingleton() : NodeWrap<T, Ptr>() {}
   NodeWrapSingleton(Ptr s) : NodeWrap<T, Ptr>(std::forward<Ptr>(s)) {}
 
   void setObject(v8::Local<v8::Object> obj)

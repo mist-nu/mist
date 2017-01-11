@@ -14,24 +14,32 @@ namespace Mist
 namespace Node
 {
 
-v8::Local<v8::FunctionTemplate>
-ServiceWrap::Init()
+ServiceWrap::ServiceWrap(mist::Service& service)
+  : NodeWrapSingleton(service)
 {
-  v8::Local<v8::FunctionTemplate> tpl = Nan::New<v8::FunctionTemplate>(New);
-  tpl->SetClassName(Nan::New(ClassName()).ToLocalChecked());
-  tpl->InstanceTemplate()->SetInternalFieldCount(1);
+}
+
+void
+ServiceWrap::Init(v8::Local<v8::Object> target)
+{
+  Nan::HandleScope scope;
+
+  v8::Local<v8::FunctionTemplate> tpl = defaultTemplate(ClassName());
 
   Nan::SetPrototypeMethod(tpl, "setOnPeerConnectionStatus",
-			  Method<&ServiceWrap::setOnPeerConnectionStatus>);
+    Method<&ServiceWrap::setOnPeerConnectionStatus>);
   Nan::SetPrototypeMethod(tpl, "setOnPeerRequest",
-			  Method<&ServiceWrap::setOnPeerRequest>);
+    Method<&ServiceWrap::setOnPeerRequest>);
   Nan::SetPrototypeMethod(tpl, "submit",
-			  Method<&ServiceWrap::submit>);
-  
-  constructor().Reset(Nan::GetFunction(tpl).ToLocalChecked());
-  return tpl;
+    Method<&ServiceWrap::submit>);
+
+  auto func(Nan::GetFunction(tpl).ToLocalChecked());
+
+  constructor().Reset(func);
+
+  Nan::Set(target, Nan::New(ClassName()).ToLocalChecked(), func);
 }
-  
+
 void
 ServiceWrap::New(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {

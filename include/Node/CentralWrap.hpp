@@ -22,7 +22,7 @@ public:
 
   static const char *ClassName() { return "Central"; }
 
-  static v8::Local<v8::FunctionTemplate> Init();
+  static void Init(v8::Local<v8::Object> target);
 
 private:
 
@@ -81,14 +81,14 @@ namespace detail
 template<>
 struct NodeValueConverter<const Mist::PeerStatus>
 {
-    static v8::Local<v8::Value> conv(Mist::PeerStatus v)
-    {
-        return Nan::New(static_cast<int>(v));
-    }
-    static Mist::PeerStatus convBack(v8::Local<v8::Value> v)
-    {
-        return static_cast<Mist::PeerStatus>(Nan::To<int>(v).FromJust());
-    }
+  static inline v8::Local<v8::Value> conv(Mist::PeerStatus v)
+  {
+    return Nan::New(static_cast<int>(v));
+  }
+  static inline Mist::PeerStatus convBack(v8::Local<v8::Value> v)
+  {
+    return static_cast<Mist::PeerStatus>(Nan::To<int>(v).FromJust());
+  }
 };
 
 }

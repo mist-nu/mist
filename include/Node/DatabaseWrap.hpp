@@ -12,7 +12,7 @@ namespace Mist
 {
 namespace Node
 {
-  
+
 //
 // Database
 //
@@ -25,7 +25,7 @@ public:
 
   DatabaseWrap(Mist::Database* _self);
 
-  static v8::Local<v8::FunctionTemplate> Init();
+  static void Init(v8::Local<v8::Object> target);
 
 private:
 
@@ -57,7 +57,7 @@ public:
 
   ManifestWrap(const Mist::Database::Manifest&);
 
-  static v8::Local<v8::FunctionTemplate> Init();
+  static void Init(v8::Local<v8::Object> target);
 
 private:
 
@@ -83,20 +83,20 @@ public:
   ObjectRefWrap();
   ObjectRefWrap(const Mist::Database::ObjectRef&);
 
-  static v8::Local<v8::FunctionTemplate> Init();
+  static void Init(v8::Local<v8::Object> target);
 
 private:
 
   void getAccessDomain(v8::Local<v8::String> name,
-		       const Nan::PropertyCallbackInfo<v8::Value>& info);
+    const Nan::PropertyCallbackInfo<v8::Value>& info);
   void setAccessDomain(v8::Local<v8::String> name,
-		       v8::Local<v8::Value> value,
-		       const Nan::PropertyCallbackInfo<void>& info);
+    v8::Local<v8::Value> value,
+    const Nan::PropertyCallbackInfo<void>& info);
   void getId(v8::Local<v8::String> name,
-	     const Nan::PropertyCallbackInfo<v8::Value>& info);
+    const Nan::PropertyCallbackInfo<v8::Value>& info);
   void setId(v8::Local<v8::String> name,
-	     v8::Local<v8::Value> value,
-	     const Nan::PropertyCallbackInfo<void>& info);
+    v8::Local<v8::Value> value,
+    const Nan::PropertyCallbackInfo<void>& info);
 
 };
 
@@ -108,30 +108,30 @@ class MistObjectWrap
 {
 public:
 
-    static const char* ClassName() { return "Object"; }
+  static const char* ClassName() { return "Object"; }
 
-    MistObjectWrap(const Nan::FunctionCallbackInfo<v8::Value>& info);
-    MistObjectWrap();
-    MistObjectWrap(const Mist::Database::Object& other);
+  MistObjectWrap(const Nan::FunctionCallbackInfo<v8::Value>& info);
+  MistObjectWrap();
+  MistObjectWrap(const Mist::Database::Object& other);
 
-    static v8::Local<v8::FunctionTemplate> Init();
+  static void Init(v8::Local<v8::Object> target);
 
 private:
 
-    void getAccessDomain(v8::Local<v8::String> name,
-                 const Nan::PropertyCallbackInfo<v8::Value>& info);
-    void getId(v8::Local<v8::String> name,
-           const Nan::PropertyCallbackInfo<v8::Value>& info);
-    void getVersion(v8::Local<v8::String> name,
-           const Nan::PropertyCallbackInfo<v8::Value>& info);
-    void getParent(v8::Local<v8::String> name,
-           const Nan::PropertyCallbackInfo<v8::Value>& info);
-    void getAttributes(v8::Local<v8::String> name,
-           const Nan::PropertyCallbackInfo<v8::Value>& info);
-    void getStatus(v8::Local<v8::String> name,
-           const Nan::PropertyCallbackInfo<v8::Value>& info);
-    void getAction(v8::Local<v8::String> name,
-           const Nan::PropertyCallbackInfo<v8::Value>& info);
+  void getAccessDomain(v8::Local<v8::String> name,
+    const Nan::PropertyCallbackInfo<v8::Value>& info);
+  void getId(v8::Local<v8::String> name,
+    const Nan::PropertyCallbackInfo<v8::Value>& info);
+  void getVersion(v8::Local<v8::String> name,
+    const Nan::PropertyCallbackInfo<v8::Value>& info);
+  void getParent(v8::Local<v8::String> name,
+    const Nan::PropertyCallbackInfo<v8::Value>& info);
+  void getAttributes(v8::Local<v8::String> name,
+    const Nan::PropertyCallbackInfo<v8::Value>& info);
+  void getStatus(v8::Local<v8::String> name,
+    const Nan::PropertyCallbackInfo<v8::Value>& info);
+  void getAction(v8::Local<v8::String> name,
+    const Nan::PropertyCallbackInfo<v8::Value>& info);
 
 };
 
@@ -143,29 +143,29 @@ class QueryResultWrap
 {
 public:
 
-    static const char* ClassName() { return "QueryResult"; }
+  static const char* ClassName() { return "QueryResult"; }
 
-    QueryResultWrap(const Nan::FunctionCallbackInfo<v8::Value>& info);
-    QueryResultWrap();
-    QueryResultWrap(const Mist::Database::QueryResult& other);
+  QueryResultWrap(const Nan::FunctionCallbackInfo<v8::Value>& info);
+  QueryResultWrap();
+  QueryResultWrap(const Mist::Database::QueryResult& other);
 
-    static v8::Local<v8::FunctionTemplate> Init();
+  static void Init(v8::Local<v8::Object> target);
 
 private:
 
-    void isFunctionCall(v8::Local<v8::String> name,
-            const Nan::PropertyCallbackInfo<v8::Value>& info);
-    void getFunctionName(v8::Local<v8::String> name,
-            const Nan::PropertyCallbackInfo<v8::Value>& info);
-    void getFunctionAttribute(v8::Local<v8::String> name,
-            const Nan::PropertyCallbackInfo<v8::Value>& info);
-    void getFunctionValue(v8::Local<v8::String> name,
-            const Nan::PropertyCallbackInfo<v8::Value>& info);
-    void getObjects(v8::Local<v8::String> name,
-            const Nan::PropertyCallbackInfo<v8::Value>& info);
+  void isFunctionCall(v8::Local<v8::String> name,
+    const Nan::PropertyCallbackInfo<v8::Value>& info);
+  void getFunctionName(v8::Local<v8::String> name,
+    const Nan::PropertyCallbackInfo<v8::Value>& info);
+  void getFunctionAttribute(v8::Local<v8::String> name,
+    const Nan::PropertyCallbackInfo<v8::Value>& info);
+  void getFunctionValue(v8::Local<v8::String> name,
+    const Nan::PropertyCallbackInfo<v8::Value>& info);
+  void getObjects(v8::Local<v8::String> name,
+    const Nan::PropertyCallbackInfo<v8::Value>& info);
 
 };
-  
+
 Database::Value toDatabaseValue(v8::Local<v8::Value> val);
 v8::Local<v8::Value> fromDatabaseValue(Database::Value val);
 
@@ -175,31 +175,31 @@ namespace detail
 template<>
 struct NodeValueConverter<Database* const>
 {
-    static v8::Local<v8::Value> conv(const Database* const v)
-    {
-        return DatabaseWrap::object(const_cast<Database*>(v));
-    }
+  static inline v8::Local<v8::Value> conv(const Database* const v)
+  {
+    return DatabaseWrap::object(const_cast<Database*>(v));
+  }
 };
 
 template<>
 struct NodeValueConverter<const Database::AccessDomain>
 {
-    static v8::Local<v8::Value> conv(const Database::AccessDomain& v)
-    {
-        return Nan::New(static_cast<std::uint8_t>(v));
-    }
+  static inline v8::Local<v8::Value> conv(const Database::AccessDomain& v)
+  {
+    return Nan::New(static_cast<std::uint8_t>(v));
+  }
 };
 
 template<>
 struct NodeValueConverter<const Database::Manifest>
 {
-    static v8::Local<v8::Value> conv(const Database::Manifest& v)
-    {
-        return ManifestWrap::make(v);
-    }
+  static inline v8::Local<v8::Value> conv(const Database::Manifest& v)
+  {
+    return ManifestWrap::make(v);
+  }
 };
 
 }
-  
+
 } // namespace Node
 } // namespace Mist

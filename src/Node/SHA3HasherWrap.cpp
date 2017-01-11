@@ -17,20 +17,25 @@ SHA3HasherWrap::SHA3HasherWrap()
 {
 }
 
-v8::Local<v8::FunctionTemplate> SHA3HasherWrap::Init()
+void
+SHA3HasherWrap::Init(v8::Local<v8::Object> target)
 {
+  Nan::HandleScope scope;
+
   v8::Local<v8::FunctionTemplate> tpl = defaultTemplate(ClassName());
 
   Nan::SetPrototypeMethod(tpl, "reset",
-			  Method<&SHA3HasherWrap::reset>);
+    Method<&SHA3HasherWrap::reset>);
   Nan::SetPrototypeMethod(tpl, "update",
-			  Method<&SHA3HasherWrap::update>);
+    Method<&SHA3HasherWrap::update>);
   Nan::SetPrototypeMethod(tpl, "finalize",
-			  Method<&SHA3HasherWrap::finalize>);
-  
-  constructor().Reset(Nan::GetFunction(tpl).ToLocalChecked());
+    Method<&SHA3HasherWrap::finalize>);
 
-  return tpl;
+  auto func(Nan::GetFunction(tpl).ToLocalChecked());
+
+  constructor().Reset(func);
+
+  Nan::Set(target, Nan::New(ClassName()).ToLocalChecked(), func);
 }
 
 void

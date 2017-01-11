@@ -27,17 +27,24 @@ SignatureWrap::SignatureWrap(const Mist::CryptoHelper::Signature& other)
 {
 }
 
-v8::Local<v8::FunctionTemplate> SignatureWrap::Init()
+void
+SignatureWrap::Init(v8::Local<v8::Object> target)
 {
+  Nan::HandleScope scope;
+
   v8::Local<v8::FunctionTemplate> tpl = defaultTemplate(ClassName());
 
   Nan::SetMethod(tpl, "fromString", &SignatureWrap::fromString);
   Nan::SetMethod(tpl, "fromBuffer", &SignatureWrap::fromBuffer);
   
   Nan::SetPrototypeMethod(tpl, "toString",
-			  Method<&SignatureWrap::toString>);
-  
-  return tpl;
+    Method<&SignatureWrap::toString>);
+
+  auto func(Nan::GetFunction(tpl).ToLocalChecked());
+
+  constructor().Reset(func);
+
+  Nan::Set(target, Nan::New(ClassName()).ToLocalChecked(), func);
 }
 
 void

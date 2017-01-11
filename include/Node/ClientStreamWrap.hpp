@@ -23,10 +23,9 @@ public:
 
   static const char* ClassName() { return "ClientStream"; }
 
-  ClientStreamWrap(const Nan::FunctionCallbackInfo<v8::Value>& info);
   ClientStreamWrap(mist::h2::ClientStream _self);
 
-  static v8::Local<v8::FunctionTemplate> Init();
+  static void Init(v8::Local<v8::Object> target);
 
 private:
 
@@ -52,7 +51,7 @@ public:
   ClientRequestWrap(const Nan::FunctionCallbackInfo<v8::Value>& info);
   ClientRequestWrap(mist::h2::ClientRequest& _self);
 
-  static v8::Local<v8::FunctionTemplate> Init();
+  static void Init(v8::Local<v8::Object> target);
 
 private:
 
@@ -76,7 +75,7 @@ public:
 
   static const char *ClassName() { return "ClientResponse"; }
 
-  static v8::Local<v8::FunctionTemplate> Init();
+  static void Init(v8::Local<v8::Object> target);
 
 private:
 
@@ -92,7 +91,7 @@ namespace detail
 template<>
 struct NodeValueConverter<const mist::h2::ClientStream>
 {
-  static v8::Local<v8::Value> conv(const mist::h2::ClientStream v)
+  static inline v8::Local<v8::Value> conv(const mist::h2::ClientStream v)
   {
     return ClientStreamWrap::object(v);
   }
@@ -101,7 +100,7 @@ struct NodeValueConverter<const mist::h2::ClientStream>
 template<>
 struct NodeValueConverter<const mist::h2::ClientRequest>
 {
-  static v8::Local<v8::Value> conv(const mist::h2::ClientRequest v)
+  static inline v8::Local<v8::Value> conv(const mist::h2::ClientRequest v)
   {
     return ClientRequestWrap::object(v);
   }
@@ -110,7 +109,7 @@ struct NodeValueConverter<const mist::h2::ClientRequest>
 template<>
 struct NodeValueConverter<const mist::h2::ClientResponse>
 {
-  static v8::Local<v8::Value> conv(const mist::h2::ClientResponse v)
+  static inline v8::Local<v8::Value> conv(const mist::h2::ClientResponse v)
   {
     return ClientResponseWrap::object(v);
   }

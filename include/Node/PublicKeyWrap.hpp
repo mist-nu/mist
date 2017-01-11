@@ -24,7 +24,7 @@ public:
 
   static const char* ClassName() { return "PublicKey"; }
 
-  static v8::Local<v8::FunctionTemplate> Init();
+  static void Init(v8::Local<v8::Object> target);
 
   static void fromPem(const Nan::FunctionCallbackInfo<v8::Value>& info);
   static void fromDer(const Nan::FunctionCallbackInfo<v8::Value>& info);

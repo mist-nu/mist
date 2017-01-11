@@ -22,16 +22,19 @@ PrivateKeyWrap::PrivateKeyWrap(const Mist::CryptoHelper::PrivateKey& other)
 {
 }
 
-v8::Local<v8::FunctionTemplate> PrivateKeyWrap::Init()
+void
+PrivateKeyWrap::Init(v8::Local<v8::Object> target)
 {
   v8::Local<v8::FunctionTemplate> tpl = defaultTemplate(ClassName());
 
   Nan::SetPrototypeMethod(tpl, "getPublicKey",
-			  Method<&PrivateKeyWrap::getPublicKey>);
-  
-  constructor().Reset(Nan::GetFunction(tpl).ToLocalChecked());
+    Method<&PrivateKeyWrap::getPublicKey>);
 
-  return tpl;
+  auto func(Nan::GetFunction(tpl).ToLocalChecked());
+
+  constructor().Reset(func);
+
+  Nan::Set(target, Nan::New(ClassName()).ToLocalChecked(), func);
 }
 
 void

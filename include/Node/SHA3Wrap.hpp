@@ -22,11 +22,11 @@ public:
 
   static const char* ClassName() { return "SHA3"; }
 
-  static v8::Local<v8::FunctionTemplate> Init();
+  static void Init(v8::Local<v8::Object> target);
 
   static void fromBuffer(const Nan::FunctionCallbackInfo<v8::Value>& info);
   static void fromString(const Nan::FunctionCallbackInfo<v8::Value>& info);
-  
+
   void toString(const Nan::FunctionCallbackInfo<v8::Value>& info);
 
 };
@@ -37,7 +37,7 @@ namespace detail
 template<>
   struct NodeValueConverter<const Mist::CryptoHelper::SHA3>
 {
-  static v8::Local<v8::Value> conv(const Mist::CryptoHelper::SHA3& v)
+  static inline v8::Local<v8::Value> conv(const Mist::CryptoHelper::SHA3& v)
   {
     return SHA3Wrap::make(v);
   }

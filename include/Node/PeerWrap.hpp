@@ -21,7 +21,7 @@ public:
 
   static const char* ClassName() { return "Peer"; }
 
-  static v8::Local<v8::FunctionTemplate> Init();
+  static void Init(v8::Local<v8::Object> target);
 
   void derPublicKey(const Nan::FunctionCallbackInfo<v8::Value>& info);
 
@@ -37,7 +37,7 @@ namespace detail
 template<>
 struct NodeValueConverter<const mist::Peer::ConnectionStatus>
 {
-  static v8::Local<v8::Value> conv(const mist::Peer::ConnectionStatus v)
+  static inline v8::Local<v8::Value> conv(const mist::Peer::ConnectionStatus v)
   {
     return Nan::New(static_cast<int>(v));
   }
@@ -46,7 +46,7 @@ struct NodeValueConverter<const mist::Peer::ConnectionStatus>
 template<>
 struct NodeValueConverter<const mist::Peer*>
 {
-  static v8::Local<v8::Value> conv(const mist::Peer* v)
+  static inline v8::Local<v8::Value> conv(const mist::Peer* v)
   {
     mist::Peer& ptr = *const_cast<mist::Peer*>(v);
     v8::Local<v8::Object> obj(PeerWrap::object(ptr));

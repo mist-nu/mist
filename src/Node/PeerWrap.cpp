@@ -16,20 +16,25 @@ PeerWrap::PeerWrap(mist::Peer& peer)
 {
 }
 
-v8::Local<v8::FunctionTemplate> PeerWrap::Init()
+void
+PeerWrap::Init(v8::Local<v8::Object> target)
 {
-    v8::Local<v8::FunctionTemplate> tpl = defaultTemplate(ClassName());
+  Nan::HandleScope scope;
 
-    Nan::SetPrototypeMethod(tpl, "setAuthenticated",
-      Method<&PeerWrap::setAuthenticated>);
-    Nan::SetPrototypeMethod(tpl, "derPublicKey",
-      Method<&PeerWrap::derPublicKey>);
-    Nan::SetPrototypeMethod(tpl, "publicKeyHash",
-      Method<&PeerWrap::publicKeyHash>);
+  v8::Local<v8::FunctionTemplate> tpl = defaultTemplate(ClassName());
 
-    constructor().Reset(Nan::GetFunction(tpl).ToLocalChecked());
+  Nan::SetPrototypeMethod(tpl, "setAuthenticated",
+    Method<&PeerWrap::setAuthenticated>);
+  Nan::SetPrototypeMethod(tpl, "derPublicKey",
+    Method<&PeerWrap::derPublicKey>);
+  Nan::SetPrototypeMethod(tpl, "publicKeyHash",
+    Method<&PeerWrap::publicKeyHash>);
 
-    return tpl;
+  auto func(Nan::GetFunction(tpl).ToLocalChecked());
+
+  constructor().Reset(func);
+
+  Nan::Set(target, Nan::New(ClassName()).ToLocalChecked(), func);
 }
 
 void

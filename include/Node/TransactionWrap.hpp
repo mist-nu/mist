@@ -13,7 +13,7 @@ namespace Mist
 {
 namespace Node
 {
-  
+
 class TransactionWrap
   : public NodeWrapSingleton<TransactionWrap, Mist::Transaction*>
 {
@@ -24,7 +24,7 @@ public:
   TransactionWrap(const Nan::FunctionCallbackInfo<v8::Value>& info);
   TransactionWrap(Mist::Transaction* _self);
 
-  static v8::Local<v8::FunctionTemplate> Init();
+  static void Init(v8::Local<v8::Object> target);
 
 private:
 
@@ -47,9 +47,9 @@ namespace detail
 template<>
 struct NodeValueConverter<Mist::Transaction*>
 {
-  static v8::Local<v8::Value> conv(const Mist::Transaction* const v)
+  static inline v8::Local<v8::Value> conv(const Mist::Transaction* const v)
   {
-    return TransactionWrap::object(const_cast< Mist::Transaction*>(v));
+    return TransactionWrap::object(const_cast<Mist::Transaction*>(v));
   }
 };
 

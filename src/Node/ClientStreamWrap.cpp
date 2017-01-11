@@ -14,25 +14,29 @@ namespace Node
 ClientStreamWrap::ClientStreamWrap(mist::h2::ClientStream _self)
   : NodeWrapSingleton(_self) {}
 
-v8::Local<v8::FunctionTemplate>
-ClientStreamWrap::Init()
+void
+ClientStreamWrap::Init(v8::Local<v8::Object> target)
 {
+  Nan::HandleScope scope;
+
   v8::Local<v8::FunctionTemplate> tpl = defaultTemplate(ClassName());
 
   Nan::SetPrototypeMethod(tpl, "request",
-			  Method<&ClientStreamWrap::request>);
+        Method<&ClientStreamWrap::request>);
   Nan::SetPrototypeMethod(tpl, "response",
-			  Method<&ClientStreamWrap::response>);
+        Method<&ClientStreamWrap::response>);
 
-  constructor().Reset(Nan::GetFunction(tpl).ToLocalChecked());
+  auto func(Nan::GetFunction(tpl).ToLocalChecked());
 
-  return tpl;
+  constructor().Reset(func);
+
+  Nan::Set(target, Nan::New(ClassName()).ToLocalChecked(), func);
 }
 
 void
 ClientStreamWrap::request(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
-  v8::HandleScope scope(isolate);
+  Nan::HandleScope scope;
 
   info.GetReturnValue().Set(ClientRequestWrap::object(self().request()));
 }
@@ -40,7 +44,7 @@ ClientStreamWrap::request(const Nan::FunctionCallbackInfo<v8::Value>& info)
 void
 ClientStreamWrap::response(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
-  v8::HandleScope scope(isolate);
+  Nan::HandleScope scope;
 
   info.GetReturnValue().Set(ClientResponseWrap::object(self().response()));
 }
@@ -54,9 +58,11 @@ ClientRequestWrap::ClientRequestWrap(mist::h2::ClientRequest& _self)
     onRead(std::uint8_t* data, std::size_t length);
 }
 
-v8::Local<v8::FunctionTemplate>
-ClientRequestWrap::Init()
+void
+ClientRequestWrap::Init(v8::Local<v8::Object> target)
 {
+  Nan::HandleScope scope;
+
   v8::Local<v8::FunctionTemplate> tpl = defaultTemplate(ClassName());
 
   Nan::SetPrototypeMethod(tpl, "setOnResponse",
@@ -70,15 +76,17 @@ ClientRequestWrap::Init()
   Nan::SetPrototypeMethod(tpl, "stream",
     Method<&ClientRequestWrap::stream>);
 
-  constructor().Reset(Nan::GetFunction(tpl).ToLocalChecked());
+  auto func(Nan::GetFunction(tpl).ToLocalChecked());
 
-  return tpl;
+  constructor().Reset(func);
+
+  Nan::Set(target, Nan::New(ClassName()).ToLocalChecked(), func);
 }
-  
+
 void
 ClientRequestWrap::_write(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
-  v8::HandleScope scope(isolate);
+  Nan::HandleScope scope;
 
   v8::Local<v8::Object> chunk = info[0].As<v8::Object>();
   std::string encoding = convBack<std::string>(info[1]);
@@ -103,8 +111,7 @@ ClientRequestWrap::onRead(std::uint8_t* data, std::size_t length)
     _dataToWrite = nullptr;
     asyncCall([=]()
     {
-      v8::HandleScope scope(isolate);
-
+      Nan::HandleScope scope;
       Nan::Callback cb(Nan::New(_callback));
       cb();
     });
@@ -121,7 +128,7 @@ ClientRequestWrap::onRead(std::uint8_t* data, std::size_t length)
 void
 ClientRequestWrap::setOnResponse(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
-  v8::HandleScope scope(isolate);
+  Nan::HandleScope scope;
   auto func = v8::Local<v8::Function>::Cast(info[0]);
 
   self(info.Holder()).setOnResponse(
@@ -131,7 +138,7 @@ ClientRequestWrap::setOnResponse(const Nan::FunctionCallbackInfo<v8::Value>& inf
 void
 ClientRequestWrap::setOnPush(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
-  v8::HandleScope scope(isolate);
+  Nan::HandleScope scope;
   auto func = v8::Local<v8::Function>::Cast(info[0]);
 
   self(info.Holder()).setOnPush(
@@ -141,13 +148,14 @@ ClientRequestWrap::setOnPush(const Nan::FunctionCallbackInfo<v8::Value>& info)
 void
 ClientRequestWrap::headers(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
-  v8::HandleScope scope(isolate);
+  Nan::HandleScope scope;
+  // TODO:
 }
 
 void
 ClientRequestWrap::stream(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
-  v8::HandleScope scope(isolate);
+  Nan::HandleScope scope;
 
   info.GetReturnValue().Set(ClientStreamWrap::object(self().stream()));
 }
@@ -157,19 +165,23 @@ ClientResponseWrap::ClientResponseWrap(mist::h2::ClientResponse _self)
 {
 }
 
-v8::Local<v8::FunctionTemplate>
-ClientResponseWrap::Init()
+void
+ClientResponseWrap::Init(v8::Local<v8::Object> target)
 {
-    v8::Local<v8::FunctionTemplate> tpl = defaultTemplate(ClassName());
+  Nan::HandleScope scope;
 
-    Nan::SetPrototypeMethod(tpl, "setOnData",
-      Method<&ClientResponseWrap::setOnData>);
-    Nan::SetPrototypeMethod(tpl, "stream",
-      Method<&ClientResponseWrap::stream>);
+  v8::Local<v8::FunctionTemplate> tpl = defaultTemplate(ClassName());
 
-    constructor().Reset(Nan::GetFunction(tpl).ToLocalChecked());
+  Nan::SetPrototypeMethod(tpl, "setOnData",
+    Method<&ClientResponseWrap::setOnData>);
+  Nan::SetPrototypeMethod(tpl, "stream",
+    Method<&ClientResponseWrap::stream>);
 
-    return tpl;
+  auto func(Nan::GetFunction(tpl).ToLocalChecked());
+
+  constructor().Reset(func);
+
+  Nan::Set(target, Nan::New(ClassName()).ToLocalChecked(), func);
 }
 
 void
@@ -181,7 +193,7 @@ ClientResponseWrap::setOnData(const Nan::FunctionCallbackInfo<v8::Value>& info)
     = [](v8::Local<v8::Function> func, const std::uint8_t* data,
         std::size_t length)
   {
-    v8::HandleScope scope(isolate);
+    Nan::HandleScope scope;
     Nan::Callback cb(func);
     v8::Local<v8::Value> args[] = {
       node::Buffer::Copy(isolate, reinterpret_cast<const char*>(data),
@@ -196,13 +208,14 @@ ClientResponseWrap::setOnData(const Nan::FunctionCallbackInfo<v8::Value>& info)
 void
 ClientResponseWrap::headers(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
-  v8::HandleScope scope(isolate);
+  Nan::HandleScope scope;
+  // TODO:
 }
 
 void
 ClientResponseWrap::stream(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
-  v8::HandleScope scope(isolate);
+  Nan::HandleScope scope;
 
   info.GetReturnValue().Set(ClientStreamWrap::object(self().stream()));
 }

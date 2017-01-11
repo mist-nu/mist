@@ -22,8 +22,11 @@ PublicKeyWrap::PublicKeyWrap(const Mist::CryptoHelper::PublicKey& other)
 {
 }
 
-v8::Local<v8::FunctionTemplate> PublicKeyWrap::Init()
+void
+PublicKeyWrap::Init(v8::Local<v8::Object> target)
 {
+  Nan::HandleScope scope;
+
   v8::Local<v8::FunctionTemplate> tpl = defaultTemplate(ClassName());
 
   Nan::SetMethod(tpl, "fromPem", &PublicKeyWrap::fromPem);
@@ -38,9 +41,11 @@ v8::Local<v8::FunctionTemplate> PublicKeyWrap::Init()
   Nan::SetPrototypeMethod(tpl, "fingerprint",
       Method<&PublicKeyWrap::fingerprint>);
 
-  constructor().Reset(Nan::GetFunction(tpl).ToLocalChecked());
+  auto func(Nan::GetFunction(tpl).ToLocalChecked());
 
-  return tpl;
+  constructor().Reset(func);
+
+  Nan::Set(target, Nan::New(ClassName()).ToLocalChecked(), func);
 }
 
 void
