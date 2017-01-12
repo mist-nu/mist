@@ -375,6 +375,8 @@ private:
         void queryTransactionsGetNextParent();
         void queryTransactionsDownloadNextTransaction(std::vector<std::string>::iterator it);
         void queryTransactionsDone();
+        void queryInvites();
+        void queryInvitesDone();
 
         enum class State {
             Reset,

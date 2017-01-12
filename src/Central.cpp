@@ -964,6 +964,46 @@ Mist::Central::PeerSyncState::queryTransactions()
     queryTransactionsNext();
 }
 
+namespace
+{
+
+boost::optional<Mist::CryptoHelper::SHA3> getMetadataHash(
+        const JSON::Value& transaction) {
+    try {
+        if (!transaction.is_object())
+            return boost::none;
+        auto& id = transaction.at("id");
+        if (id.is_string()) {
+            return Mist::CryptoHelper::SHA3(id.get_string());
+        }
+    } catch (std::out_of_range&) {
+        // id not found in object
+    }
+}
+
+std::vector<Mist::CryptoHelper::SHA3> getMetadataParents(
+        const JSON::Value& transaction) {
+    std::vector<Mist::CryptoHelper::SHA3> parentHashes;
+    try {
+        auto& parents = transaction.object.at("transaction")
+            .object.at("metadata")
+            .object.at("parents");
+        if (parents.is_array()) {
+            for (auto& parent : parents.array) {
+                if (parent.is_string()) {
+                    parentHashes.push_back(
+                        Mist::CryptoHelper::SHA3(parent.get_string()));
+                }
+            }
+        }
+    } catch (std::out_of_range&) {
+        // object key error
+    }
+    return parentHashes;
+}
+
+} // namespace
+
 void
 Mist::Central::PeerSyncState::queryTransactionsNext()
 {
@@ -1014,12 +1054,34 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
                                 //JSON::Array& arr = static_cast<JSON::Array&>(*value);
                                 const std::vector<JSON::Value>& arr = value->array;
                                 for (const auto& transaction : arr) {
-
                                     // If transaction exists, do nothing
 
                                     // If transaction does not exists, add it to transactions to download
 
                                     // If a transaction parent transaction does not exist, add it to transactions to download and transactionParentsToDownload
+
+                                    auto tranHash = getMetadataHash(transaction);
+                                    bool tranExists = true;
+                                    if (tranHash) {
+                                        try {
+                                            currentDatabase->getTransactionMeta(*tranHash);
+                                        } catch (std::runtime_error&) {
+                                            // Transaction does not exist
+                                            transactionsToDownload[tranHash->toString()] = transaction;
+                                            tranExists = false;
+                                        }
+                                    }
+                                    if (!tranExists) {
+                                        auto parentHashes = getMetadataParents(transaction);
+                                        for (auto& parentHash : parentHashes) {
+                                            try {
+                                                currentDatabase->getTransactionMeta(parentHash);
+                                            } catch (std::runtime_error&) {
+                                                // Parent does not exist
+                                                transactionParentsToDownload.insert(parentHash.toString());
+                                            }
+                                        }
+                                    }
                                 }
                                 if (!transactionParentsToDownload.empty() || !transactionsToDownload.empty()) {
                                     queryTransactionsGetNextParent();
@@ -1040,7 +1102,13 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
                     {
                         assert(value);
                         if (value->is_array()) {
-                            // Add to transactionToDownloadInOrder
+                            const std::vector<JSON::Value>& arr = value->array;
+                            for (const auto& transaction : arr) {
+                                auto hash = getMetadataHash(transaction);
+                                if (hash) {
+                                    transactionToDownloadInOrder.push_back(hash->toString());
+                                }
+                            }
                         } else {
                             throw;
                         }
@@ -1061,10 +1129,13 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
 void
 Mist::Central::PeerSyncState::queryTransactionsGetNextParent()
 {
-    if (transactionParentsToDownload.empty()) {
+    if (!transactionParentsToDownload.empty()) {
         auto trHash = *(transactionParentsToDownload.begin());
 
         transactionParentsToDownload.erase( trHash );
+
+        LOG(DBUG) << shortFinger() << "queryTransactionsGetNextParent get parent " << trHash;
+
         central.dbService.submitRequest(peer, "HEAD", "/transactions/"
             + mist::h2::urlEncode(currentDatabase->getManifest()->getHash().toString()
             + "/" + mist::h2::urlEncode(trHash)),
@@ -1076,6 +1147,30 @@ Mist::Central::PeerSyncState::queryTransactionsGetNextParent()
             {
                 // If a transaction parent transaction does not exist, add it to transactions to download and transactionParentsToDownload
                 // If a transaction parent transaction does not exist, add it to transactionParentsToDownload
+                if (value) {
+                    auto tranHash = getMetadataHash(*value);
+                    bool tranExists = true;
+                    if (tranHash) {
+                        try {
+                            currentDatabase->getTransactionMeta(*tranHash);
+                        } catch (std::runtime_error&) {
+                            // Transaction does not exist
+                            transactionsToDownload[tranHash->toString()] = *value;
+                            tranExists = false;
+                        }
+                    }
+                    if (!tranExists) {
+                        auto parentHashes = getMetadataParents(*value);
+                        for (auto& parentHash : parentHashes) {
+                            try {
+                                currentDatabase->getTransactionMeta(parentHash);
+                            } catch (std::runtime_error&) {
+                                // Parent does not exist
+                                transactionParentsToDownload.insert(parentHash.toString());
+                            }
+                        }
+                    }
+                }
                 queryTransactionsGetNextParent();
             });
             request.end();
@@ -1083,6 +1178,9 @@ Mist::Central::PeerSyncState::queryTransactionsGetNextParent()
     } else {
         // Search transactionsToDownload for the oldest transaction
         std::string trHash;
+
+        LOG(DBUG) << shortFinger() << "queryTransactionsGetNextParent download " << trHash;
+
         central.dbService.submitRequest(peer, "GET",
             "/transactions/" + mist::h2::urlEncode(currentDatabase->getManifest()->getHash().toString())
             + "/?from=[" + mist::h2::urlEncode(trHash) + "]",
@@ -1093,7 +1191,17 @@ Mist::Central::PeerSyncState::queryTransactionsGetNextParent()
                 [=](boost::optional<const JSON::Value&> value)
             {
                 // If transaction does not exist add it to transactionToDownloadInOrder
-
+                if (value) {
+                    auto tranHash = getMetadataHash(*value);
+                    if (tranHash) {
+                        try {
+                            currentDatabase->getTransactionMeta(*tranHash);
+                        } catch (std::runtime_error&) {
+                            // Transaction does not exist
+                            transactionToDownloadInOrder.push_back(tranHash->toString());
+                        }
+                    }
+                }
                 queryTransactionsGetNextParent();
             });
             request.end();
@@ -1117,7 +1225,9 @@ Mist::Central::PeerSyncState::queryTransactionsDownloadNextTransaction(std::vect
         databaseHashesIterator = std::next(databaseHashesIterator);
         queryTransactionsNext();
     } else {
-        auto hash= *it;
+        auto hash = *it;
+
+        LOG(DBUG) << shortFinger() << "queryTransactionsDownloadNextTransaction " << hash;
 
         central.dbService.submitRequest(peer, "GET",
             "/transactions/" + mist::h2::urlEncode(currentDatabase->getManifest()->getHash().toString())
@@ -1125,7 +1235,12 @@ Mist::Central::PeerSyncState::queryTransactionsDownloadNextTransaction(std::vect
             [=](mist::Peer& peer, mist::h2::ClientRequest request)
         {
             // INSERT transaction into currentDatabase
-            queryTransactionsDownloadNextTransaction(std::next(it));
+            execInStream(central.ioCtx, request.stream().response(),
+                [=](std::streambuf& is)
+            {
+                currentDatabase->writeToDatabase(is);
+                queryTransactionsDownloadNextTransaction(std::next(it));
+            });
             request.end();
         });
     }
@@ -1133,6 +1248,14 @@ Mist::Central::PeerSyncState::queryTransactionsDownloadNextTransaction(std::vect
 
 void
 Mist::Central::PeerSyncState::queryTransactionsDone()
+{
+    LOG(DBUG) << shortFinger() << "queryTransactionsDone";
+    std::lock_guard<std::recursive_mutex> lock(mux);
+    queryInvites();
+}
+
+void
+Mist::Central::PeerSyncState::queryInvites()
 {
     std::lock_guard<std::recursive_mutex> lock(mux);
     central.dbService.submitRequest(peer, "GET", "/databases",
@@ -1161,9 +1284,16 @@ Mist::Central::PeerSyncState::queryTransactionsDone()
                 } else {
                     throw;
                 }
+                queryInvitesDone();
             });
         });
     });
+}
+
+void
+Mist::Central::PeerSyncState::queryInvitesDone()
+{
+    std::lock_guard<std::recursive_mutex> lock(mux);
 }
 
 void
