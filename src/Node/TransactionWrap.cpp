@@ -40,6 +40,13 @@ TransactionWrap::Init(v8::Local<v8::Object> target)
   Nan::SetPrototypeMethod(tpl, "rollback",
     Method<&TransactionWrap::rollback>);
 
+  Nan::SetPrototypeMethod(tpl, "getObject",
+    Method<&TransactionWrap::getObject>);
+  Nan::SetPrototypeMethod(tpl, "query",
+    Method<&TransactionWrap::query>);
+  Nan::SetPrototypeMethod(tpl, "queryVersion",
+    Method<&TransactionWrap::queryVersion>);
+
   auto func(Nan::GetFunction(tpl).ToLocalChecked());
 
   constructor().Reset(func);

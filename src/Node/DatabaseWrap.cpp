@@ -52,15 +52,6 @@ DatabaseWrap::Init(v8::Local<v8::Object> target)
 
   v8::Local<v8::FunctionTemplate> tpl = defaultTemplate(ClassName());
 
-  // TODO: Remove from Module.cpp and add here:
-  //v8::Local<v8::ObjectTemplate> objTpl = tpl->InstanceTemplate();
-  //Nan::Set(objTpl,
-  //  conv(ManifestWrap::ClassName()),
-  //    Nan::GetFunction(ManifestWrap::Init()).ToLocalChecked());
-  //Nan::Set(objTpl,
-  //  conv(ObjectRefWrap::ClassName()),
-  //    Nan::GetFunction(ObjectRefWrap::Init()).ToLocalChecked());
-
   Nan::SetPrototypeMethod(tpl, "beginTransaction",
     Method<&DatabaseWrap::beginTransaction>);
   Nan::SetPrototypeMethod(tpl, "inviteUser",
@@ -83,6 +74,30 @@ DatabaseWrap::Init(v8::Local<v8::Object> target)
     Method<&DatabaseWrap::getManifest>);
 
   auto func(Nan::GetFunction(tpl).ToLocalChecked());
+
+  // Database.AccessDomain
+  auto accessDomain(Nan::New<v8::Object>());
+  Nan::Set(accessDomain, Nan::New("Settings").ToLocalChecked(),
+    Nan::New(static_cast<int>(Database::AccessDomain::Settings)));
+  Nan::Set(accessDomain, Nan::New("Normal").ToLocalChecked(),
+    Nan::New(static_cast<int>(Database::AccessDomain::Normal)));
+  Nan::Set(accessDomain, Nan::New("User").ToLocalChecked(),
+    Nan::New(static_cast<int>(Database::AccessDomain::User)));
+  Nan::Set(accessDomain, Nan::New("Device").ToLocalChecked(),
+    Nan::New(static_cast<int>(Database::AccessDomain::Device)));
+  Nan::Set(func, Nan::New("AccessDomain").ToLocalChecked(), accessDomain);
+
+  // Database.Manifest
+  ManifestWrap::Init(func);
+
+  // Database.ObjectRef
+  ObjectRefWrap::Init(func);
+
+  // Database.MistObject
+  MistObjectWrap::Init(func);
+
+  // Database.QueryResult
+  QueryResultWrap::Init(func);
 
   constructor().Reset(func);
 
@@ -265,6 +280,11 @@ void ManifestWrap::toString(const Nan::FunctionCallbackInfo<v8::Value>& info)
 ObjectRefWrap::ObjectRefWrap(const Nan::FunctionCallbackInfo<v8::Value>& info)
   : NodeWrap(Mist::Database::ObjectRef{Database::AccessDomain::Normal, 0})
 {
+  if (info.Length() >= 1)
+    self().accessDomain
+      = static_cast<Database::AccessDomain>(convBack<int>(info[0]));
+  if (info.Length() >= 2)
+    self().id = convBack<unsigned long>(info[1]);
 }
 
 ObjectRefWrap::ObjectRefWrap()
