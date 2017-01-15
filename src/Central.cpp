@@ -171,7 +171,7 @@ std::string hex(const std::vector<std::uint8_t> buf)
 void Mist::Central::init( boost::optional<std::string> privKey ) {
     if ( !dbExists( path + "/settings.db" ) || !dbExists( path + "/content.db" ) ) {
         // TODO: does not exist
-        throw std::exception("Database does not exist");
+        throw std::runtime_error("Database does not exist");
     }
 
     try {
@@ -484,7 +484,7 @@ Mist::Database::Manifest Mist::Central::getDatabaseManifest( const CryptoHelper:
             return Database::Manifest::fromString( query.getColumn( "manifest" ).getString(),
                             std::bind( &Central::verify, this, _1, _2, _3) );
     }
-    throw std::exception("Could not find database");
+    throw std::runtime_error("Could not find database");
 }
 
 Mist::Central::~Central() {
@@ -525,7 +525,7 @@ void Mist::Central::addPeer( const Mist::CryptoHelper::PublicKey& key,
             else if (status == Mist::PeerStatus::Blocked)
                 statusString = "Blocked";
             else
-                throw std::exception("Invalid PeerStatus value");
+                throw std::runtime_error("Invalid PeerStatus value");
         }
         query.bind(4, statusString);
         query.bind(5, anonymous ? 1 : 0);
@@ -555,7 +555,7 @@ void Mist::Central::changePeer( const Mist::CryptoHelper::PublicKeyHash& keyHash
         else if (status == Mist::PeerStatus::Blocked)
             statusString = "Blocked";
         else
-            throw std::exception("Invalid PeerStatus value");
+            throw std::runtime_error("Invalid PeerStatus value");
     }
     query.bind(2, statusString);
     query.bind(3, anonymous ? 1 : 0);
@@ -590,7 +590,7 @@ Mist::Peer Mist::Central::getPeer( const Mist::CryptoHelper::PublicKeyHash& keyH
         " FROM User WHERE keyHash=?");
     query.bind(1, keyHash.toString());
     if (!query.executeStep())
-        throw std::exception("Unable to find peer");
+        throw std::runtime_error("Unable to find peer");
     Mist::Peer peer;
     peer.id = keyHash;
     peer.key = Mist::CryptoHelper::PublicKey::fromPem(query.getColumn("publicKey").getString());
@@ -608,7 +608,7 @@ Mist::Peer Mist::Central::getPeer( const Mist::CryptoHelper::PublicKeyHash& keyH
         else if (status == "Blocked")
             peer.status = Mist::PeerStatus::Blocked;
         else
-            throw std::exception("Invalid PeerStatus value");
+            throw std::runtime_error("Invalid PeerStatus value");
     }
     peer.anonymous = static_cast<bool>(query.getColumn("anonymous").getInt() != 0);
     return peer;
@@ -1101,7 +1101,7 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
                                     queryTransactionsNext();
                                 }
                             } else {
-                                throw std::exception("Malformed JSON response");
+                                throw std::runtime_error("Malformed JSON response");
                             }
                         });
                     });
@@ -1121,7 +1121,7 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
                                 }
                             }
                         } else {
-                            throw std::exception("Malformed JSON response");
+                            throw std::runtime_error("Malformed JSON response");
                         }
                         if (transactionToDownloadInOrder.empty()) {
                             databaseHashesIterator = std::next(databaseHashesIterator);
@@ -1294,7 +1294,7 @@ Mist::Central::PeerSyncState::queryInvites()
                     }
                     // Add to transactionToDownloadInOrder
                 } else {
-                    throw std::exception("Malformed JSON response");
+                    throw std::runtime_error("Malformed JSON response");
                 }
                 queryInvitesDone();
             });
@@ -1353,7 +1353,7 @@ Mist::Central::PeerSyncState::queryAddressServersNext(address_vector_t::iterator
                                     const auto& address = objVal.at("address");
                                     const auto& port = objVal.at("port");
                                     if (!type.is_string() || !address.is_string() || !port.is_number()) {
-                                        throw std::exception("Malformed JSON response");
+                                        throw std::runtime_error("Malformed JSON response");
                                     }
                                     LOG(DBUG) << shortFinger() << "Got address"
                                         << ":" << address.get_string()
@@ -1499,11 +1499,11 @@ Mist::Central::PeerSyncState::listServices(
                         //services.push_back(str.string);
                         services.push_back(service.get_string());
                     } else {
-                        throw std::exception("Malformed JSON response");
+                        throw std::runtime_error("Malformed JSON response");
                     }
                 }
             } else {
-                throw std::exception("Malformed JSON response");
+                throw std::runtime_error("Malformed JSON response");
             }
             callback(keyHash, services);
         });
