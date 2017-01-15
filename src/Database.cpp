@@ -666,7 +666,7 @@ void Database::mapUser( map_user_f fn, const std::string& userHash ) const {
     std::string id{}, name{}, permission{}, publicKey{};
     for( int i{0}; i < 4; ++i ) {
         if ( !user.executeStep() ) {
-            throw; // TODO
+            throw std::exception("Error in mapUser"); // TODO
         }
         std::string what{ user.getColumn( "name" ).getString() };
         if ( "id" == what ) {
@@ -680,7 +680,7 @@ void Database::mapUser( map_user_f fn, const std::string& userHash ) const {
         }
     }
     if ( id.empty() || name.empty() || permission.empty() || publicKey.empty() ) {
-        throw; // TODO
+        throw std::exception("Error in mapUser"); // TODO
     }
 
     fn( id, name, permission, publicKey );
@@ -710,7 +710,7 @@ void Database::mapUsers( map_user_f fn ) const {
         std::string id{}, name{}, permission{}, publicKey{};
         for( int i{0}; i < 4; ++i ) {
             if ( !user.executeStep() ) {
-                throw; // TODO
+                throw std::exception("Error in mapUsers"); // TODO
             }
             std::string what{ user.getColumn( "name" ).getString() };
             if ( "id" == what ) {
@@ -724,7 +724,7 @@ void Database::mapUsers( map_user_f fn ) const {
             }
         }
         if ( id.empty() || name.empty() || permission.empty() || publicKey.empty() ) {
-            throw; // TODO
+            throw std::exception("Error in mapUsers"); // TODO
         }
 
         fn( id, name, permission, publicKey );
@@ -765,7 +765,7 @@ void Database::mapUsersFrom( map_user_f fn, const std::vector<std::string>& user
         std::string id{}, name{}, permission{}, publicKey{};
         for( int i{0}; i < 4; ++i ) {
             if ( !user.executeStep() ) {
-                throw; // TODO
+                throw std::exception("Error in mapUsersFrom"); // TODO
             }
             std::string what{ user.getColumn( "name" ).getString() };
             if ( "id" == what ) {
@@ -779,7 +779,7 @@ void Database::mapUsersFrom( map_user_f fn, const std::vector<std::string>& user
             }
         }
         if ( id.empty() || name.empty() || permission.empty() || publicKey.empty() ) {
-            throw; // TODO
+            throw std::exception("Error in mapUsersFrom"); // TODO
         }
 
         fn( id, name, permission, publicKey );
@@ -1223,7 +1223,7 @@ std::unique_ptr<Database::Connection> Database::getIsolatedDbConnection() const 
         throw e;
     } catch (...) {
         LOG ( WARNING ) << "Database error.";
-        throw;
+        throw std::exception("Database error");
     }
 }
 
@@ -1241,7 +1241,7 @@ CryptoHelper::SHA3 Database::calculateTransactionHash(
         readTransactionBody( std::ref( streamer ), transaction.version, connection );
     } catch (...) {
         LOG( WARNING ) << "Transaction hashing failed: Could not read transaction body.";
-        throw;
+        throw std::exception("Transaction hashing failed");
     }
     if ( std::char_traits<char>::eof() == streamer.pubsync() ) {
         LOG( WARNING ) << "Can not sync streamer." ;
@@ -1252,7 +1252,7 @@ CryptoHelper::SHA3 Database::calculateTransactionHash(
         return hasher.finalize();
     } catch (...) {
         LOG( WARNING ) << "Transaction hashing failed: hasher finalize failed.";
-        throw;
+        throw std::exception("Transaction hasing failed");
     }
 }
 
@@ -1273,7 +1273,7 @@ unsigned Database::reorderTransaction( const Database::Transaction& tranasaction
         savePoint.reset( new Helper::Database::SavePoint( conn, "reorder" ) );
     } catch (...) {
         LOG( WARNING ) << "SavePoint constructor failed.";
-        throw;
+        throw std::exception("SavePoint constructor failed");
     }
 
     Statement newerTransaction( *conn,

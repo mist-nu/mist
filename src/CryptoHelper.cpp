@@ -38,7 +38,7 @@ Mist::CryptoHelper::SHA3::SHA3( const std::string& str ) {
     if ( str.empty() ) {
         hash.reset();
     } else {
-        hash.reset( mist::crypto::stringToBuffer( str ) );
+        hash.reset( mist::crypto::base64Decode( str ) );
     }
 }
 
@@ -53,7 +53,7 @@ Mist::CryptoHelper::SHA3::fromBuffer( const std::vector<std::uint8_t>& buf ) {
 
 Mist::CryptoHelper::SHA3
 Mist::CryptoHelper::SHA3::fromString( const std::string& str ) {
-  return str.empty() ? SHA3() : SHA3( mist::crypto::base64Decode(str) );
+    return SHA3( str );
 }
 
 Mist::CryptoHelper::SHA3&
@@ -152,7 +152,7 @@ Mist::CryptoHelper::SHA3Hasher::finalize() {
         auto data(hasher->finalize());
         hasher.reset();
         return Mist::CryptoHelper::SHA3(
-                std::string(data.data(), data.data() + data.size()));
+                std::vector<uint8_t>(data.data(), data.data() + data.size()));
     } else {
         return SHA3();
     }

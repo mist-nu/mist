@@ -171,7 +171,7 @@ std::string hex(const std::vector<std::uint8_t> buf)
 void Mist::Central::init( boost::optional<std::string> privKey ) {
     if ( !dbExists( path + "/settings.db" ) || !dbExists( path + "/content.db" ) ) {
         // TODO: does not exist
-      throw;
+        throw std::exception("Database does not exist");
     }
 
     try {
@@ -484,7 +484,7 @@ Mist::Database::Manifest Mist::Central::getDatabaseManifest( const CryptoHelper:
             return Database::Manifest::fromString( query.getColumn( "manifest" ).getString(),
                             std::bind( &Central::verify, this, _1, _2, _3) );
     }
-    throw;
+    throw std::exception("Could not find database");
 }
 
 Mist::Central::~Central() {
@@ -525,7 +525,7 @@ void Mist::Central::addPeer( const Mist::CryptoHelper::PublicKey& key,
             else if (status == Mist::PeerStatus::Blocked)
                 statusString = "Blocked";
             else
-                throw;
+                throw std::exception("Invalid PeerStatus value");
         }
         query.bind(4, statusString);
         query.bind(5, anonymous ? 1 : 0);
@@ -555,7 +555,7 @@ void Mist::Central::changePeer( const Mist::CryptoHelper::PublicKeyHash& keyHash
         else if (status == Mist::PeerStatus::Blocked)
             statusString = "Blocked";
         else
-            throw;
+            throw std::exception("Invalid PeerStatus value");
     }
     query.bind(2, statusString);
     query.bind(3, anonymous ? 1 : 0);
@@ -590,7 +590,7 @@ Mist::Peer Mist::Central::getPeer( const Mist::CryptoHelper::PublicKeyHash& keyH
         " FROM User WHERE keyHash=?");
     query.bind(1, keyHash.toString());
     if (!query.executeStep())
-        throw;
+        throw std::exception("Unable to find peer");
     Mist::Peer peer;
     peer.id = keyHash;
     peer.key = Mist::CryptoHelper::PublicKey::fromPem(query.getColumn("publicKey").getString());
@@ -608,7 +608,7 @@ Mist::Peer Mist::Central::getPeer( const Mist::CryptoHelper::PublicKeyHash& keyH
         else if (status == "Blocked")
             peer.status = Mist::PeerStatus::Blocked;
         else
-            throw;
+            throw std::exception("Invalid PeerStatus value");
     }
     peer.anonymous = static_cast<bool>(query.getColumn("anonymous").getInt() != 0);
     return peer;
@@ -808,31 +808,6 @@ void Mist::Central::addAddressLookupServer( const std::string& address, std::uin
     query.bind(2, port);
     query.exec();
     transaction.commit();
-
-    connCtx.onionAddress([=](const std::string& onionAddress)
-    {
-        auto addr(mist::io::Address::fromAny(address, port));
-        connCtx.submitRequest(addr, "POST", "/peer", address, {},
-            [=](boost::optional<mist::h2::ClientRequest> request,
-              boost::system::error_code ec)
-        {
-            if (!ec) {
-                request->end(R"([{"address":")" + onionAddress + "\""
-                  + R"(,"port":443)"
-                  + R"(,"type":"tor")"
-                  + R"(}])");
-                request->setOnResponse([request, address, port]
-                    (mist::h2::ClientResponse response)
-                {
-                    LOG(DBUG) << "Got response from " << address
-                        << ":" << port;
-                });
-            } else {
-                LOG(DBUG) << "Could not connect to " << address
-                    << ":" << port << ": " << ec.message();
-            }
-        });
-    });
 }
 
 void Mist::Central::removeAddressLookupServer( const std::string& address, std::uint16_t port ) {
@@ -869,6 +844,36 @@ void Mist::Central::syncStep() {
     ioCtx.setTimeout(10000, std::bind(&Central::syncStep, this));
     if (!sync.started)
         return;
+
+    connCtx.onionAddress([=](const std::string& onionAddress)
+    {
+        for (auto server : listAddressLookupServers())
+        {
+            auto address(server.first);
+            auto port(server.second);
+            auto addr(mist::io::Address::fromAny(address, port));
+            connCtx.submitRequest(addr, "POST", "/peer", address, {},
+                [=](boost::optional<mist::h2::ClientRequest> request,
+                    boost::system::error_code ec)
+            {
+                if (!ec) {
+                    request->end(R"([{"address":")" + onionAddress + "\""
+                        + R"(,"port":443)"
+                        + R"(,"type":"tor")"
+                        + R"(}])");
+                    /*request->setOnResponse([request, address, port]
+                    (mist::h2::ClientResponse response)
+                    {
+                        LOG(DBUG) << "Got response from " << address
+                            << ":" << port;
+                    });*/
+                } else {
+                    LOG(DBUG) << "Unable to connect to lookup server " << address
+                        << ":" << port << ": " << ec.message();
+                }
+            });
+        }
+    });
 
     for (auto peer : listPeers()) {
         getPeerSyncState(peer.id).startSync();
@@ -1025,11 +1030,16 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
         transactionParentsToDownload.clear();
         transactionToDownloadInOrder.clear();
 
-        std::basic_stringbuf<char> sb;
-        currentDatabase->readTransactionMetadataLastest( sb );
+        std::string transactionList;
+        for (auto& tran : currentDatabase->getTransactionLatest()) {
+            if (transactionList.length())
+                transactionList += ",";
+            transactionList += mist::h2::urlEncode(tran.hash.toString());
+        }
+
         central.dbService.submitRequest(peer, "GET", "/transactions/"
             + mist::h2::urlEncode(hash.toString())
-            + "/?from=" + mist::h2::urlEncode(sb.str()),
+            + "/?from=" + transactionList,
             [=](mist::Peer& _peer, mist::h2::ClientRequest request)
         {
             // Not found
@@ -1091,11 +1101,12 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
                                     queryTransactionsNext();
                                 }
                             } else {
-                                throw;
+                                throw std::exception("Malformed JSON response");
                             }
                         });
                     });
                 } else {
+                    assert(*response.statusCode() == 200);
                     innerGetJsonResponse(response,
                         //[=](std::unique_ptr<JSON::basic_json_value> value)
                         [=](boost::optional<const JSON::Value&> value)
@@ -1110,7 +1121,7 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
                                 }
                             }
                         } else {
-                            throw;
+                            throw std::exception("Malformed JSON response");
                         }
                         if (transactionToDownloadInOrder.empty()) {
                             databaseHashesIterator = std::next(databaseHashesIterator);
@@ -1263,6 +1274,7 @@ Mist::Central::PeerSyncState::queryInvites()
         request.setOnResponse(
             [=](mist::h2::ClientResponse response)
         {
+            assert(*response.statusCode() == 200);
             innerGetJsonResponse(response,
                 //[=](std::unique_ptr<JSON::basic_json_value> value)
                 [=](boost::optional<const JSON::Value&> value)
@@ -1282,7 +1294,7 @@ Mist::Central::PeerSyncState::queryInvites()
                     }
                     // Add to transactionToDownloadInOrder
                 } else {
-                    throw;
+                    throw std::exception("Malformed JSON response");
                 }
                 queryInvitesDone();
             });
@@ -1341,7 +1353,7 @@ Mist::Central::PeerSyncState::queryAddressServersNext(address_vector_t::iterator
                                     const auto& address = objVal.at("address");
                                     const auto& port = objVal.at("port");
                                     if (!type.is_string() || !address.is_string() || !port.is_number()) {
-                                        throw;
+                                        throw std::exception("Malformed JSON response");
                                     }
                                     LOG(DBUG) << shortFinger() << "Got address"
                                         << ":" << address.get_string()
@@ -1487,11 +1499,11 @@ Mist::Central::PeerSyncState::listServices(
                         //services.push_back(str.string);
                         services.push_back(service.get_string());
                     } else {
-                        throw;
+                        throw std::exception("Malformed JSON response");
                     }
                 }
             } else {
-                throw;
+                throw std::exception("Malformed JSON response");
             }
             callback(keyHash, services);
         });
@@ -1597,11 +1609,15 @@ void Mist::Central::RestRequest::entry( const std::string& path ) {
         elt = mist::h2::urlDecode(elt);
     }
 
-    if (!request.method()) {
+    // Expect a slash prefix and a non-zero path
+    if (eltCount < 2 || elts[0] != "" || !request.method()) {
         replyBadMethod();
-    } else if (eltCount == 0) {
-        replyBadRequest();
-    } else if (elts[0] == "transactions") {
+        return;
+    }
+
+    elts.erase(elts.begin());
+
+    if (elts[0] == "transactions") {
         transactions(*request.method(), elts);
     } else if (elts[0] == "databases") {
         databases(elts);
@@ -1643,6 +1659,7 @@ void Mist::Central::RestRequest::transactions(
             while (pos != std::string::npos) {
                 res.push_back( CryptoHelper::SHA3( from.substr( last, pos-last ) ) );
                 last = pos+1;
+                pos = from.find( ",", last );
             }
             res.push_back( CryptoHelper::SHA3( from.substr( last, from.length() ) ) );
             transactionsFrom( dbHash, res );
@@ -1806,7 +1823,7 @@ void Mist::Central::RestRequest::databasesAll() {
 
         os << '[';
         for(CryptoHelper::SHA3 dbHash : central.listDatabasePermissions( keyHash )) {
-            auto manifest = central.getDatabaseManifest( keyHash );
+            auto manifest = central.getDatabaseManifest( dbHash );
             os << manifest.toString();
             if (!first)
                 os << ',';
