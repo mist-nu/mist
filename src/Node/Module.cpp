@@ -203,15 +203,7 @@ Init(v8::Local<v8::Object> target, v8::Local<v8::Object> module)
   SHA3HasherWrap::Init(target);
   PublicKeyWrap::Init(target);
   PrivateKeyWrap::Init(target);
-
   DatabaseWrap::Init(target);
-  // TODO: Find out how to make these classes properties
-  // of DatabaseWrap, and remove them from here.
-  ManifestWrap::Init(target);
-  ObjectRefWrap::Init(target);
-  MistObjectWrap::Init(target);
-  QueryResultWrap::Init(target);
-
 
   // Nan::Set(target, Nan::New("initializeNSS").ToLocalChecked(),
   //   Nan::GetFunction(Nan::New<v8::FunctionTemplate>(initializeNSS)).ToLocalChecked());
