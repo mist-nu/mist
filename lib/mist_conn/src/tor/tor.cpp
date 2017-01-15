@@ -425,6 +425,7 @@ TorController::attemptLaunch()
       if (_state == Shutdown) {
         /* Tor exited normally */
         onExit(boost::system::error_code());
+        _state = Stopped;
       } else {
         /* Tor exited unexpectedly */
         launchPostMortem(exitCode);
@@ -570,6 +571,11 @@ TorController::readResponse(const std::uint8_t *data, std::size_t length,
 {
   if (ec) {
     /* Error reading response */
+    if (_state == State::Relaunch || _state == State::Shutdown) {
+      // Read error is expected here
+      return;
+    }
+
     fail(make_mist_error(MIST_ERR_TOR_GENERAL_FAILURE));
     return;
   }
@@ -676,8 +682,8 @@ TorController::synchronousResponse(std::int16_t code,
 
     if (!ok) {
       /* Unable to authenticate */
+      _state = State::Relaunch;
       _torProcess.reset();
-      //fail(make_mist_error(MIST_ERR_TOR_GENERAL_FAILURE));
       return;
     }
 
@@ -767,7 +773,9 @@ TorController::connectControlPort()
 void
 TorController::stop()
 {
-  _torProcess = nullptr;
+  // TODO: Use sendCommand to tell Tor to shutdown cleanly.
+  _state = Shutdown;
+  _torProcess.reset();
 }
 
 bool

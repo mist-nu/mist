@@ -84,7 +84,7 @@ public:
     else if (digestBitCount == 512)
       sha3_Init512(&_c);
     else
-      throw;
+      throw std::exception("Invalid digest bit count");
   }
 
   virtual void update(const std::uint8_t* begin,

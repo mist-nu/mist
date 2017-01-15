@@ -147,7 +147,7 @@ AddressImpl::fromHostname(const std::string& hostname, std::uint16_t port)
 {
   AddressImpl impl;
   if (netAddrFromHostname(hostname, port, &impl.addr))
-    throw;
+    throw std::exception("Unable to obtain IP from hostname");
   return AddressImpl(&impl.addr);
 };
 
@@ -186,7 +186,7 @@ AddressImpl::fromIpAddr(const std::string& ip, std::uint16_t port)
 {
   AddressImpl impl;
   if (netAddrFromIpAddress(ip, port, &impl.addr))
-    throw;
+    throw std::exception("Unable to parse IP address");
   return impl;
 };
 
@@ -196,7 +196,7 @@ AddressImpl::fromAny(const std::string& str, std::uint16_t port)
   AddressImpl impl;
   if (netAddrFromIpAddress(str, port, &impl.addr))
     if (netAddrFromHostname(str, port, &impl.addr))
-      throw;
+      throw std::exception("Unable to obtain IP from address");
   return impl;
 };
 

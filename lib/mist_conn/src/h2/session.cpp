@@ -61,6 +61,18 @@ bool decodeTakeChar(std::string::const_iterator& i,
   c = *(i++);
   return true;
 }
+bool isHex(char c)
+{
+  return (c >= '0' && c <= '9')
+    || (c >= 'a' && c <= 'f')
+    || (c >= 'A' && c <= 'F');
+}
+unsigned char fromNibble(char c)
+{
+  return c >= '0' && c <= '9' ? static_cast<unsigned char>(c - '0')
+    : c >= 'a' && c <= 'f' ? static_cast<unsigned char>(c - 'a')
+    : static_cast<unsigned char>(c - 'A');
+}
 bool decodeTakeCodedChar(std::string::const_iterator& i,
   std::string::const_iterator& e, char& c)
 {
@@ -69,9 +81,9 @@ bool decodeTakeCodedChar(std::string::const_iterator& i,
     return false;
   if (!decodeTakeChar(i, e, c2))
     return false;
-  if (c1 < '0' || c1 > '9' || c2 < '0' || c2 > '9')
+  if (!isHex(c1) || !isHex(c2))
     return false;
-  unsigned char cc = 10 * (c1 - '0') + (c2 - '0');
+  unsigned char cc = 16 * fromNibble(c1) + fromNibble(c2);
   c = *reinterpret_cast<char*>(&cc);
   return true;
 }
