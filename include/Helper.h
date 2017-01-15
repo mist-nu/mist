@@ -83,7 +83,7 @@ public:
 
     explicit StreamToString( std::function<void(std::basic_string<CharT>)> cb ) :
             buffer{}, cb( cb ) {
-                Base::setp( &( *buffer.begin() ), &( *buffer.end() ) - 1 );
+                Base::setp( buffer.data(), buffer.data() + buffer.size() - 1 );
             }
     virtual ~StreamToString() = default;
 
