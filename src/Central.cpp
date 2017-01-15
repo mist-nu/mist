@@ -619,7 +619,7 @@ Mist::Central::getPendingInvites() const
 {
   std::set<Database::Manifest> manifestSet;
   for (auto& peerPendingInvites : pendingInvites) {
-    manifestSet.insert(peerPendingInvites.second);
+    manifestSet.insert(peerPendingInvites.second.first);
   }
   return std::vector<Database::Manifest>(manifestSet.begin(),
     manifestSet.end());
@@ -837,6 +837,7 @@ void Mist::Central::startSync(new_database_callback newDatabase, bool forceAnony
     std::lock_guard<std::recursive_mutex> lock(sync.mux);
     sync.started = true;
     sync.forceAnonymous = forceAnonymous;
+    sync.newDatabase = newDatabase;
 }
 
 void Mist::Central::syncStep() {
@@ -1105,8 +1106,7 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
                             }
                         });
                     });
-                } else {
-                    assert(*response.statusCode() == 200);
+                } else if (*response.statusCode() == 200) {
                     innerGetJsonResponse(response,
                         //[=](std::unique_ptr<JSON::basic_json_value> value)
                         [=](boost::optional<const JSON::Value&> value)
@@ -1130,6 +1130,10 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
                             queryTransactionsDownloadNextTransaction(transactionToDownloadInOrder.begin());
                         }
                     });
+                } else {
+                    // If we are here it probably means that the user has not
+                    // yet accepted an invite to the database.
+                    queryTransactionsNext();
                 }
             });
             request.end();
@@ -1265,9 +1269,25 @@ Mist::Central::PeerSyncState::queryTransactionsDone()
     queryInvites();
 }
 
+void Mist::Central::addDatabaseInvite(Database::Manifest manifest,
+    CryptoHelper::PublicKeyHash inviter)
+{
+    std::lock_guard<std::recursive_mutex> lock(sync.mux);
+    auto it = pendingInvites.find(manifest.getHash());
+    auto firstInvite = it == pendingInvites.end();
+    if (firstInvite) {
+        pendingInvites.insert({ manifest.getHash(),
+            { manifest, {inviter} } }).first;
+        sync.newDatabase(manifest);
+    } else {
+        it->second.second.push_back(inviter);
+    }
+}
+
 void
 Mist::Central::PeerSyncState::queryInvites()
 {
+    LOG(DBUG) << shortFinger() << "queryInvites";
     std::lock_guard<std::recursive_mutex> lock(mux);
     central.dbService.submitRequest(peer, "GET", "/databases",
         [=](mist::Peer& _peer, mist::h2::ClientRequest request) {
@@ -1287,9 +1307,9 @@ Mist::Central::PeerSyncState::queryInvites()
 
                         try {
                             central.getDatabaseManifest( m.getHash() );
-                        } catch (...) {
+                        } catch (std::runtime_error&) {
                             // Not found
-                            central.pendingInvites.insert( std::make_pair(m.getHash(), m) );
+                            central.addDatabaseInvite(m, keyHash);
                         }
                     }
                     // Add to transactionToDownloadInOrder
@@ -1305,6 +1325,7 @@ Mist::Central::PeerSyncState::queryInvites()
 void
 Mist::Central::PeerSyncState::queryInvitesDone()
 {
+    LOG(DBUG) << shortFinger() << "queryInvitesDone";
     std::lock_guard<std::recursive_mutex> lock(mux);
 }
 
@@ -1804,7 +1825,14 @@ void Mist::Central::RestRequest::databases( const std::vector<std::string>& elts
         if (method == "POST") {
             // POST /databases/[SHA3]/invite
             // Invite a user to a new database
-//            databaseInvite(CryptoHelper::SHA3(elts[1]));
+            auto anchor(shared_from_this());
+            getAllData(request, [this, anchor](std::string data)
+            {
+                using namespace std::placeholders;
+                auto manifest{ Database::Manifest::fromString(data,
+                    std::bind(&Central::verify, &central, _1, _2, _3)) };
+                central.addDatabaseInvite(manifest, keyHash);
+            });
         } else {
             replyBadMethod();
         }
@@ -1833,39 +1861,36 @@ void Mist::Central::RestRequest::databasesAll() {
     });
 }
 
-void Mist::Central::RestRequest::databaseInvite( const Mist::Database::Manifest &manifesth ) {
-    // TODO
-    // Call callback set in startSync
-}
-
 void Mist::Central::RestRequest::users( const std::vector<std::string>& elts ) {
     auto eltCount(elts.size());
     auto method(*request.method());
 
-    if (eltCount == 1) {
+    if (eltCount == 2) {
         if (method == "GET") {
-            // GET /users
-            // Fetch all users
-            usersAll();
+            // GET /users/[SHA3]
+            // Fetch all users for a database
+            auto dbHash{ CryptoHelper::SHA3(elts[1]) };
+            usersAll(dbHash);
         } else {
             replyBadMethod();
         }
-    } else if (eltCount == 2) {
+    } else if (eltCount == 3) {
         if (method == "GET") {
-            auto q(elts[1]);
+            auto dbHash{ CryptoHelper::SHA3(elts[1]) };
+            auto q(elts[2]);
             auto qSize(q.size());
             if (qSize == 0) {
                 replyBadRequest();
-            } else if (boost::starts_with(q, "?with=")) {
-                // GET /users/?from=[SHA3, SHA3, SHA3]
+            } else if (boost::starts_with(q, "?from=")) {
+                // GET /users/[SHA3]/?from=[SHA3, SHA3]
                 // Fetch changed users from a specific state of the database
                 std::vector<std::string> hashes;
                 std::string params(q.substr(6));
                 boost::split(hashes, params, boost::is_any_of(","));
-                if (hashes.size() == 3) {
-                    usersChanged(CryptoHelper::SHA3(hashes[0]),
-                        CryptoHelper::SHA3(hashes[1]),
-                        CryptoHelper::SHA3(hashes[2]));
+                if (hashes.size() == 2) {
+                    usersChanged(dbHash,
+                        CryptoHelper::SHA3(hashes[0]),
+                        CryptoHelper::SHA3(hashes[1]));
                 } else {
                     replyBadRequest();
                 }
@@ -1883,8 +1908,16 @@ void Mist::Central::RestRequest::users( const std::vector<std::string>& elts ) {
     }
 }
 
-void Mist::Central::RestRequest::usersAll() {
-    // TODO
+void Mist::Central::RestRequest::usersAll( const CryptoHelper::SHA3& dbHash ) {
+    auto db(central.getDatabase(dbHash));
+
+    if (db == nullptr) {
+        replyNotFound();
+        return;
+    }
+
+    // TODO:
+    //db->mapUsers();
 }
 
 void Mist::Central::RestRequest::usersChanged( const CryptoHelper::SHA3& dbHash,

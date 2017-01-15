@@ -315,7 +315,11 @@ private:
     mist::io::SSLContext sslCtx;
     mist::ConnectContext connCtx;
 
-    std::map<CryptoHelper::SHA3,Mist::Database::Manifest> pendingInvites;
+    void addDatabaseInvite(Database::Manifest manifest,
+        CryptoHelper::PublicKeyHash inviter);
+    std::map<CryptoHelper::SHA3,
+        std::pair<Mist::Database::Manifest,
+            std::vector<CryptoHelper::PublicKeyHash>>> pendingInvites;
 
     /* Mist database service */
     mist::Service& dbService;
@@ -412,6 +416,7 @@ private:
         std::recursive_mutex mux;
         bool started;
         bool forceAnonymous;
+        new_database_callback newDatabase;
         std::map<CryptoHelper::PublicKeyHash, std::unique_ptr<PeerSyncState>> peerState;
     } sync;
 
@@ -460,10 +465,9 @@ private:
 
         void databases( const std::vector<std::string>& elts );
         void databasesAll();
-        void databaseInvite( const Mist::Database::Manifest &manifest );
 
         void users( const std::vector<std::string>& elts );
-        void usersAll();
+        void usersAll( const CryptoHelper::SHA3& dbHash );
         void usersChanged( const CryptoHelper::SHA3& dbHash,
             const CryptoHelper::SHA3& fromTrHash,
             const CryptoHelper::SHA3& toTrHash );

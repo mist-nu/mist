@@ -64,7 +64,7 @@ function createDatabase(dbName) {
 
 function listDatabases() {
     central.listDatabases().forEach(function (database) {
-        console.log(database);
+        console.log(database.toString());
     });
 }
 
@@ -138,7 +138,11 @@ function listServicePermissions(peerHash) {
 }
 
 function startSync() {
-    central.startSync();
+    central.startSync(function (manifest) {
+        console.log("Received database invite for " + manifest.getHash().toString());
+        console.log(manifest.toString());
+        central.receiveDatabase(manifest);
+    }, true);
 }
 
 function stopSync() {
@@ -178,6 +182,32 @@ function acceptDbInvite( dbHash )
         if (m.getHash() == dbHash)
             central.receiveDatabase( m );
     });
+}
+
+function createTestObject( dbHash, name )
+{
+    var db = central.getDatabase(mist.SHA3.fromString(dbHash));
+    var t = db.beginTransaction(mist.Database.AccessDomain.Normal);
+    var refA
+        = new mist.Database.ObjectRef(mist.Database.AccessDomain.Normal, 0);
+    console.log("New object A ref " + refA.toString());
+    var idA = t.newObject(refA, {
+        name: name,
+        test1: 17,
+        test2: "test",
+    });
+    console.log("New object A " + idA);
+    var refB
+        = new mist.Database.ObjectRef(mist.Database.AccessDomain.Normal, idA);
+    console.log("New object B ref " + refB.toString());
+    var idB = t.newObject(refB, {
+        name: name + "_B",
+        test1: 18,
+        test2: "testB",
+    });
+    console.log("New object B " + idA);
+    t.commit();
+    console.log("Committed");
 }
 
 var torStarted = false;
@@ -326,6 +356,14 @@ var userQuery = function () {
                     var dbHash = mist.SHA3.fromString(xs[1]);
                     acceptDbInvite(dbHash);
                 }
+            } else if (xs[0] == "create-test-object") {
+                if (xs.length < 2) {
+                    console.log("Usage: create-test-object DB_HASH NAME");
+                } else {
+                    var dbHash = mist.SHA3.fromString(xs[1]);
+                    var name = xs[2];
+                    createTestObject(dbHash, name);
+                }
             } else if (xs[0] == "help") {
                 console.log("Available commands:");
                 console.log("  create");
@@ -350,9 +388,10 @@ var userQuery = function () {
                 console.log("  start-sync");
                 console.log("  stop-sync");
                 console.log("  list-services");
-		        console.log("  invite-user-to-db DB_HASH NAME KEYFILE PERMISSION");
-		        console.log("  list-db-invites");
-		        console.log("  accept-db-invite DB_HASH");
+                console.log("  invite-user-to-db DB_HASH NAME KEYFILE PERMISSION");
+                console.log("  list-db-invites");
+                console.log("  accept-db-invite DB_HASH");
+                console.log("  create-test-object NAME");
             } else {
                 console.log("Unrecognized command");
             }
