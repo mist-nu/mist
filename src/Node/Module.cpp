@@ -5,16 +5,19 @@
  */
 
 #include "Node/Module.hpp"
-#include "Node/PeerWrap.hpp"
+
 #include "Node/CentralWrap.hpp"
 #include "Node/ClientStreamWrap.hpp"
 #include "Node/DatabaseWrap.hpp"
+#include "Node/PeerWrap.hpp"
+#include "Node/PrivateKeyWrap.hpp"
+#include "Node/PublicKeyWrap.hpp"
 #include "Node/ServerStreamWrap.hpp"
 #include "Node/ServiceWrap.hpp"
-#include "Node/SHA3Wrap.hpp"
+#include "Node/SignatureWrap.hpp"
 #include "Node/SHA3HasherWrap.hpp"
-#include "Node/PublicKeyWrap.hpp"
-#include "Node/PrivateKeyWrap.hpp"
+#include "Node/SHA3Wrap.hpp"
+#include "Node/TransactionWrap.hpp"
 
 namespace Mist
 {
@@ -43,20 +46,22 @@ Init(v8::Local<v8::Object> target, v8::Local<v8::Object> module)
 
   Nan::HandleScope scope;
 
-  ServiceWrap::Init(target);
-  PeerWrap::Init(target);
+  CentralWrap::Init(target);
   ClientStreamWrap::Init(target);
   ClientRequestWrap::Init(target);
   ClientResponseWrap::Init(target);
+  DatabaseWrap::Init(target);
+  PeerWrap::Init(target);
+  PrivateKeyWrap::Init(target);
+  PublicKeyWrap::Init(target);
   ServerStreamWrap::Init(target);
   ServerRequestWrap::Init(target);
   ServerResponseWrap::Init(target);
-  CentralWrap::Init(target);
-  SHA3Wrap::Init(target);
+  ServiceWrap::Init(target);
   SHA3HasherWrap::Init(target);
-  PublicKeyWrap::Init(target);
-  PrivateKeyWrap::Init(target);
-  DatabaseWrap::Init(target);
+  SHA3Wrap::Init(target);
+  SignatureWrap::Init(target);
+  TransactionWrap::Init(target);
 }
 
 NODE_MODULE(_mist_conn, Init)
