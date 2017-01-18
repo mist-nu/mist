@@ -727,7 +727,6 @@ void getJsonResponse(mist::h2::ClientRequest request,
         [cb, response, ss](const std::uint8_t* data, std::size_t length)
     {
         std::uint64_t id(reinterpret_cast<std::uint64_t>(reinterpret_cast<void*>(response._impl.get())));
-        LOG(DBUG) << id << " onData(" << length << " bytes)";
         if (!data) {
             auto sss(ss->str());
             if (sss.empty()) {
@@ -965,7 +964,12 @@ Mist::Central::PeerSyncState::queryTransactions()
     std::lock_guard<std::recursive_mutex> lock(mux);
     state = State::QueryTransactions;
 
-    databaseHashes = central.listDatabasePermissions( keyHash );
+    // Try all databases in case user permissions are not up to date
+    databaseHashes.clear();
+    for (auto& manifest : central.listDatabases()) {
+        databaseHashes.push_back(manifest.getHash());
+    }
+
     databaseHashesIterator = databaseHashes.begin();
     queryTransactionsNext();
 }
@@ -1018,8 +1022,9 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
     if (databaseHashesIterator == databaseHashes.end()) {
         queryTransactionsDone();
     } else {
-        auto hash= *databaseHashesIterator;
+        auto hash = *databaseHashesIterator;
 
+        LOG(INFO) << shortFinger() << "queryTransactionsNext " << hash.toString();
         currentDatabase = central.getDatabase( hash );
         if (!currentDatabase) {
             // TODO Log error
@@ -1038,6 +1043,7 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
             transactionList += mist::h2::urlEncode(tran.hash.toString());
         }
 
+        LOG(INFO) << shortFinger() << "Getting transaction " << hash.toString();
         central.dbService.submitRequest(peer, "GET", "/transactions/"
             + mist::h2::urlEncode(hash.toString())
             + "/?from=" + transactionList,
@@ -1052,6 +1058,7 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
                 [=](mist::h2::ClientResponse response)
             {
                 if (*response.statusCode() == 404) {
+                    LOG(INFO) << shortFinger() << "Transaction not found";
                     central.dbService.submitRequest(peer, "GET",
                         "/transactions/" + mist::h2::urlEncode(hash.toString())
                         + "/latest",
@@ -1107,6 +1114,7 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
                         });
                     });
                 } else if (*response.statusCode() == 200) {
+                    LOG(INFO) << shortFinger() << "Transaction found";
                     innerGetJsonResponse(response,
                         //[=](std::unique_ptr<JSON::basic_json_value> value)
                         [=](boost::optional<const JSON::Value&> value)
