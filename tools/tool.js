@@ -269,7 +269,7 @@ var userQuery = function () {
                     changePeer(hash, peerStatus, anonymous);
                 }
             } else if (xs[0] == "remove-peer") {
-                if (xs.length < 3) {
+                if (xs.length < 2) {
                     console.log("Usage: remove-peer PEER_HASH");
                 } else {
                     var hash = mist.SHA3.fromString(xs[1]);
