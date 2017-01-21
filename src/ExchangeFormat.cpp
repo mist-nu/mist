@@ -665,15 +665,17 @@ void Deserializer::parseMetaData( E e ) {
                     for ( const std::string& parent: parentIds ) {
                         parents.push_back( db->getTransactionMeta( parent ) );
                     }
+                    startTransaction();
                 } catch ( const Mist::Exception& e ) {
                     if ( Error::ErrorCode::NotFound ==
                             static_cast<Error::ErrorCode>( e.getErrorCode() ) ) {
                         LOG( WARNING ) << "Parent not found when writing exchange format to db";
+                        alreadyExists = true; // TODO: handle this properly, this is not the correct way to handle this.
                     } else {
                         LOG( WARNING ) << "Failed to query db about transaction";
+                        throw e;
                     }
                 }
-                startTransaction(); // TODO verify this
             }
             state.top() = S::ObjectsKeyword; // <------- Next state
             return;
@@ -1170,6 +1172,8 @@ void Deserializer::startTransaction() {
     if ( !db )
         return;
     transaction.reset();
+    alreadyExists = false;
+    try {
     transaction = std::move( db->beginRemoteTransaction(
             static_cast<Database::AccessDomain>( accessDomain ),
             parents,
@@ -1178,9 +1182,21 @@ void Deserializer::startTransaction() {
             CryptoHelper::SHA3::fromString( transactionId ),
             CryptoHelper::Signature::fromString( signature ) ) );
     transaction->init(); // TODO: this should not be needed, make it RAII instead?
+    } catch( const Exception& e ) {
+        if( static_cast<Error::ErrorCode>( e.getErrorCode() ) == Error::ErrorCode::AlreadyInUse ) {
+            // Transaction already exists, skip adding to database.
+            alreadyExists = true;
+        } else {
+            throw e;
+        }
+    }
 }
 
 void Deserializer::commitTransaction() {
+    if ( alreadyExists ) {
+        return;
+    }
+
     if ( cb ) {
         std::vector<CryptoHelper::SHA3> parentsSHA3{};
         for ( const std::string& str : parentIds ) {
@@ -1206,6 +1222,10 @@ void Deserializer::rollbackTransaction() {
 }
 
 void Deserializer::changeObject() {
+    if ( alreadyExists ) {
+        return;
+    }
+
     if ( !db )
         return;
     // TODO: correct conversion for id
@@ -1213,6 +1233,10 @@ void Deserializer::changeObject() {
 }
 
 void Deserializer::deleteObject() {
+    if ( alreadyExists ) {
+        return;
+    }
+
     if ( !db )
         return;
     // TODO: correct conversion for id
@@ -1220,6 +1244,10 @@ void Deserializer::deleteObject() {
 }
 
 void Deserializer::moveObject() {
+    if ( alreadyExists ) {
+        return;
+    }
+
     if ( !db )
         return;
     // TODO: correct conversion for id
@@ -1232,6 +1260,10 @@ void Deserializer::moveObject() {
 }
 
 void Deserializer::newObject() {
+    if ( alreadyExists ) {
+        return;
+    }
+
     if ( !db )
         return;
     // TODO: correct conversion for id

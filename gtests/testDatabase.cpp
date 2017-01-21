@@ -182,3 +182,4 @@ TEST_F(DatabaseTest, Close) {
     db.close();
     ASSERT_TRUE( db.isOK() );
 }
+

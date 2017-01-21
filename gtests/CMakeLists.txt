@@ -26,8 +26,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -std=c++11")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -std=c++11")
 
 if(CMAKE_COMPILER_IS_GNUCXX)
-	 message( AUTHOR_WARNING "'Unused parameter' warning  is currently off, enable this when the project is closer to finnishing" )
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g2 -ggdb -pedantic -frtti -fexceptions -Wall -Wextra -Wno-unused-parameter")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g2 -ggdb -pedantic -frtti -fexceptions -Wall -Wextra")
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -EHsc -W3")
 endif(CMAKE_COMPILER_IS_GNUCXX)
@@ -154,10 +153,10 @@ if (test)
     testJson.cpp
     testDatabase.cpp
     testTransaction.cpp
-    testRemoteTransaction.cpp
+    #testRemoteTransaction.cpp
     testConn.cpp
     testCentral.cpp
-    testExchangeFormat.cpp
+    #testExchangeFormat.cpp
   )
   # Standard linking to gtest stuff.
   target_link_libraries(testAll ${Boost_LIBRARIES} gtest_main mist mist_conn)
@@ -191,6 +190,12 @@ if (test)
   	simulator3.cpp
   )
   target_link_libraries( simulator3 ${Boost_LIBRARIES} gtest_main mist mist_conn )
+  
+  add_executable( simulator4
+  	testAll.cpp
+  	simulator4.cpp
+  )
+  target_link_libraries( simulator4 ${Boost_LIBRARIES} gtest_main mist mist_conn )
   
   # This is so you can do 'make test' to see all your tests run, instead of
   # manually running the executable runUnitTests to see those specific tests.

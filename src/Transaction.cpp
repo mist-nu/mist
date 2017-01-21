@@ -767,7 +767,7 @@ void Transaction::commit() {
             "FROM 'Transaction' AS t "
             "LEFT OUTER JOIN TransactionParent tp "
                 "ON t.accessDomain=tp.parentAccessDomain AND t.version=tp.parentVersion "
-            "WHERE tp.version IS NULL AND t.version!=? AND t.accessDomain=?" );
+            "WHERE tp.version IS NULL AND t.version!=? " ); // AND t.accessDomain=? " );
     // TODO: if the "access domain" concepts gets implemented
     // link the transaction with other access domains if this transaction creates or moves objects
     // so they get a parent from the other access domain
@@ -776,7 +776,7 @@ void Transaction::commit() {
             "INSERT INTO TransactionParent (version, parentAccessDomain, parentVersion) "
                     "VALUES (?, ?, ?)" );
     try {
-        selectParents << version << static_cast<int>( accessDomain );
+        selectParents << version; // << static_cast<int>( accessDomain );
         while ( selectParents.executeStep() ) {
             insertTransactionParent << version
                     << static_cast<int>( accessDomain )

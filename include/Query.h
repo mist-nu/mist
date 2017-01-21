@@ -190,7 +190,7 @@ public:
     ArgumentVT( const std::string& value, bool json = false ) : ValueType<Type>( value, json?Type::JSON:Type::String ) {}
     ArgumentVT( double value ) : ValueType<Type>( value, Type::Number ) {}
     ArgumentVT( bool value ) : ValueType<Type>( value, Type::Boolean ) {}
-    ArgumentVT( std::nullptr_t p ) : ValueType<Type>( Type::Null ) {}
+    ArgumentVT( std::nullptr_t ) : ValueType<Type>( Type::Null ) {}
     ArgumentVT( const ArgumentVT& other ) : ValueType<Type>( other.t, other.strVal, other.numberVal, other.boolVal ) {}
     bool operator<( const ArgumentVT& rhs ) const;
 };

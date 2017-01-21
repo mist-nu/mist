@@ -178,6 +178,7 @@ protected:
     virtual void pop();
 
     Database* db; // TODO: refactor to use weak pointer instead?
+    bool alreadyExists{ false };
     map_meta_f cb;
     std::unique_ptr<JSON::Deserialize> d;
     std::unique_ptr<Mist::RemoteTransaction> transaction;

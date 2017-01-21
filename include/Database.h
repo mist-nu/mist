@@ -9,6 +9,7 @@
 
 // STL
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <streambuf>
@@ -407,14 +408,16 @@ protected:
             Connection* connection = nullptr ) const;
 
     const std::string& getUserHash() { return userHash; }
-private:
 
     static bool dbExists( std::string filename );
-    //bool enableTransactionFiles{ true };
 
     bool _isOK; // TODO: fix proper error handling instead.
     std::unique_ptr<Manifest> manifest;
     Central *central;
+    std::function<CryptoHelper::Signature(const CryptoHelper::SHA3&)> signer;
+    std::function<bool( const CryptoHelper::PublicKey& key,
+            const CryptoHelper::SHA3& hash,
+            const CryptoHelper::Signature& sig )> verifier;
     std::string path;
     std::string userHash;
     std::unique_ptr<Connection> db;
@@ -429,9 +432,6 @@ private:
         std::unique_ptr<Query>,
         std::function<void(QueryResult)>>> querySubscriberCallback{};
 };
-
-// Database utils
-
 
 } /* namespace Mist */
 

@@ -4,8 +4,10 @@
  * Free software licensed under GPLv3.
  */
 
+#include <chrono>
 #include <map>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "Helper.h"
@@ -57,10 +59,24 @@ TEST(InitRestTest, CreateCentral) {
     createTestCentral(FS::path("central"));
 }
 
+/*
+TEST( CentralTest, CreateDatabase ) {
+    M::Central central(FS::path("central").string(), true);
+    central.init();
+    central.startEventLoop();
+    M::Database* db{central.createDatabase("test")};
+    db->dump("centralTest");
+    db->close();
+    central.close();
+}
+//*/
+
 class CentralTest: public ::testing::Test {
 public:
     CentralTest() : central("central", true) {
         central.init();
+        central.startEventLoop();
+        std::this_thread::sleep_for( std::chrono::milliseconds( 500 ) );
     }
 
     M::Central central;

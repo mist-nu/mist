@@ -9,15 +9,13 @@
 namespace Simulator
 {
 
-const std::string central2{ FS::path( "central2" ).string() };
 const std::string thisCentral{ FS::path( "central1" ).string() };
+const std::string central2{ FS::path( "central2" ).string() };
 
 TEST( Mist, ReceiveDatabase ) {
     LOG( INFO ) << "Creating Central 1 and extracting user";
 
-    // Create central
     M::Central central( thisCentral, true );
-    central.create();
     central.init();
 
     // Read "remote" database manifest
@@ -104,6 +102,9 @@ TEST( Mist, ReceiveDatabase ) {
     t->deleteObject( object3.id );
     t->commit();
     t.reset();
+
+    // Dump the db so the other central can receive the database
+    db->dump( thisCentral );
 
     // Shutdown
     db->close();

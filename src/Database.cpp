@@ -4,8 +4,10 @@
  * Free software licensed under GPLv3.
  */
 
+#include <chrono>
 #include <fstream>
 #include <string>
+#include <thread>
 //#include <unistd.h>
 #include <iostream>
 
@@ -57,8 +59,14 @@ Database::Database( Central *central, std::string path ) :
         _isOK( true ),
         manifest( nullptr ),
         central( central ),
+        signer( central ? std::bind( &Central::sign, central, std::placeholders::_1 ) :
+                std::function<CryptoHelper::Signature( const CryptoHelper::SHA3 )>() ),
+        verifier( central ? std::bind( &Central::verify, central,
+                std::placeholders::_1, std::placeholders::_2, std::placeholders::_3) :
+                std::function<bool(CryptoHelper::PublicKey,CryptoHelper::SHA3,
+                        CryptoHelper::Signature)>() ),
         path( path ),
-        userHash(),
+        userHash( central ? central->getPublicKey().hash().toString() : "" ),
         db( nullptr ),
         deserializer( new Deserializer( this ) ),
         serializer( new Serializer( this ) ) {
@@ -82,7 +90,7 @@ void Database::create( unsigned localId, std::unique_ptr<Manifest> manifest ) {
 
     if ( manifest ) {
         if( manifest->verify() ) {
-            userHash = manifest->getCreator().hash().toString();
+            //userHash = manifest->getCreator().hash().toString();
             this->manifest = std::move( manifest );
         } else {
             throw std::runtime_error( "Manifest verification failed" );
@@ -139,7 +147,7 @@ void Database::init( std::unique_ptr<Manifest> manifest ) {
     try {
         if ( manifest ) {
             if( manifest->verify() ) {
-                userHash = manifest->getCreator().hash().toString();
+                //userHash = manifest->getCreator().hash().toString();
                 this->manifest = std::move( manifest );
             } else {
                 throw std::runtime_error( "Manifest verification failed" );
@@ -261,7 +269,7 @@ Database::Transaction Database::getTransactionMeta( unsigned version,
     transactionMeta << version;
     if ( !transactionMeta.executeStep() ) {
         LOG( WARNING ) << "Transaction does not exist.";
-        throw std::runtime_error( "Transaction does not exist." );
+        throw Exception( Error::ErrorCode::NotFound );
     }
     return statementRowToTransaction( transactionMeta );
 }
@@ -279,7 +287,7 @@ Database::Transaction Database::getTransactionMeta( const std::string& hash,
     query << hash;
     if ( !query.executeStep() ) {
         LOG( WARNING ) << "Transaction does not exist.";
-        throw std::runtime_error( "Transaction does not exist." );
+        throw Exception( Error::ErrorCode::NotFound );
     }
     return statementRowToTransaction( query );
 }
@@ -353,7 +361,7 @@ std::vector<Database::Transaction> Database::getTransactionsFrom( const std::vec
 
     Database::Statement transactionsFromVersion( *conn,
             "SELECT accessDomain, version, timestamp, userHash, hash, signature "
-            "FROM 'Transactions' "
+            "FROM 'Transaction' "
             "WHERE version >= ? "
             "ORDER BY version ASC ");
     transactionsFromVersion << oldest.getColumn( "version" ).getUInt();
@@ -481,7 +489,7 @@ void Database::mapTransactionsFrom( map_trans_f fn, const std::vector<std::strin
 
     Database::Statement transactionsFromVersion( *conn,
             "SELECT accessDomain, version, timestamp, userHash, hash, signature "
-            "FROM 'Transactions' "
+            "FROM 'Transaction' "
             "WHERE version >= ? "
             "ORDER BY version ASC ");
     transactionsFromVersion << oldest.getColumn( "version" ).getUInt();
@@ -632,7 +640,7 @@ std::shared_ptr<UserAccount> Database::getUser( const std::string& userHash ) co
     if ( id.empty() || name.empty() || permission.empty() || publicKeyPem.empty() ) {
         // TODO: throw or return nullptr?
         LOG( WARNING ) << "Can not get user from database, invalid user data in database";
-        throw std::runtime_error( "Can not get user from database, invalid user data in database" );
+        throw Exception( Error::ErrorCode::UnexpectedDatabaseError );
     }
 
     CryptoHelper::PublicKey publicKey{ CryptoHelper::PublicKey::fromPem( publicKeyPem ) };
@@ -1139,20 +1147,51 @@ std::unique_ptr<Mist::RemoteTransaction> Database::beginRemoteTransaction(
         throw std::runtime_error( "Can not begin remote transaction, database error state." );
     }
 
-    if( !manifest || !( manifest->getCreator().hash() == userHash ) ) {
-        std::shared_ptr<UserAccount> userAccount{ nullptr };
-        try {
-            userAccount = getUser( userHash.toString() );
-        } catch ( const std::runtime_error& e ) {
-            LOG( WARNING ) << "Could not get user: " << e.what();
+    // Check if transaction already exists
+    Database::Statement hasTransaction( *db.get(),
+            "SELECT EXISTS( "
+                "SELECT * "
+                "FROM 'Transaction' "
+                "WHERE hash=? "
+                "LIMIT 1 "
+            ") AS existing " );
+    hasTransaction << hash.toString();
+    if ( !hasTransaction.executeStep() ) {
+        LOG( WARNING ) << "Unexpected database error, could not query 'EXISTS' from 'Transaction' where hash=? ";
+        throw Exception( Error::ErrorCode::UnexpectedDatabaseError );
+    }
+    if( 1 == hasTransaction.getColumn( "existing" ).getUInt() ) {
+        // Transaction already exists
+        LOG( DBUG ) << "Transaction already exists.";
+        throw Exception( Error::ErrorCode::AlreadyInUse );
+    }
+
+    // Check permission
+    if( !this->verifier ) {
+        LOG( WARNING ) << "No verifier is set, can not accept any remote transactions.";
+        throw( Mist::Exception( Mist::Error::ErrorCode::AccessDenied ) );
+    }
+
+    if( manifest && manifest->getCreator().hash() == userHash ) {
+        if ( !verifier( manifest->getCreator(), hash, signature ) ) {
+            LOG( WARNING ) << "Transaction signature validation failed.";
+            throw Mist::Exception( Mist::Error::ErrorCode::InvalidTransaction );
         }
+    } else {
+        std::shared_ptr<UserAccount> userAccount{ getUser( userHash.toString() ) };
 
         if ( !userAccount || userAccount->getPermission() == Permission::P::read ) {
             LOG ( WARNING ) << "Invalid user or user permission";
             throw Mist::Exception( Mist::Error::ErrorCode::AccessDenied );
         }
+
+        if ( !verifier( userAccount->getPublicKey(), hash, signature ) ) {
+            LOG( WARNING ) << "Transaction signature validation failed.";
+            throw Mist::Exception( Mist::Error::ErrorCode::InvalidTransaction );
+        }
     }
 
+    // Create local version number.
     Database::Statement query(*db.get(), "SELECT IFNULL(MAX(version),0)+1 AS newVersion "
             "FROM 'Transaction'");
     if ( !query.executeStep() ) {
@@ -1197,6 +1236,7 @@ std::unique_ptr<Mist::Transaction> Database::beginTransaction( AccessDomain acce
     } else if (getVersion.getColumn( "timestamp" ).getString() == getVersion.getColumn( "now" ).getString()) {
       newVersion = getVersion.getColumn( "version" ).getUInt() + 1;
 //      usleep( 1 );
+    std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
     } else if (getVersion.getColumn( "timestamp" ).getString() > getVersion.getColumn( "now" ).getString()) {
         LOG ( WARNING ) << "Last transaction is from the future. Cannot begin a new transaction";
         throw std::runtime_error( "Last transaction is from the future. Cannot begin a new transaction" );
@@ -1210,7 +1250,7 @@ std::unique_ptr<Mist::Transaction> Database::beginTransaction( AccessDomain acce
         new Mist::Transaction(
             this,
             accessDomain,
-	    newVersion
+            newVersion
         )
     );
 }
@@ -1376,7 +1416,8 @@ unsigned Database::reorderTransaction( const Database::Transaction& tranasaction
 }
 
 CryptoHelper::Signature Database::signTransaction( const CryptoHelper::SHA3& hash ) const {
-    return nullptr == central ? CryptoHelper::Signature() : central->sign( hash );
+    //return nullptr == central ? CryptoHelper::Signature() : central->sign( hash );
+    return signer ? signer( hash ) : CryptoHelper::Signature();
 }
 
 void Database::objectChanged( const Database::ObjectRef& objectRef ) {
@@ -1399,7 +1440,7 @@ void Database::objectChanged( const Database::ObjectRef& objectRef ) {
                 << affectedUsers.getColumn( "id" ).getInt64()
                 << affectedUsers.getColumn( "version" ).getUInt();
             std::string id{}, name{}, permission{}, publicKeyPem{};
-            //for( int i{0}; i < 4; ++i ) {
+
             while( user.executeStep() ) {
                 std::string what{ user.getColumn( "name" ).getString() };
                 if ( "id" == what ) {
@@ -1420,14 +1461,16 @@ void Database::objectChanged( const Database::ObjectRef& objectRef ) {
                 continue;
             }
 
-            // TODO: add/remove user from central.
-            if ( ObjectStatus::Current != static_cast<ObjectStatus>( affectedUsers.getColumn( "status" ).getUInt() ) ) {
-		central->removeDatabasePermission( CryptoHelper::PublicKeyHash::fromString( id ), getManifest()->getHash() );
-		//                central->removePeer( CryptoHelper::PublicKeyHash::fromString( id ) );
-            } else {
-                central->addPeer( CryptoHelper::PublicKey::fromPem( publicKeyPem ), name, PeerStatus::IndirectAnonymous, true );
-		central->addDatabasePermission( CryptoHelper::PublicKeyHash::fromString( id ), getManifest()->getHash() );
+            if( central ) { // TODO: else ?
+                if ( ObjectStatus::Current != static_cast<ObjectStatus>( affectedUsers.getColumn( "status" ).getUInt() ) ) {
+                    central->removeDatabasePermission( CryptoHelper::PublicKeyHash::fromString( id ), getManifest()->getHash() );
+                    // central->removePeer( CryptoHelper::PublicKeyHash::fromString( id ) );
+                } else {
+                    central->addPeer( CryptoHelper::PublicKey::fromPem( publicKeyPem ), name, PeerStatus::IndirectAnonymous, true );
+                    central->addDatabasePermission( CryptoHelper::PublicKeyHash::fromString( id ), getManifest()->getHash() );
+                }
             }
+
             user.clearBindings();
             user.reset();
         }
@@ -1489,7 +1532,11 @@ void Database::commit( Mist::Transaction* transaction ) {
 
 std::vector<CryptoHelper::SHA3> Database::getParents( unsigned version,
         Connection* connection ) const {
-    Database::Statement parent( *db.get(),
+    Connection* conn{ db.get() };
+    if ( nullptr != connection ) {
+        conn = connection;
+    }
+    Database::Statement parent( *conn,
             "SELECT hash"
             "FROM TransactionParent AS tp, 'Transaction' AS t "
             "WHERE tp.version=? AND t.accessDomain=tp.parentAccessDomain AND t.version=tp.parentVersion "
@@ -1505,7 +1552,11 @@ std::vector<CryptoHelper::SHA3> Database::getParents( unsigned version,
 
 std::vector<CryptoHelper::SHA3> Database::getParents( CryptoHelper::SHA3 transactionHash,
         Connection* connection ) const {
-    Database::Statement parent( *db.get(),
+    Connection* conn{ db.get() };
+    if ( nullptr != connection ) {
+        conn = connection;
+    }
+    Database::Statement parent( *conn,
             "SELECT hash "
             "FROM TransactionParent AS tp, 'Transaction' AS t "
             "WHERE t.hash=? AND tp.version=t.version AND tp.accessDomain=t.parentAccessDomain "

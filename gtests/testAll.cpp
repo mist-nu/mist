@@ -18,7 +18,7 @@ std::unique_ptr<g3::SinkHandle<g3::FileSink>> logHandle;
 
 TEST(InitAllTest, InitLogger) {
 	const std::string dir = "./log/";
-	const std::string file = "testTransactions";
+	const std::string file = "testAll";
 	logWorker = g3::LogWorker::createLogWorker();
 	logHandle = logWorker->addDefaultLogger(file, dir);
 	g3::initializeLogging(logWorker.get());

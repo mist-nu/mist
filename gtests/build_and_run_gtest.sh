@@ -16,3 +16,6 @@ echo "in ./build/"
 
 ./simulator3
 echo "in ./build/"
+
+./simulator4
+echo "in ./build/"

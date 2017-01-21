@@ -687,7 +687,7 @@ void RemoteTransaction::checkNew( Database::ObjectMeta& object ) {
     }
 
     // Check if we have a collision
-    Database::Statement isColliding( *connection,
+    Database::Statement isColliding( *connection.get(),
             "SELECT version "
             "FROM Object "
             "WHERE accessDomain=? AND id=? AND version < ? " );
@@ -713,7 +713,7 @@ void RemoteTransaction::checkNew( Database::ObjectMeta& object ) {
         oRef.id = object.id;
 
         // Update the object id
-        Database::Statement updateObject( *connection,
+        Database::Statement updateObject( *connection.get(),
                 "UPDATE Object "
                 "SET id=? "
                 "WHERE accessDomain=? AND id=? AND version=? ");
@@ -724,7 +724,7 @@ void RemoteTransaction::checkNew( Database::ObjectMeta& object ) {
                 version;
         updateObject.exec();
 
-        Database::Statement updateAttributes( *connection,
+        Database::Statement updateAttributes( *connection.get(),
                 "UPDATE Attribute "
                 "SET id=? "
                 "WHERE accessDomain=? AND id=? AND version=? ");
@@ -739,7 +739,7 @@ void RemoteTransaction::checkNew( Database::ObjectMeta& object ) {
         object.id = newId;
 
         // Map the old id to the new id
-        Database::Statement insertRenumber(  *connection,
+        Database::Statement insertRenumber(  *connection.get(),
                 "INSERT INTO Renumber (accessDomain, version, oldId, newId) "
                 "VALUES (?, ?, ?, ?) " );
         insertRenumber <<
@@ -783,7 +783,7 @@ Database::ObjectStatus RemoteTransaction::getParentStatus( const Database::Objec
                     "FROM Object "
                     "WHERE accessDomain=? AND id=? AND version <= ? AND status < ? ) ";
     }
-    Database::Statement parentRow( *connection, parentQuery );
+    Database::Statement parentRow( *connection.get(), parentQuery );
     if ( last ) {
         parentRow <<
                 static_cast<unsigned>( object.parent.accessDomain ) <<
@@ -851,7 +851,7 @@ unsigned long RemoteTransaction::nextNumber( unsigned long num ) const {
 
 unsigned long RemoteTransaction::findNewId( unsigned long id ) const {
     unsigned long newId{ nextNumber( id ) };
-    Database::Statement alreadyExist( *connection,
+    Database::Statement alreadyExist( *connection.get(),
             "SELECT id "
             "FROM Object "
             "WHERE accessDomain=? AND id=? AND version <= ? ");
