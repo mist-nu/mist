@@ -353,7 +353,7 @@ std::vector<Database::Transaction> Database::getTransactionsFrom( const std::vec
 
     Database::Statement transactionsFromVersion( *conn,
             "SELECT accessDomain, version, timestamp, userHash, hash, signature "
-            "FROM 'Transactions' "
+            "FROM 'Transaction' "
             "WHERE version >= ? "
             "ORDER BY version ASC ");
     transactionsFromVersion << oldest.getColumn( "version" ).getUInt();
@@ -481,7 +481,7 @@ void Database::mapTransactionsFrom( map_trans_f fn, const std::vector<std::strin
 
     Database::Statement transactionsFromVersion( *conn,
             "SELECT accessDomain, version, timestamp, userHash, hash, signature "
-            "FROM 'Transactions' "
+            "FROM 'Transaction' "
             "WHERE version >= ? "
             "ORDER BY version ASC ");
     transactionsFromVersion << oldest.getColumn( "version" ).getUInt();
