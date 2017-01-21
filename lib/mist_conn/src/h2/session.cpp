@@ -70,8 +70,8 @@ bool isHex(char c)
 unsigned char fromNibble(char c)
 {
   return c >= '0' && c <= '9' ? static_cast<unsigned char>(c - '0')
-    : c >= 'a' && c <= 'f' ? static_cast<unsigned char>(c - 'a')
-    : static_cast<unsigned char>(c - 'A');
+    : c >= 'a' && c <= 'f' ? static_cast<unsigned char>(c - 'a' + 10)
+    : static_cast<unsigned char>(c - 'A' + 10);
 }
 bool decodeTakeCodedChar(std::string::const_iterator& i,
   std::string::const_iterator& e, char& c)

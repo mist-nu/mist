@@ -437,9 +437,12 @@ private:
         static void serve( Central& central, mist::Peer& peer,
             mist::h2::ServerRequest request, const std::string& path );
 
-    private:
+        // Constructor is public for technical reasons; use serve instead
         RestRequest( Central& central, mist::Peer& peer,
             mist::h2::ServerRequest request );
+
+    private:
+        void entry( const std::string& path );
 
         std::string shortFinger() const;
 
@@ -449,8 +452,6 @@ private:
         CryptoHelper::PublicKeyHash keyHash;
         mist::h2::ServerRequest request;
         std::map<CryptoHelper::SHA3,Mist::Database*> databaseCache;
-
-        void entry( const std::string& path );
 
         void transactions( const std::string &method, const std::vector<std::string>& elts );
         void transaction( const CryptoHelper::SHA3& dbHash,

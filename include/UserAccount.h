@@ -33,6 +33,7 @@ public:
     virtual ~Permission() = default;
 
     bool operator==( Permission::P p ) const { return p == permission; }
+    bool operator!=( Permission::P p ) const { return p != permission; }
 
     std::string toString() const;
 

@@ -94,7 +94,8 @@ void execOutStream(mist::io::IOContext& ioCtx,
     std::function<void(std::streambuf&)> fn) {
     std::ostringstream os;
     fn(*os.rdbuf());
-    req.end(os.str());
+    auto result = os.str();
+    req.end(result);
 }
 
 void execOutStream(mist::io::IOContext& ioCtx,
@@ -102,7 +103,8 @@ void execOutStream(mist::io::IOContext& ioCtx,
     std::function<void(std::streambuf&)> fn) {
     std::ostringstream os;
     fn(*os.rdbuf());
-    res.end(os.str());
+    auto result = os.str();
+    res.end(result);
 }
 
 std::unique_ptr<g3::LogWorker> logWorker;
@@ -961,6 +963,7 @@ Mist::Central::PeerSyncState::queryDatabasesDone()
 void
 Mist::Central::PeerSyncState::queryTransactions()
 {
+    LOG(INFO) << shortFinger() << "queryTransactions";
     std::lock_guard<std::recursive_mutex> lock(mux);
     state = State::QueryTransactions;
 
@@ -1028,25 +1031,36 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
         currentDatabase = central.getDatabase( hash );
         if (!currentDatabase) {
             // TODO Log error
+            LOG(INFO) << shortFinger() << "could not find database";
             databaseHashesIterator = std::next(databaseHashesIterator);
             queryTransactionsNext();
+            return;
         }
 
         transactionsToDownload.clear();
         transactionParentsToDownload.clear();
         transactionToDownloadInOrder.clear();
 
-        std::string transactionList;
-        for (auto& tran : currentDatabase->getTransactionLatest()) {
-            if (transactionList.length())
-                transactionList += ",";
-            transactionList += mist::h2::urlEncode(tran.hash.toString());
+        std::string requestUrl;
+        auto transactionList(currentDatabase->getTransactionLatest());
+        if (transactionList.empty()) {
+            // First time, get all transactions
+            requestUrl = "/transactions/"
+                + mist::h2::urlEncode(hash.toString());
+        } else {
+            std::string transactionList;
+            for (auto& tran : currentDatabase->getTransactionLatest()) {
+                if (transactionList.length())
+                    transactionList += ",";
+                transactionList += mist::h2::urlEncode(tran.hash.toString());
+            }
+            requestUrl = "/transactions/"
+                + mist::h2::urlEncode(hash.toString())
+                + "/?from=" + transactionList;
         }
 
         LOG(INFO) << shortFinger() << "Getting transaction " << hash.toString();
-        central.dbService.submitRequest(peer, "GET", "/transactions/"
-            + mist::h2::urlEncode(hash.toString())
-            + "/?from=" + transactionList,
+        central.dbService.submitRequest(peer, "GET", requestUrl,
             [=](mist::Peer& _peer, mist::h2::ClientRequest request)
         {
             // Not found
@@ -1083,6 +1097,7 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
                                     if (tranHash) {
                                         try {
                                             currentDatabase->getTransactionMeta(*tranHash);
+                                            LOG(INFO) << shortFinger() << "Transaction exists";
                                         } catch (std::runtime_error&) {
                                             // Transaction does not exist
                                             transactionsToDownload[tranHash->toString()] = transaction;
@@ -1090,13 +1105,16 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
                                         }
                                     }
                                     if (!tranExists) {
+                                        LOG(INFO) << shortFinger() << "Transaction does not exist";
                                         auto parentHashes = getMetadataParents(transaction);
                                         for (auto& parentHash : parentHashes) {
                                             try {
                                                 currentDatabase->getTransactionMeta(parentHash);
+                                                LOG(INFO) << shortFinger() << "Parent exists: " << parentHash.toString();
                                             } catch (std::runtime_error&) {
                                                 // Parent does not exist
                                                 transactionParentsToDownload.insert(parentHash.toString());
+                                                LOG(INFO) << shortFinger() << "Parent does not exist: " << parentHash.toString();
                                             }
                                         }
                                     }
@@ -1619,7 +1637,7 @@ Mist::Central::RestRequest::RestRequest( Central& central, mist::Peer& peer,
 
 void Mist::Central::RestRequest::serve( Mist::Central& central,
         mist::Peer& peer, mist::h2::ServerRequest request, const std::string& path ) {
-    RestRequest(central, peer, request).entry(path);
+    std::make_shared<RestRequest>(central, peer, request)->entry(path);
 }
 
 std::string
@@ -1690,7 +1708,7 @@ void Mist::Central::RestRequest::transactions(
                 last = pos+1;
                 pos = from.find( ",", last );
             }
-            res.push_back( CryptoHelper::SHA3( from.substr( last, from.length() ) ) );
+            res.push_back( CryptoHelper::SHA3( from.substr( last, from.length()-last ) ) );
             transactionsFrom( dbHash, res );
         } else {
             CryptoHelper::SHA3 trHash( elts[2] );
@@ -1714,19 +1732,19 @@ void Mist::Central::RestRequest::transaction(
         const CryptoHelper::SHA3& dbHash,
         const CryptoHelper::SHA3& trHash ) {
     if (central.hasDatabasePermission(keyHash, dbHash)) {
-		auto anchor(shared_from_this());
+        auto anchor(shared_from_this());
         auto db(central.getDatabase(dbHash));
 
         if (db == nullptr) {
             replyNotFound();
             return;
         }
-	    request.stream().submitResponse(200, {});
-	    execOutStream(central.ioCtx, request.stream().response(), [this, anchor, db, trHash](std::streambuf& os) {
-	        db->readTransaction(os, trHash.toString());
+        request.stream().submitResponse(200, {});
+        execOutStream(central.ioCtx, request.stream().response(), [this, anchor, db, trHash](std::streambuf& os) {
+            db->readTransaction(os, trHash.toString());
         });
     } else {
-	    replyNotAuthorized();
+        replyNotAuthorized();
     }
 }
 
@@ -1734,38 +1752,38 @@ void Mist::Central::RestRequest::transactionMetadata(
         const CryptoHelper::SHA3& dbHash,
         const CryptoHelper::SHA3& trHash ) {
     if (central.hasDatabasePermission(keyHash, dbHash)) {
-		auto anchor(shared_from_this());
+        auto anchor(shared_from_this());
         auto db(central.getDatabase(dbHash));
 
         if (db == nullptr) {
             replyNotFound();
             return;
         }
-	    request.stream().submitResponse(200, {});
-	    execOutStream(central.ioCtx, request.stream().response(), [this, anchor, db, trHash](std::streambuf& os) {
-	        db->readTransactionMetadata(os, trHash.toString());
+        request.stream().submitResponse(200, {});
+        execOutStream(central.ioCtx, request.stream().response(), [this, anchor, db, trHash](std::streambuf& os) {
+            db->readTransactionMetadata(os, trHash.toString());
         });
     } else {
-	    replyNotAuthorized();
+        replyNotAuthorized();
     }
 }
 
 void Mist::Central::RestRequest::transactionsAll(
         const CryptoHelper::SHA3& dbHash ) {
     if (central.hasDatabasePermission(keyHash, dbHash)) {
-		auto anchor(shared_from_this());
+        auto anchor(shared_from_this());
         auto db(central.getDatabase(dbHash));
 
         if (db == nullptr) {
             replyNotFound();
             return;
         }
-	    request.stream().submitResponse(200, {});
-	    execOutStream(central.ioCtx, request.stream().response(), [this, anchor, db](std::streambuf& os) {
-	        db->readTransactionList(os);
+        request.stream().submitResponse(200, {});
+        execOutStream(central.ioCtx, request.stream().response(), [this, anchor, db](std::streambuf& os) {
+            db->readTransactionList(os);
         });
     } else {
-	    replyNotAuthorized();
+        replyNotAuthorized();
     }
 }
 
@@ -1791,26 +1809,40 @@ void Mist::Central::RestRequest::transactionsLatest(
 void Mist::Central::RestRequest::transactionsFrom(
         const CryptoHelper::SHA3& dbHash,
         const std::vector<CryptoHelper::SHA3>& fromTrHashes ) {
-    if (central.hasDatabasePermission(keyHash, dbHash)) {
-		auto anchor(shared_from_this());
-        auto db(central.getDatabase(dbHash));
 
-        if (db == nullptr) {
-            replyNotFound();
-            return;
-        }
-	    request.stream().submitResponse(200, {});
-	    execOutStream(central.ioCtx, request.stream().response(), [this, anchor, db, fromTrHashes](std::streambuf& os) {
+    auto db(central.getDatabase(dbHash));
+    if (db == nullptr) {
+        replyNotFound();
+        return;
+    }
+
+    auto user(db->getUser(keyHash.toString()));
+    if (!user) {
+        replyNotAuthorized();
+        return;
+    }
+
+    auto perm(user->getPermission());
+    if (perm != Permission::P::admin && perm != Permission::P::read) {
+        replyNotAuthorized();
+        return;
+    }
+
+    auto anchor(shared_from_this());
+    request.stream().submitResponse(200, {});
+    execOutStream(central.ioCtx, request.stream().response(),
+            [this, anchor, db, fromTrHashes](std::streambuf& os) {
+        if (fromTrHashes.empty()) {
+            db->readTransactionList(os);
+        } else {
             std::vector<std::string> from;
 
             for (CryptoHelper::SHA3 trHash : fromTrHashes) {
-                from.push_back( trHash.toString() );
+                from.push_back(trHash.toString());
             }
-	        db->readTransactionMetadataFrom(os, from);
-        });
-    } else {
-	    replyNotAuthorized();
-    }
+            db->readTransactionMetadataFrom(os, from);
+        }
+    });
 }
 
 void Mist::Central::RestRequest::transactionsNew(
