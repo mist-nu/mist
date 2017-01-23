@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include <boost/numeric/conversion/cast.hpp>
 #include <boost/system/system_error.hpp>
 #include <boost/throw_exception.hpp>
 
@@ -213,7 +214,7 @@ base64Encode(const std::vector<std::uint8_t>& src)
 {
   SECItem bin{ siAsciiString,
     reinterpret_cast<unsigned char*>(const_cast<std::uint8_t*>(src.data())),
-    static_cast<unsigned int>(src.size()) };
+    boost::numeric_cast<unsigned int>(src.size()) };
   return base64Encode(&bin);
 }
 

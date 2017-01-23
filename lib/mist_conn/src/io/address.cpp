@@ -178,6 +178,7 @@ netAddrFromIpAddress(const std::string& ipAddr, std::uint16_t port,
     std::copy(bytes.begin(), bytes.end(),
       reinterpret_cast<unsigned char*>(&prAddr->ipv6.ip));
   }
+  return boost::system::error_code();
 }
 } // namespace
 

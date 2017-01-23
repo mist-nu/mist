@@ -32,6 +32,7 @@
 #include <cert.h>
 
 #include <boost/filesystem.hpp>
+#include <boost/numeric/conversion/cast.hpp>
 #include <boost/optional.hpp>
 #include <boost/random/random_device.hpp>
 #include <boost/system/error_code.hpp>
@@ -53,8 +54,8 @@ namespace nss
 c_unique_ptr<SECItem> toSecItem(const std::vector<std::uint8_t>& v)
 {
   c_unique_ptr<SECItem> item = to_unique(SECITEM_AllocItem(nullptr, nullptr,
-    static_cast<unsigned int>(v.size())));
-  item->len = v.size();
+    boost::numeric_cast<unsigned int>(v.size())));
+  item->len = boost::numeric_cast<unsigned int>(v.size());
   std::copy(v.begin(), v.end(), item->data);
   return item;
 }
@@ -256,7 +257,7 @@ makeSecItem(const std::uint8_t* data, std::size_t length,
   auto item = c_unique_ptr<SECItem>(
     reinterpret_cast<SECItem*>(PORT_ZAlloc(sizeof(SECItem))));
   item->type = type;
-  item->len = static_cast<unsigned int>(length);
+  item->len = boost::numeric_cast<unsigned int>(length);
   item->data = static_cast<unsigned char*>(PORT_Alloc(length));
   std::copy(data, data + length, item->data);
   return item;
@@ -285,8 +286,8 @@ stringToUnicodeItem(const std::string& in)
   unsigned int outLength;
 
   if (PORT_UCS2_UTF8Conversion(toUnicode, strBufData,
-    static_cast<unsigned int>(strBufLen), encBuf.data(),
-    static_cast<unsigned int>(encBufLen), &outLength)
+    boost::numeric_cast<unsigned int>(strBufLen), encBuf.data(),
+    boost::numeric_cast<unsigned int>(encBufLen), &outLength)
     == PR_FALSE)
     BOOST_THROW_EXCEPTION(boost::system::system_error(make_nss_error(),
       "Unable to convert password"));
@@ -309,7 +310,8 @@ stringToUnicodeItem(const std::string& in)
 c_unique_ptr<SECItem>
 stringToAsciiItem(const std::string& in)
 {
-  auto item = to_unique(SECITEM_AllocItem(nullptr, nullptr, in.length() + 1));
+  auto item = to_unique(SECITEM_AllocItem(nullptr, nullptr,
+    boost::numeric_cast<unsigned int>(in.length() + 1)));
   std::copy(in.data(), in.data() + in.length(), item->data);
   item->data[in.length()] = 0;
   return item;
@@ -327,7 +329,7 @@ tryInitDecode(const std::string& data, SECItem* pwitem, PK11SlotInfo* slot,
 
   if (SEC_PKCS12DecoderUpdate(p12dcx.get(),
     reinterpret_cast<unsigned char*>(const_cast<char*>(data.data())),
-    static_cast<unsigned long>(data.size())) != SECSuccess)
+    boost::numeric_cast<unsigned long>(data.size())) != SECSuccess)
     return nullptr;
 
   if (SEC_PKCS12DecoderVerify(p12dcx.get()) != SECSuccess)
@@ -382,7 +384,7 @@ importPKCS12(const std::string& nickname,
         const char* stringBuffer = arg.c_str();
 
         nick = SECITEM_AllocItem(nullptr, nullptr,
-          static_cast<unsigned int>(stringBufferSize));
+          boost::numeric_cast<unsigned int>(stringBufferSize));
         assert(nick->len == stringBufferSize);
         nick->type = siAsciiString;
         std::copy(stringBuffer, stringBuffer + stringBufferSize,
@@ -438,7 +440,8 @@ importPKCS12File(const std::string& nickname,
   {
     std::array<std::uint8_t, 1024> buf;
     while (1) {
-      auto n = PR_Read(fd.get(), buf.data(), static_cast<PRInt32>(buf.size()));
+      auto n = PR_Read(fd.get(), buf.data(),
+        boost::numeric_cast<PRInt32>(buf.size()));
       if (n == 0)
         break;
       else if (n < 0)
@@ -606,7 +609,7 @@ sign(SECKEYPrivateKey* privKey, const std::uint8_t* hashData,
   /* Input hash item */
   const SECItem hashItem
     = { siBuffer, const_cast<unsigned char*>(hashData),
-        static_cast<unsigned int>(length) };
+        boost::numeric_cast<unsigned int>(length) };
 
   /* Output signature item */
   c_unique_ptr<SECItem> signItem;
@@ -636,10 +639,10 @@ verify(SECKEYPublicKey* pubKey,
 {
   const SECItem hashItem
     = { siBuffer, const_cast<unsigned char*>(hashData),
-        static_cast<unsigned int>(hashLength) };
+        boost::numeric_cast<unsigned int>(hashLength) };
   const SECItem signItem
     = { siBuffer, const_cast<unsigned char*>(signData),
-        static_cast<unsigned int>(signLength) };
+        boost::numeric_cast<unsigned int>(signLength) };
   return PK11_Verify(pubKey, &signItem, &hashItem, nullptr) == SECSuccess;
 }
 
