@@ -19,10 +19,12 @@ const std::string db_file{ "transactionTest.db" };
 namespace M = Mist;
 namespace FS = M::Helper::filesystem;
 
+using O = M::Database::Object;
 using ORef = M::Database::ObjectRef;
 using AD = M::Database::AccessDomain;
 using V = M::Database::Value;
 using VT = M::Database::Value::Type;
+using QR = M::Database::QueryResult;
 
 void removeTestDb( const FS::path &p ) {
     LOG ( INFO ) << "Removing db: " << p;
@@ -193,6 +195,65 @@ TEST_F( TransactionTest, DeleteObjects ) {
         FAIL();
     }
     //*/
+}
+
+TEST_F( TransactionTest, QueryAndSubscribeToObject ) {
+    std::map<std::string,V> args{};
+    QR qr{ db.query( static_cast<int>( AD::Normal ), 0, "", "", "", args, 0, false ) }; // Get all objects
+    EXPECT_FALSE( qr.isFunctionCall ); // Not function call?
+    EXPECT_LT( 0u, qr.objects.size() ); // Got some objects?
+    O& changeThis{ qr.objects.at( 50 ) }; // Save ref to object
+    EXPECT_NE( 0u, changeThis.id ); // ref is not root?
+    EXPECT_NE( 0u, changeThis.parent.id ); // Parent to ref is not root?
+    O o{ qr.objects.at(0) }; // Temp copy first
+    EXPECT_NE( o.id, changeThis.id ); // First != ref ?
+
+    // Subscribe to last
+    unsigned subId = db.subscribeObject(
+            [&o](O obj) -> void {
+                o = obj;
+            },
+            static_cast<int>( changeThis.accessDomain ),
+            changeThis.id,
+            false );
+
+    std::unique_ptr<M::Transaction> t{ std::move( db.beginTransaction() ) };
+    t->moveObject( changeThis.id, { AD::Normal, 0 } ); // Make last as leaf to root
+    t->commit();
+    EXPECT_EQ( o.id, changeThis.id ); // Expect this to have changed
+    db.unsubscribe( subId );
+}
+
+TEST_F( TransactionTest, SubscribeToQuery ) {
+    bool gotCb{ false };
+    std::map<std::string,V> args{};
+
+    // Sub to all objects
+    unsigned subId = db.subscribeQuery(
+            [&gotCb](QR) -> void {
+                gotCb = true;
+            },
+            static_cast<int>( AD::Normal ), 0, "", "", "", args, 0, false
+    );
+
+    // Get all objects
+    QR qr{ db.query( static_cast<int>( AD::Normal ), 0, "", "", "", args, 0, false ) }; // Get all objects
+    EXPECT_FALSE( qr.isFunctionCall ); // Not function call?
+    EXPECT_LT( 0u, qr.objects.size() ); // Got some objects?
+    O& changeThis{ qr.objects.at( 25 ) }; // Save ref to object
+    EXPECT_NE( 0u, changeThis.id ); // ref is not root?
+    EXPECT_NE( 0u, changeThis.parent.id ); // Parent to ref is not root?
+    O o{ qr.objects.at(0) }; // Temp copy first
+    EXPECT_NE( o.id, changeThis.id ); // First != ref ?
+
+    // Change ref
+    std::unique_ptr<M::Transaction> t{ std::move( db.beginTransaction() ) };
+    t->moveObject( changeThis.id, { AD::Normal, 0 } ); // Make last as leaf to root
+    t->commit();
+
+    EXPECT_TRUE( gotCb );
+
+    db.unsubscribe( subId );
 }
 
 TEST_F( TransactionTest, DumpDb ) {

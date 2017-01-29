@@ -1121,7 +1121,9 @@ void Query::parseQuery( int accessDomain, long long parent, std::string selectSt
         }
         if (!sort.getNone())
             this->args.push_back( sort.getAttribute() );
-        this->sqlQuery = std::string( "SELECT o.accessDomain AS _accessDomain, o.id AS _id, o.version AS _version, a.name AS name, a.type AS type, a.value AS value " )
+        this->sqlQuery = std::string( "SELECT "
+                "o.accessDomain AS _accessDomain, o.id AS _id, o.version AS _version, o.status AS _status, o.parent AS _parent, o.parentAccessDomain AS _parentAccessDomain, o.transactionAction AS _transactionAction, "
+                "a.name AS name, a.type AS type, a.value AS value " )
             + "FROM Object AS o, Attribute AS a "
             + (sort.getNone() ? "" : std::string( "LEFT OUTER JOIN Attribute AS aSort ON o.accessDomain=a.accessDomain AND o.id=a.id AND o.version=a.version " )
                 + "AND a.name=" + printArg( this->args.size() ) + " ")
@@ -1184,7 +1186,9 @@ void Query::parseVersionQuery( int accessDomain, long long parent, std::string s
             attributeNames.pop_back();
             attributeNames += ") ";
         }
-        this->sqlQuery = std::string( "SELECT o.accessDomain AS _accessDomain, o.id AS _id, o.version AS _version, a.name AS name, a.type AS type, a.value AS value " )
+        this->sqlQuery = std::string( "SELECT "
+                "o.accessDomain AS _accessDomain, o.id AS _id, o.version AS _version, o.status AS _status, o.parent AS _parent, o.parentAccessDomain AS _parentAccessDomain, o.transactionAction AS _transactionAction, "
+                "a.name AS name, a.type AS type, a.value AS value " )
             + "FROM Object AS o, Attribute AS a "
             + "WHERE o.accessDomain=a.accessDomain AND o.id=a.id AND o.version=a.version " + attributeNames + " ";
         filter.makeSQL( *this, args, 0, status, true );

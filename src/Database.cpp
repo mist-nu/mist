@@ -204,7 +204,7 @@ void Database::dump( const std::string& filename ) {
 }
 
 std::unique_ptr<Mist::Transaction> Database::beginTransaction() {
-    return beginTransaction( AccessDomain::Normal );
+    return std::move( beginTransaction( AccessDomain::Normal ) );
 }
 
 void Database::writeToDatabase( std::basic_streambuf<char>& sb ) {
@@ -823,6 +823,8 @@ void Database::inviteUser( const UserAccount& user ) {
     ObjectRef USER{ AccessDomain::Settings, USERS_OBJECT_ID };
     unsigned long objId{ transaction->newObject( USER, attribute ) };
     transaction->commit();
+
+    central->addDatabasePermission( user.getPublicKeyHash(), manifest->getHash() );
 }
 
 Database::Object Database::getObject( int accessDomain, long long id, bool includeDeleted ) const {
@@ -845,7 +847,7 @@ Database::Object Database::getObject( Connection* connection, int accessDomain, 
 
     if( object.executeStep() ) {
         ObjectStatus status{ static_cast<ObjectStatus>( object.getColumn( "status" ).getUInt() ) };
-        if ( ObjectStatus::Current != status || !includeDeleted ) {
+        if ( !includeDeleted && ObjectStatus::Deleted == status ) {
             LOG( DBUG ) << "Object not found";
             throw Exception( Error::ErrorCode::NotFound );
         }
@@ -864,35 +866,14 @@ Database::Object Database::getObject( Connection* connection, int accessDomain, 
         throw Exception( Error::ErrorCode::NotFound );
     }
 }
-/*
-Database::Value Database::queryRowToValue( SQLite::Statement& query ) {
-    Value::Type type{ static_cast<Database::Value::Type>( query.getColumn( "type" ).getInt() ) };
-    switch( type ) {
-    case Value::Type::Typeless:
-        return {};
-    case Value::Type::Null:
-        return { nullptr };
-    case Value::Type::Boolean:
-        return static_cast<bool>( query.getColumn( "value" ).getUInt() );
-    case Value::Type::Number:
-        return query.getColumn( "value" ).getDouble();
-    case Value::Type::String:
-        return query.getColumn( "value" ).getString();
-    case Value::Type::Json:
-        return { query.getColumn( "value" ).getString(), true };
-    default:
-        LOG( WARNING ) << "Unhandled case, this needs to be fixed in the source code!";
-        throw std::logic_error( "Unhandled case" );
-    }
-}
-//*/
+
 unsigned Database::subscribeObject( std::function<void(Object)> cb, int accessDomain,
         long long id, bool includeDeleted ) {
-    ++subId;
-    if ( !includeDeleted ) {
+    {
         LOG( DBUG ) << "Checking if object exists";
         getObject( accessDomain, id, includeDeleted ); // Test if the object exists, otherwise throw
     }
+    ++subId;
     try {
         objectSubscribers.at( id ).insert( subId );
     } catch ( const std::out_of_range& ) {
@@ -970,11 +951,14 @@ Database::QueryResult Database::query( const Query& querier, Connection* connect
             result.objects.push_back({
                 static_cast<AccessDomain>( dbQuery.getColumn( "_accessDomain" ).getInt() ),
                 static_cast<unsigned long>( dbQuery.getColumn( "_id" ).getUInt() ),
-                static_cast<unsigned>( dbQuery.getColumn( "_version" ) ),
-                { AccessDomain::Normal, 0 }, // TODO
+                static_cast<unsigned>( dbQuery.getColumn( "_version" ).getUInt() ),
+                {
+                        static_cast<AccessDomain>( dbQuery.getColumn( "_parentAccessDomain" ).getUInt() ),
+                        static_cast<unsigned long>( dbQuery.getColumn( "_parent" ).getInt64() )
+                },
                 { { dbQuery.getColumn( "name" ).getString(), statementRowToValue( dbQuery ) } },
-                ObjectStatus::Current, // TODO
-                ObjectAction::New // TODO
+                static_cast<ObjectStatus>( dbQuery.getColumn( "_status" ).getUInt() ),
+                static_cast<ObjectAction>( dbQuery.getColumn( "_transactionAction" ).getUInt() )
             });
         } else {
 	  //            LOG( DBUG ) << "No results";
@@ -984,7 +968,7 @@ Database::QueryResult Database::query( const Query& querier, Connection* connect
         while ( dbQuery.executeStep() ) {
             Object& object{ *(result.objects.end() - 1) };
             unsigned long id{ dbQuery.getColumn( "_id" ).getUInt() };
-            unsigned version{ dbQuery.getColumn( "_version" ) };
+            unsigned version{ dbQuery.getColumn( "_version" ).getUInt() };
             std::string name{ dbQuery.getColumn( "name" ).getString() };
             Value value{ statementRowToValue( dbQuery ) };
             if ( id == object.id && version == object.version ) {
@@ -994,10 +978,13 @@ Database::QueryResult Database::query( const Query& querier, Connection* connect
                     static_cast<AccessDomain>( dbQuery.getColumn( "_accessDomain" ).getInt() ),
                     id,
                     version,
-                    { AccessDomain::Normal, 0 }, // TODO
+                    {
+                            static_cast<AccessDomain>( dbQuery.getColumn( "_parentAccessDomain" ).getUInt() ),
+                            static_cast<unsigned long>( dbQuery.getColumn( "_parent" ).getInt64() )
+                    },
                     { { name, value } },
-                    ObjectStatus::Current, // TODO
-                    ObjectAction::New // TODO
+                    static_cast<ObjectStatus>( dbQuery.getColumn( "_status" ).getUInt() ),
+                    static_cast<ObjectAction>( dbQuery.getColumn( "_transactionAction" ).getUInt() )
                 });
             }
         }
@@ -1076,11 +1063,14 @@ Database::QueryResult Database::queryVersion( const Query& querier, Connection* 
             result.objects.push_back({
                 AccessDomain::Normal, // TODO //static_cast<AccessDomain>( dbQuery.getColumn( "accessDomain" ).getInt() ),
                 static_cast<unsigned long>( dbQuery.getColumn( "_id" ).getUInt() ),
-                static_cast<unsigned>( dbQuery.getColumn( "_version" ) ),
-                { AccessDomain::Normal, 0 }, // TODO
+                static_cast<unsigned>( dbQuery.getColumn( "_version" ).getUInt() ),
+                {
+                        static_cast<AccessDomain>( dbQuery.getColumn( "_parentAccessDomain" ).getUInt() ),
+                        static_cast<unsigned long>( dbQuery.getColumn( "_parent" ).getInt64() )
+                },
                 { { dbQuery.getColumn( "name" ).getString(), statementRowToValue( dbQuery ) } },
-                ObjectStatus::Current, // TODO
-                ObjectAction::New // TODO
+                static_cast<ObjectStatus>( dbQuery.getColumn( "_status" ).getUInt() ),
+                static_cast<ObjectAction>( dbQuery.getColumn( "_transactionAction" ).getUInt() )
             });
         } else {
             LOG( DBUG ) << "No results";
@@ -1089,7 +1079,7 @@ Database::QueryResult Database::queryVersion( const Query& querier, Connection* 
         while ( dbQuery.executeStep() ) {
             Object& object{ *(result.objects.end() - 1) };
             unsigned long id{ dbQuery.getColumn( "_id" ).getUInt() };
-            unsigned version{ dbQuery.getColumn( "_version" ) };
+            unsigned version{ dbQuery.getColumn( "_version" ).getUInt() };
             std::string name{ dbQuery.getColumn( "name" ).getString() };
             Value value{ statementRowToValue( dbQuery ) };
             if ( id == object.id && version == object.version ) {
@@ -1099,10 +1089,13 @@ Database::QueryResult Database::queryVersion( const Query& querier, Connection* 
                     AccessDomain::Normal, // TODO //static_cast<AccessDomain>( dbQuery.getColumn( "accessDomain" ).getInt() ),
                     id,
                     version,
-                    { AccessDomain::Normal, 0 }, // TODO
+                    {
+                            static_cast<AccessDomain>( dbQuery.getColumn( "_parentAccessDomain" ).getUInt() ),
+                            static_cast<unsigned long>( dbQuery.getColumn( "_parent" ).getInt64() )
+                    },
                     { { name, value } },
-                    ObjectStatus::Current, // TODO
-                    ObjectAction::New // TODO
+                    static_cast<ObjectStatus>( dbQuery.getColumn( "_status" ).getUInt() ),
+                    static_cast<ObjectAction>( dbQuery.getColumn( "_transactionAction" ).getUInt() )
                 });
             }
         }

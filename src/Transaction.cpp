@@ -366,12 +366,14 @@ void Transaction::moveObject( unsigned long id, const Database::ObjectRef &newPa
                 throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
             }
         }
-        Database::ObjectRef oldParent { (Database::AccessDomain) parentQuery.getColumn( "parentAccessDomain" ).getUInt(), (unsigned long) parentQuery.getColumn( "parent" ).getInt64() };
-
-        affectedObjects.insert( oldParent );
-        affectedObjects.insert( { accessDomain, id } );
-        affectedObjects.insert( newParent );
     }
+    if ( newParent.id != Database::ROOT_OBJECT_ID ) {
+        Database::ObjectRef oldParent { (Database::AccessDomain) parentQuery.getColumn( "parentAccessDomain" ).getUInt(), (unsigned long) parentQuery.getColumn( "parent" ).getInt64() };
+        affectedObjects.insert( oldParent );
+    }
+
+    affectedObjects.insert( { accessDomain, id } );
+    affectedObjects.insert( newParent );
 }
 
 /*
