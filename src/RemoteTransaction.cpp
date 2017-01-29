@@ -103,10 +103,10 @@ void RemoteTransaction::init() {
 
     // Insert transaction parents
     Database::Statement insertTransactionParent( *connection.get(),
-            "INSERT INTO transactionParent (version, parentAccessDomain, parentVersion) "
-            "VALUES (?, ?, ?)");
+            "INSERT INTO transactionParent (accessDomain, version, parentAccessDomain, parentVersion) "
+            "VALUES (?, ?, ?, ?)");
     for ( auto parent : parents ) {
-        insertTransactionParent <<
+        insertTransactionParent << static_cast<unsigned int>( accessDomain ) <<
                 version <<
                 static_cast<int>( parent.accessDomain ) <<
                 parent.version;

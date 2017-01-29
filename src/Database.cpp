@@ -128,11 +128,20 @@ void Database::create( unsigned localId, std::unique_ptr<Manifest> manifest ) {
 
         Helper::Database::Transaction transaction( *db.get() );
         //db->exec( "CREATE TABLE AccessDomain (hash TEXT, localId INTEGER, parent INTEGER, creator INTEGER, name TEXT)" );
-        db->exec( "CREATE TABLE Object (accessDomain INTEGER, id INTEGER, version INTEGER, status INTEGER, parent INTEGER, parentAccessDomain INTEGER, transactionAction INTEGER)" );
-        db->exec( "CREATE TABLE Attribute (accessDomain INTEGER, id INTEGER, version INTEGER, name TEXT, type INTEGER, value)" );
-        db->exec( "CREATE TABLE 'Transaction' (accessDomain INTEGER, version INTEGER, timestamp DATETIME, userHash TEXT, hash TEXT, signature TEXT)" );
-        db->exec( "CREATE TABLE TransactionParent (version INTEGER, parentAccessDomain INTEGER, parentVersion INTEGER)" );
-        db->exec( "CREATE TABLE Renumber (accessDomain INTEGER, version INTEGER, oldId INTEGER, newId INTEGER)" );
+        db->exec( "CREATE TABLE Object (accessDomain INTEGER, id INTEGER, version INTEGER, status INTEGER, parent INTEGER, parentAccessDomain INTEGER, transactionAction INTEGER, "
+                "PRIMARY KEY ( accessDomain, id, version ) ) " );
+        db->exec( "CREATE INDEX status_index ON Object ( accessDomain, id, status ) " );
+        db->exec( "CREATE INDEX parent_index ON Object ( accessDomain, id, parent, status ) " );
+
+        db->exec( "CREATE TABLE Attribute (accessDomain INTEGER, id INTEGER, version INTEGER, name TEXT, type INTEGER, value, "
+                "PRIMARY KEY ( accessDomain, id, version, name ) ) " );
+        db->exec( "CREATE TABLE 'Transaction' (accessDomain INTEGER, version INTEGER, timestamp DATETIME, userHash TEXT, hash TEXT, signature TEXT, "
+                "PRIMARY KEY ( accessDomain, version ) ) " );
+        db->exec( "CREATE TABLE TransactionParent (accessDomain INTEGER, version INTEGER, parentAccessDomain INTEGER, parentVersion INTEGER, "
+                "PRIMARY KEY ( accessDomain, version ) ) " );
+        db->exec( "CREATE TABLE Renumber (accessDomain INTEGER, version INTEGER, oldId INTEGER, newId INTEGER, "
+                "PRIMARY KEY ( accessDomain, version ) ) " );
+
         transaction.commit();
     /*
     } catch ( Helper::Database::Exception &e ) {
@@ -422,7 +431,7 @@ void Database::mapTransactionLatest( map_trans_f fn,
         conn = connection;
     }
     Database::Statement openTransactions( *conn,
-            "SELECT accessDomain, t.version AS version, timestamp, userHash, hash, signature "
+            "SELECT t.accessDomain AS accessDomain, t.version AS version, timestamp, userHash, hash, signature "
             "FROM 'Transaction' AS t "
             "LEFT OUTER JOIN TransactionParent tp "
                 "ON t.version=tp.parentVersion " // AND t.accessDomain=tp.parentAccessDomain
@@ -441,7 +450,7 @@ void Database::mapParents( map_trans_f fn, const Database::Transaction& transact
         conn = connection;
     }
     Database::Statement parent( *conn,
-            "SELECT accessDomain, t.version AS version, timestamp, userHash, hash, signature "
+            "SELECT t.accessDomain AS accessDomain, t.version AS version, timestamp, userHash, hash, signature "
             "FROM TransactionParent AS tp, 'Transaction' AS t "
             "WHERE tp.version=? AND t.accessDomain=tp.parentAccessDomain AND t.version=tp.parentVersion "
             "ORDER BY t.version ASC ");

@@ -763,7 +763,7 @@ void Transaction::commit() {
     }
 
     Database::Statement selectParents( *connection.get(),
-            "SELECT accessDomain, t.version AS version, timestamp, userHash, hash, signature "
+            "SELECT t.accessDomain AS accessDomain, t.version AS version, timestamp, userHash, hash, signature "
             "FROM 'Transaction' AS t "
             "LEFT OUTER JOIN TransactionParent tp "
                 "ON t.accessDomain=tp.parentAccessDomain AND t.version=tp.parentVersion "
@@ -773,13 +773,14 @@ void Transaction::commit() {
     // so they get a parent from the other access domain
 
     Database::Statement insertTransactionParent( *connection.get(),
-            "INSERT INTO TransactionParent (version, parentAccessDomain, parentVersion) "
-                    "VALUES (?, ?, ?)" );
+            "INSERT INTO TransactionParent (accessDomain, version, parentAccessDomain, parentVersion) "
+                    "VALUES (?, ?, ?, ?)" );
     try {
         selectParents << version; // << static_cast<int>( accessDomain );
         while ( selectParents.executeStep() ) {
-            insertTransactionParent << version
-                    << static_cast<int>( accessDomain )
+            insertTransactionParent << static_cast<int>( accessDomain )
+                    << version
+                    << selectParents.getColumn( "accessDomain" ).getUInt()
                     << selectParents.getColumn( "version" ).getUInt();
             if ( insertTransactionParent.exec() == 0 ) {
                 LOG( WARNING ) << "Unexpected Database Error";
