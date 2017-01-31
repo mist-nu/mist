@@ -189,7 +189,9 @@ unsigned long Transaction::newObject( const Database::ObjectRef &parent, const s
         }
     }
 
-    affectedObjects.insert( parent );
+    if ( Database::ROOT_OBJECT_ID != parent.id ) {
+        affectedObjects.insert( parent );
+    }
     affectedObjects.insert( { accessDomain, newId } );
 
     return newId;
@@ -369,7 +371,9 @@ void Transaction::moveObject( unsigned long id, const Database::ObjectRef &newPa
     }
     if ( newParent.id != Database::ROOT_OBJECT_ID ) {
         Database::ObjectRef oldParent { (Database::AccessDomain) parentQuery.getColumn( "parentAccessDomain" ).getUInt(), (unsigned long) parentQuery.getColumn( "parent" ).getInt64() };
-        affectedObjects.insert( oldParent );
+        if ( Database::ROOT_OBJECT_ID != oldParent.id ) {
+            affectedObjects.insert( oldParent );
+        }
     }
 
     affectedObjects.insert( { accessDomain, id } );
@@ -561,7 +565,9 @@ void Transaction::updateObject( unsigned long id, const std::map<std::string, Da
         }
     }
 
-    affectedObjects.insert( obj.parent );
+    if ( Database::ROOT_OBJECT_ID != obj.parent.id ) {
+        affectedObjects.insert( obj.parent );
+    }
     affectedObjects.insert( { obj.accessDomain, obj.id } );
 }
 
@@ -737,7 +743,9 @@ void Transaction::deleteObject( unsigned long id ) {
         }
     }
 
-    affectedObjects.insert( obj.parent );
+    if ( Database::ROOT_OBJECT_ID != obj.parent.id ) {
+        affectedObjects.insert( obj.parent );
+    }
     affectedObjects.insert( { obj.accessDomain, obj.id } );
 }
 
@@ -862,9 +870,7 @@ void Transaction::commit() {
     db->commit( this );
     LOG( DBUG ) << "Transaction commited.";
 
-    for( const Database::ObjectRef& oref : affectedObjects ) {
-        db->objectChanged( oref );
-    }
+    db->objectsChanged( affectedObjects );
     // TODO: release above suggested lock
 }
 

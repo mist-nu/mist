@@ -329,7 +329,8 @@ Expression QueryParser::compareExpression()
         case TokenType::LessThan: et = ExpressionType::LessThan; break;
         case TokenType::GreaterThanOrEqual: et = ExpressionType::GreaterThanOrEqual; break;
         case TokenType::LessThanOrEqual: et = ExpressionType::LessThanOrEqual; break;
-        // TODO: what todo with the rest of the cases? throw?
+        default:
+            throw std::logic_error( "Unhandled case." );
     }
 
     Expression e = unaryExpression() ;
@@ -793,6 +794,8 @@ void FilterExpression::parse( Expression expression )
                 case ExpressionType::GreaterThan: _operator = ">"; break;
                 case ExpressionType::LessThanOrEqual: _operator = "<="; break;
                 case ExpressionType::GreaterThanOrEqual: _operator = ">="; break;
+                default:
+                    throw std::logic_error( "Unhandled case." );
             }
             left = new FilterExpression();
             right = new FilterExpression();

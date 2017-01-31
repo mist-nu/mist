@@ -824,7 +824,8 @@ void Database::inviteUser( const UserAccount& user ) {
     unsigned long objId{ transaction->newObject( USER, attribute ) };
     transaction->commit();
 
-    central->addDatabasePermission( user.getPublicKeyHash(), manifest->getHash() );
+    if ( central && manifest )
+        central->addDatabasePermission( user.getPublicKeyHash(), manifest->getHash() );
 }
 
 Database::Object Database::getObject( int accessDomain, long long id, bool includeDeleted ) const {
@@ -832,6 +833,22 @@ Database::Object Database::getObject( int accessDomain, long long id, bool inclu
 }
 
 Database::Object Database::getObject( Connection* connection, int accessDomain, long long id, bool includeDeleted ) const {
+    if (  ROOT_OBJECT_ID == id) {
+        // TODO: what should the root object look like?
+        return {
+            static_cast<AccessDomain>( accessDomain ),
+            ROOT_OBJECT_ID,
+            0u,
+            {
+                static_cast<AccessDomain>( accessDomain ),
+                ROOT_OBJECT_ID
+            },
+            {},
+            ObjectStatus::Current,
+            ObjectAction::New
+        };
+    }
+
     Database::Statement object( *connection,
             "SELECT accessDomain, id, MAX( version ) as version, status, parent, parentAccessDomain, transactionAction "
             "FROM Object "
@@ -907,22 +924,23 @@ void Database::unsubscribe( unsigned subId ) {
         LOG( DBUG ) << "Tried to remove non-subscriber";
     }
     objectSubscriberCallback.erase( subId );
-    querySubscriberCallback.erase( subId );
+    //querySubscriberCallback.erase( subId );
+    queryFunctionSubscriberCallback.erase( subId );
 }
 
-Database::QueryResult Database::query( int accessDomain, long long id, const std::string& select,
+Database::QueryResult Database::query( int accessDomain, long long parentId, const std::string& select,
         const std::string& filter, const std::string& sort,
         const std::map<std::string, Value>& args,
         int maxVersion, bool includeDeleted ) {
-    return query( db.get(), accessDomain, id, select, filter, sort, args, maxVersion, includeDeleted );
+    return query( db.get(), accessDomain, parentId, select, filter, sort, args, maxVersion, includeDeleted );
 }
 
-Database::QueryResult Database::query( Connection* connection, int accessDomain, long long id, const std::string& select,
+Database::QueryResult Database::query( Connection* connection, int accessDomain, long long parentId, const std::string& select,
         const std::string& filter, const std::string& sort,
         const std::map<std::string, Value>& args,
         int maxVersion, bool includeDeleted ) {
     Mist::Query querier{};
-    querier.parseQuery( accessDomain, id, select, filter, sort, valueMapToArgumentMap( args ), maxVersion, includeDeleted );
+    querier.parseQuery( accessDomain, parentId, select, filter, sort, valueMapToArgumentMap( args ), maxVersion, includeDeleted );
     return query( querier, connection );
 }
 
@@ -993,49 +1011,53 @@ Database::QueryResult Database::query( const Query& querier, Connection* connect
 }
 
 unsigned Database::subscribeQuery( std::function<void(QueryResult)> cb,
-            int accessDomain, long long id, const std::string& select,
+            int accessDomain, long long parentId, const std::string& select,
             const std::string& filter, const std::string& sort,
             const std::map<std::string, Value>& args,
             int maxVersion, bool includeDeleted ) {
-
     ++subId;
-    if ( !includeDeleted ) {
-        // TODO: verify this behaviour
-        LOG( DBUG ) << "Checking if object exists";
-        getObject( accessDomain, id, includeDeleted ); // Test if the object exists, otherwise throw
+    QueryResult qr{ query( accessDomain, parentId, select, filter, sort, args, maxVersion, includeDeleted ) };
+    if( qr.isFunctionCall ) {
+        queryFunctionSubscriberCallback[ subId ] = std::make_tuple( std::unique_ptr<Query>( new Query() ), qr.functionValue, cb );
+        std::get<0>( queryFunctionSubscriberCallback.at( subId ) )->parseQuery(
+                    accessDomain, parentId, select, filter, sort, valueMapToArgumentMap( args ), maxVersion, includeDeleted
+                );
+    } else {
+        for( const auto& object : qr.objects ) {
+            try {
+                objectSubscribers.at( object.id ).insert( subId );
+            } catch ( const std::out_of_range& ) {
+                objectSubscribers[ object.id ] = {};
+                objectSubscribers.at( object.id ).insert( subId );
+            }
+            try {
+                subscriberObjects.at( subId ).insert( object.id );
+            } catch ( const std::out_of_range& ) {
+                // No objects for this subscriber yet.
+                subscriberObjects[ subId ] = {};
+                subscriberObjects.at( subId ).insert( object.id );
+            }
+        }
+        querySubscriberCallback[ subId ] = std::make_pair( std::unique_ptr<Query>(), cb );
+        querySubscriberCallback.at( subId ).first.reset( new Query() );
+        querySubscriberCallback.at( subId ).first->parseQuery(
+                accessDomain, parentId, select, filter, sort, valueMapToArgumentMap( args ), maxVersion, includeDeleted
+        );
     }
-    try {
-        objectSubscribers.at( id ).insert( subId );
-    } catch ( const std::out_of_range& ) {
-        // No subscirbers for this object yet
-        objectSubscribers[ id ] = {};
-        objectSubscribers.at( id ).insert( subId );
-    }
-    try {
-        subscriberObjects.at( subId ).insert( id );
-    } catch ( const std::out_of_range& ) {
-        // No objects for this subscriber yet.
-        subscriberObjects[ subId ] = {};
-        subscriberObjects.at( subId ).insert( id );
-    }
-    querySubscriberCallback[ subId ] =  {};
-    querySubscriberCallback.at( subId ).first.reset( new Query() );
-    querySubscriberCallback.at( subId ).second = cb;
-    querySubscriberCallback.at( subId ).first->parseQuery( accessDomain, id, select, filter, sort, valueMapToArgumentMap( args ), maxVersion, includeDeleted );
 
     return subId;
 }
 
 
-Database::QueryResult Database::queryVersion( int accessDomain, long long id, const std::string& select,
+Database::QueryResult Database::queryVersion( int accessDomain, long long parentId, const std::string& select,
         const std::string& filter, const std::map<std::string, Value>& args, bool includeDeleted ) {
-    return queryVersion( db.get(), accessDomain, id, select, filter, args, includeDeleted );
+    return queryVersion( db.get(), accessDomain, parentId, select, filter, args, includeDeleted );
 }
 
-Database::QueryResult Database::queryVersion( Connection* connection, int accessDomain, long long id, const std::string& select,
+Database::QueryResult Database::queryVersion( Connection* connection, int accessDomain, long long parentId, const std::string& select,
         const std::string& filter, const std::map<std::string, Value>& args, bool includeDeleted ) {
     Query querier{};
-    querier.parseVersionQuery( accessDomain, id, select, filter, valueMapToArgumentMap( args ), includeDeleted );
+    querier.parseVersionQuery( accessDomain, parentId, select, filter, valueMapToArgumentMap( args ), includeDeleted );
     return queryVersion( querier, connection );
 }
 
@@ -1104,34 +1126,38 @@ Database::QueryResult Database::queryVersion( const Query& querier, Connection* 
 }
 
 unsigned Database::subscribeQueryVersion( std::function<void(QueryResult)> cb,
-        int accessDomain, long long id, const std::string& select,
+        int accessDomain, long long parentId, const std::string& select,
         const std::string& filter, const std::map<std::string, Value>& args,
         bool includeDeleted ) {
-
     ++subId;
-    if ( !includeDeleted ) {
-        // TODO: verify this behaviour
-        LOG( DBUG ) << "Checking if object exists";
-        getObject( accessDomain, id, includeDeleted ); // Test if the object exists, otherwise throw
+    QueryResult qr{ queryVersion( accessDomain, parentId, select, filter, args, includeDeleted ) };
+    if( qr.isFunctionCall ) {
+        queryFunctionSubscriberCallback[ subId ] = std::make_tuple( std::unique_ptr<Query>( new Query() ), qr.functionValue, cb );
+        std::get<0>( queryFunctionSubscriberCallback.at( subId ) )->parseVersionQuery(
+                    accessDomain, parentId, select, filter, valueMapToArgumentMap( args ), includeDeleted
+                );
+    } else {
+        for( const auto& object : qr.objects ) {
+            try {
+                objectSubscribers.at( object.id ).insert( subId );
+            } catch ( const std::out_of_range& ) {
+                objectSubscribers[ object.id ] = {};
+                objectSubscribers.at( object.id ).insert( subId );
+            }
+            try {
+                subscriberObjects.at( subId ).insert( object.id );
+            } catch ( const std::out_of_range& ) {
+                // No objects for this subscriber yet.
+                subscriberObjects[ subId ] = {};
+                subscriberObjects.at( subId ).insert( object.id );
+            }
+        }
+        querySubscriberCallback[ subId ] = std::make_pair( std::unique_ptr<Query>(), cb );
+        querySubscriberCallback.at( subId ).first.reset( new Query() );
+        querySubscriberCallback.at( subId ).first->parseVersionQuery(
+                accessDomain, parentId, select, filter, valueMapToArgumentMap( args ), includeDeleted
+        );
     }
-    try {
-        objectSubscribers.at( id ).insert( subId );
-    } catch ( const std::out_of_range& ) {
-        // No subscirbers for this object yet
-        objectSubscribers[ id ] = {};
-        objectSubscribers.at( id ).insert( subId );
-    }
-    try {
-        subscriberObjects.at( subId ).insert( id );
-    } catch ( const std::out_of_range& ) {
-        // No objects for this subscriber yet.
-        subscriberObjects[ subId ] = {};
-        subscriberObjects.at( subId ).insert( id );
-    }
-    querySubscriberCallback[ subId ] =  {};
-    querySubscriberCallback.at( subId ).first.reset( new Query() );
-    querySubscriberCallback.at( subId ).second = cb;
-    querySubscriberCallback.at( subId ).first->parseVersionQuery( accessDomain, id, select, filter, valueMapToArgumentMap( args ), includeDeleted );
 
     return subId;
 }
@@ -1418,12 +1444,11 @@ unsigned Database::reorderTransaction( const Database::Transaction& tranasaction
 }
 
 CryptoHelper::Signature Database::signTransaction( const CryptoHelper::SHA3& hash ) const {
-    //return nullptr == central ? CryptoHelper::Signature() : central->sign( hash );
     return signer ? signer( hash ) : CryptoHelper::Signature();
 }
 
-void Database::objectChanged( const Database::ObjectRef& objectRef ) {
-    if ( AccessDomain::Settings == objectRef.accessDomain && USERS_OBJECT_ID == objectRef.id ) {
+void Database::usersChanged( const Database::ObjectRef& userObject ) {
+    if ( AccessDomain::Settings == userObject.accessDomain && USERS_OBJECT_ID == userObject.id ) {
         // Handle user changes
         Database::Statement affectedUsers( *db.get(),
                 "SELECT id, max(version) AS version, status "
@@ -1463,13 +1488,13 @@ void Database::objectChanged( const Database::ObjectRef& objectRef ) {
                 continue;
             }
 
-            if( central ) { // TODO: else ?
+            if( central && manifest ) { // TODO: else ?
                 if ( ObjectStatus::Current != static_cast<ObjectStatus>( affectedUsers.getColumn( "status" ).getUInt() ) ) {
-                    central->removeDatabasePermission( CryptoHelper::PublicKeyHash::fromString( id ), getManifest()->getHash() );
+                    central->removeDatabasePermission( CryptoHelper::PublicKeyHash::fromString( id ), manifest->getHash() );
                     // central->removePeer( CryptoHelper::PublicKeyHash::fromString( id ) );
                 } else {
                     central->addPeer( CryptoHelper::PublicKey::fromPem( publicKeyPem ), name, PeerStatus::IndirectAnonymous, true );
-                    central->addDatabasePermission( CryptoHelper::PublicKeyHash::fromString( id ), getManifest()->getHash() );
+                    central->addDatabasePermission( CryptoHelper::PublicKeyHash::fromString( id ), manifest->getHash() );
                 }
             }
 
@@ -1477,33 +1502,47 @@ void Database::objectChanged( const Database::ObjectRef& objectRef ) {
             user.reset();
         }
     }
-    try {
-        const std::set<unsigned>& subs { objectSubscribers.at( objectRef.id ) };
-        Object obj{ getObject( static_cast<long long>( objectRef.accessDomain ),
-                static_cast<long long>( objectRef.id ), true ) };
-        for ( const unsigned sub : subs ) {
-            objectSubscriberCallback.at( sub )( obj );
-        }
-    } catch ( const std::out_of_range& ) {
-        // OK, no subscribers found
-    }
 }
 
-void Database::objectsChanged( const std::set<Database::ObjectRef, Database::lessObjectRef>& objects ) {
-    std::set<unsigned> subscribers{};
+void Database::objectsChanged( const std::set<ObjectRef, lessObjectRef>& objects ) {
+    // Rerun all function queries and check if the result have changed
+    for( auto& kv : queryFunctionSubscriberCallback ) {
+        const Query& q{ *( std::get<0>( kv.second ).get() ) };
+        double& val{ std::get<1>( kv.second ) };
+        QueryResult qr{ query( q, db.get() ) };
+        if ( val != qr.functionValue ) {
+            val = qr.functionValue;
+            std::get<2>( kv.second )( qr );
+        }
+    }
+
+    // Go through all affected objects
+    bool calledUsersChanged{ false };
+    std::set<unsigned> subscriber{};
+
     for( const ObjectRef& objectRef: objects ) {
-        objectChanged( objectRef );
+        //objectChanged( objectRef );
+        if ( !calledUsersChanged &&
+                AccessDomain::Settings == objectRef.accessDomain &&
+                USERS_OBJECT_ID == objectRef.id ) {
+            usersChanged( objectRef );
+            calledUsersChanged = true;
+        }
         try {
             const std::set<unsigned>& subs { objectSubscribers.at( objectRef.id ) };
             Object obj{ getObject( static_cast<long long>( objectRef.accessDomain ),
                     static_cast<long long>( objectRef.id ), true ) };
             for ( const unsigned sub : subs ) {
-                if ( objectSubscriberCallback.count( sub ) ) {
-                    objectSubscriberCallback.at( sub )( obj );
-                }
-                if (  querySubscriberCallback.count( sub ) ) {
-                    QueryResult newQueryResults{ query( *querySubscriberCallback.at( sub ).first.get(), db.get() ) };
-                    querySubscriberCallback.at( sub ).second( newQueryResults );
+                if ( 0 == subscriber.count( sub ) ) {
+                    if ( objectSubscriberCallback.count( sub ) ) {
+                        objectSubscriberCallback.at( sub )( obj );
+                        subscriber.insert( sub );
+                    }
+                    if ( querySubscriberCallback.count( sub ) ) {
+                        Query* q{ querySubscriberCallback.at( sub ).first.get() };
+                        if( querySubscriberCallback.at( sub ).second )
+                            querySubscriberCallback.at( sub ).second( query( *q, db.get() ) );
+                    }
                 }
             }
         } catch ( const std::out_of_range& ) {
@@ -1571,18 +1610,6 @@ std::vector<CryptoHelper::SHA3> Database::getParents( CryptoHelper::SHA3 transac
     }
     return parents;
 }
-
-/*
-Database::Meta Database::transactionToMeta( const Database::Transaction& transaction,
-        Connection* connection ) const {
-    try {
-        // TODO
-    } catch ( const SQLite::Exception& e ) {
-        LOG( WARNING ) << "Database error while trying to fetch transaction parents: " << e.what();
-        throw e;
-    }
-}
-//*/
 
 Database::Transaction Database::statementRowToTransaction( Database::Statement& stmt ) {
     // "SELECT accessDomain, version, timestamp, userHash, hash, signature "
@@ -1690,12 +1717,6 @@ Database::Value Database::statementRowToValue( Database::Statement& attribute ) 
         throw std::runtime_error( "Statement is not a correct attribute statement." );
     }
 }
-
-/*
-UserAccount Database::statementRowToUser( Database::Statement& user ) {
-
-}
-//*/
 
 bool Database::dbExists( std::string filename ) {
     bool exists = true;

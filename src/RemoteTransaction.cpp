@@ -237,7 +237,9 @@ void RemoteTransaction::newObject( unsigned long id, const Database::ObjectRef& 
         }
     }
 
-    affectedObjects.insert( parent );
+    if ( Database::ROOT_OBJECT_ID != parent.id ) {
+        affectedObjects.insert( parent );
+    }
     affectedObjects.insert( { accessDomain, id } );
 }
 
@@ -282,7 +284,7 @@ void RemoteTransaction::moveObject( unsigned long id, Database::ObjectRef newPar
                 "ORDER BY version DESC "
             ") " );
     getOldParent << static_cast<long long>( id );
-    Database::ObjectRef oldParent{ accessDomain, 0 };
+    Database::ObjectRef oldParent{ accessDomain, Database::ROOT_OBJECT_ID };
     if ( getOldParent.executeStep() ) {
         oldParent.accessDomain = static_cast<Database::AccessDomain>( getOldParent.getColumn( "accessDomain" ).getUInt() );
         oldParent.id = static_cast<unsigned long>( getOldParent.getColumn( "id" ).getInt64() );
@@ -340,9 +342,12 @@ void RemoteTransaction::moveObject( unsigned long id, Database::ObjectRef newPar
         // TODO: Did NOT get any object from the database, should this be handled?
     }
 
-    // TODO: call object changed on this->db, the same way as in the local transactions?
-    affectedObjects.insert( oldParent );
-    affectedObjects.insert( newParent );
+    if ( Database::ROOT_OBJECT_ID != oldParent.id ) {
+        affectedObjects.insert( oldParent );
+    }
+    if ( Database::ROOT_OBJECT_ID != newParent.id ) {
+        affectedObjects.insert( newParent );
+    }
     affectedObjects.insert( { accessDomain, id } );
 }
 
@@ -519,7 +524,9 @@ void RemoteTransaction::updateObject( unsigned long id, std::map<std::string, Da
         }
     }
 
-    affectedObjects.insert( parent );
+    if ( Database::ROOT_OBJECT_ID != parent.id ) {
+        affectedObjects.insert( parent );
+    }
     affectedObjects.insert( { accessDomain, id } );
 }
 
@@ -548,7 +555,7 @@ void RemoteTransaction::deleteObject( unsigned long id ) {
     getParent <<
             static_cast<long long>( id ) <<
             version;
-    Database::ObjectRef parent{ accessDomain, 0 };
+    Database::ObjectRef parent{ accessDomain, Database::ROOT_OBJECT_ID };
     if ( getParent.executeStep() ) {
         parent.accessDomain = static_cast<Database::AccessDomain>( getParent.getColumn( "accessDomain" ).getUInt() );
         parent.id = static_cast<unsigned long>( getParent.getColumn( "id" ).getInt64() );
@@ -618,7 +625,9 @@ void RemoteTransaction::deleteObject( unsigned long id ) {
     }
 
     // TODO: call object changed on this->db, the same way as in the local transactions?
-    affectedObjects.insert( parent );
+    if ( Database::ROOT_OBJECT_ID != parent.id ) {
+        affectedObjects.insert( parent );
+    }
     affectedObjects.insert( { accessDomain, id } );
 }
 
@@ -664,9 +673,7 @@ void RemoteTransaction::commit() {
     db->commit( this );
     LOG( DBUG ) << "Transaction commited.";
 
-    for( const Database::ObjectRef& oref : affectedObjects ) {
-        db->objectChanged( oref );
-    }
+    db->objectsChanged( affectedObjects );
     // TODO: release above suggested lock
 }
 
