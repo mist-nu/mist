@@ -251,7 +251,7 @@ void Mist::Central::create( boost::optional<std::string> privKey ) {
         settingsDatabase->exec( "CREATE TABLE Database (hash TEXT PRIMARY KEY, localId INTEGER, creator INTEGER, name TEXT, manifest TEXT)" );
         settingsDatabase->exec( "CREATE TABLE User (keyHash TEXT PRIMARY KEY, publicKey TEXT, name TEXT, status TEXT, anonymous INTEGER)" );
         settingsDatabase->exec( "CREATE TABLE UserDatabase (userKeyHash TEXT, dbHash TEXT)");
-        settingsDatabase->exec( "CREATE TABLE UserServicePermission (userKeyHash TEXT, service TEXT, path TEXT)" );
+        settingsDatabase->exec( "CREATE TABLE UserServicePermission (userKeyHash TEXT, service TEXT)" );
         settingsDatabase->exec( "CREATE TABLE AddressLookupServer (address TEXT, port INTEGER )" );
         if ( !externalUserAccount ) {
             auto keyData(reinterpret_cast<const std::uint8_t*>(privKey->data()));
@@ -675,47 +675,41 @@ Mist::Central::hasDatabasePermission( const CryptoHelper::PublicKeyHash& keyHash
 }
 
 void
-Mist::Central::addServicePermission( const CryptoHelper::PublicKeyHash& keyHash, const std::string& service, const std::string& path ) {
+Mist::Central::addServicePermission( const CryptoHelper::PublicKeyHash& keyHash,
+        const std::string& service ) {
     Helper::Database::Transaction transaction(*settingsDatabase);
     Helper::Database::Statement query(*settingsDatabase,
-        "INSERT INTO UserServicePermission (userKeyHash, service, path) VALUES (?,?,?)");
+        "INSERT INTO UserServicePermission (userKeyHash, service) VALUES (?,?)");
     query.bind(1, keyHash.toString());
     query.bind(2, service);
-    query.bind(3, path);
     query.exec();
     transaction.commit();
 }
 
 void
-Mist::Central::removeServicePermission( const CryptoHelper::PublicKeyHash& keyHash, const std::string& service, const std::string& path ) {
+Mist::Central::removeServicePermission( const CryptoHelper::PublicKeyHash& keyHash,
+        const std::string& service ) {
     Helper::Database::Transaction transaction(*settingsDatabase);
     Helper::Database::Statement query(*settingsDatabase,
         "DELETE FROM UserServicePermission"
-        " WHERE userKeyHash=? AND service=? AND path=?");
+        " WHERE userKeyHash=? AND service=?");
     query.bind(1, keyHash.toString());
     query.bind(2, service);
-    query.bind(3, path);
     query.exec();
     transaction.commit();
 }
 
-std::map<std::string, std::vector<std::string>>
+std::vector<std::string>
 Mist::Central::listServicePermissions( const CryptoHelper::PublicKeyHash& keyHash ) {
     Helper::Database::Statement query(*settingsDatabase,
-        "SELECT service, path"
+        "SELECT service"
         " FROM UserServicePermission WHERE userKeyHash=?");
     query.bind(1, keyHash.toString());
-    std::map<std::string, std::vector<std::string>> permissions;
+    std::vector<std::string> services;
     while (query.executeStep()) {
-        auto service = query.getColumn("service").getString();
-        auto path = query.getColumn("path").getString();
-        auto it = permissions.find(service);
-        if (it == permissions.end())
-            it = permissions.emplace(std::make_pair(service, std::vector<std::string>())).first;
-        auto& paths = it->second;
-        paths.push_back(path);
+        services.push_back(query.getColumn("service").getString());
     }
-    return permissions;
+    return services;
 }
 
 namespace
