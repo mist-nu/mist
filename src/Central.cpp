@@ -1525,7 +1525,7 @@ Mist::Central::PeerSyncState::listServices(
     Mist::Central::peer_service_list_callback callback) {
     std::lock_guard<std::recursive_mutex> lock(mux);
 
-    central.dbService.submitRequest(peer, "GET", "/services/",
+    central.dbService.submitRequest(peer, "GET", "/services",
         [=](mist::Peer& peer, mist::h2::ClientRequest request)
     {
         getJsonResponse(request,
@@ -1665,6 +1665,8 @@ void Mist::Central::RestRequest::entry( const std::string& path ) {
         databases(elts);
     } else if (elts[0] == "users") {
         users(elts);
+    } else if (elts[0] == "services") {
+        services(elts);
     } else {
         replyNotFound();
     }
@@ -1963,6 +1965,30 @@ void Mist::Central::RestRequest::usersChanged( const CryptoHelper::SHA3& dbHash,
 
 void Mist::Central::RestRequest::userInfo( const CryptoHelper::PublicKeyHash& user ) {
     // TODO
+}
+
+void Mist::Central::RestRequest::services(
+        const std::vector<std::string>& elts ) {
+    auto eltCount = elts.size();
+
+    if (eltCount > 1) {
+        replyNotFound();
+    } else {
+        request.stream().submitResponse(200, {});
+        execOutStream( central.ioCtx, request.stream().response(), [this](std::streambuf& sb) {
+            std::ostream os( &sb );
+            bool first = true;
+
+            os << '[';
+            for(std::string service : central.listServicePermissions( keyHash )) {
+                os << service;
+                if (!first)
+                    os << ',';
+                first = false;
+            }
+            os << ']';
+        });
+    }
 }
 
 void Mist::Central::RestRequest::replyBadRequest() {
