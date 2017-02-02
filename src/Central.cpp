@@ -954,6 +954,12 @@ Mist::Central::PeerSyncState::queryDatabasesDone()
 {
 }*/
 
+std::string
+Mist::Central::PeerSyncState::shortFinger() const
+{
+    return pubKey.fingerprint().substr(0, 6) + ": ";
+}
+
 void
 Mist::Central::PeerSyncState::queryTransactions()
 {
@@ -1153,6 +1159,7 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
                 } else {
                     // If we are here it probably means that the user has not
                     // yet accepted an invite to the database.
+                    LOG(INFO) << shortFinger() << "Transaction refused";
                     queryTransactionsNext();
                 }
             });
@@ -1243,12 +1250,6 @@ Mist::Central::PeerSyncState::queryTransactionsGetNextParent()
         });
 
     }
-}
-
-std::string
-Mist::Central::PeerSyncState::shortFinger() const
-{
-    return pubKey.fingerprint().substr(0, 6) + ": ";
 }
 
 void
