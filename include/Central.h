@@ -209,15 +209,15 @@ public:
     /**
      * Add permission for a peer to connect to a service.
      */
-    virtual void addServicePermission( const CryptoHelper::PublicKeyHash& keyHash, const std::string& service, const std::string& path );
+    virtual void addServicePermission( const CryptoHelper::PublicKeyHash& keyHash, const std::string& service );
     /**
      * Remove permission for a peer to connect to a service.
      */
-    virtual void removeServicePermission( const CryptoHelper::PublicKeyHash& keyHash, const std::string& service, const std::string& path );
+    virtual void removeServicePermission( const CryptoHelper::PublicKeyHash& keyHash, const std::string& service );
     /**
      * List all services a peer has permission to.
      */
-    virtual std::map<std::string, std::vector<std::string>> listServicePermissions( const CryptoHelper::PublicKeyHash& keyHash );
+    virtual std::vector<std::string> listServicePermissions( const CryptoHelper::PublicKeyHash& keyHash );
 
     using tor_start_callback = std::function<void()>;
     using tor_exit_callback = std::function<void(boost::system::error_code)>;
@@ -473,6 +473,8 @@ private:
             const CryptoHelper::SHA3& fromTrHash,
             const CryptoHelper::SHA3& toTrHash );
         void userInfo( const CryptoHelper::PublicKeyHash& user );
+
+        void services( const std::vector<std::string>& elts );
 
         void replyBadRequest();
         void replyBadMethod();
