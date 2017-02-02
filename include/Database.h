@@ -241,30 +241,30 @@ public:
     unsigned subscribeObject( std::function<void(Object)> cb, int accessDomain,
             long long id, bool includeDeleted = false );
 
-    QueryResult query( int accessDomain, long long id, const std::string& select,
+    QueryResult query( int accessDomain, long long parentId, const std::string& select,
             const std::string& filter, const std::string& sort,
             const std::map<std::string, Value>& args,
             int maxVersion, bool includeDeleted = false );
-    QueryResult query( Connection* connection, int accessDomain, long long id, const std::string& select,
+    QueryResult query( Connection* connection, int accessDomain, long long parentId, const std::string& select,
                 const std::string& filter, const std::string& sort,
                 const std::map<std::string, Value>& args,
                 int maxVersion, bool includeDeleted = false );
     QueryResult query( const Query& querier, Connection* connection );
     unsigned subscribeQuery( std::function<void(QueryResult)> cb,
-            int accessDomain, long long id, const std::string& select,
+            int accessDomain, long long parentId, const std::string& select,
             const std::string& filter, const std::string& sort,
             const std::map<std::string, Value>& args,
             int maxVersion, bool includeDeleted = false );
 
-    QueryResult queryVersion( int accessDomain, long long id, const std::string& select,
+    QueryResult queryVersion( int accessDomain, long long parentId, const std::string& select,
             const std::string& filter, const std::map<std::string, Value>& args,
             bool includeDeleted = false );
-    QueryResult queryVersion( Connection* connection, int accessDomain, long long id, const std::string& select,
+    QueryResult queryVersion( Connection* connection, int accessDomain, long long parentId, const std::string& select,
                 const std::string& filter, const std::map<std::string, Value>& args,
                 bool includeDeleted = false );
     QueryResult queryVersion( const Query& quierier, Connection* connection );
     unsigned subscribeQueryVersion( std::function<void(QueryResult)> cb,
-            int accessDomain, long long id, const std::string& select,
+            int accessDomain, long long parentId, const std::string& select,
             const std::string& filter, const std::map<std::string, Value>& args,
             bool includeDeleted = false );
 
@@ -388,7 +388,8 @@ protected:
             Connection* connection = nullptr );
     CryptoHelper::Signature signTransaction( const CryptoHelper::SHA3& hash ) const;
 
-    void objectChanged( const ObjectRef& objectRef );
+    void usersChanged( const ObjectRef& userObject );
+    //void objectChanged( const ObjectRef& objectRef );
     void objectsChanged( const std::set<Database::ObjectRef, Database::lessObjectRef>& objects );
     void rollback( Mist::RemoteTransaction *transaction );
     void rollback( Mist::Transaction *transaction );
@@ -428,9 +429,15 @@ protected:
     std::map<long long,std::set<unsigned>> objectSubscribers{};
     std::map<unsigned,std::set<long long>> subscriberObjects{};
     std::map<unsigned,std::function<void(Object)>> objectSubscriberCallback{};
+    //*
     std::map<unsigned,std::pair<
         std::unique_ptr<Query>,
         std::function<void(QueryResult)>>> querySubscriberCallback{};
+    //*/
+    std::map<unsigned,std::tuple<
+        std::unique_ptr<Query>,
+        double,
+        std::function<void(QueryResult)>>> queryFunctionSubscriberCallback{};
 };
 
 } /* namespace Mist */

@@ -373,14 +373,19 @@ Mist::Database* Mist::Central::createDatabase( std::string name ) {
     Helper::Database::Statement query( *settingsDatabase, "SELECT IFNULL(MAX(localId),0)+1 AS localId FROM Database" );
     try {
         if ( query.executeStep() ) {
+            // Create local id
             unsigned localId = query.getColumn( "localId" );
             // TODO: check if the file '${localID}.db' exists.
+
+            // Create manifest
             using namespace std::placeholders;
             std::unique_ptr<Database::Manifest> manifest( new Database::Manifest(
                     std::bind( &Central::sign, this, _1 ),
                     std::bind( &Central::verify, this, _1, _2, _3),
                     name, Helper::Date::now(), getPublicKey() ) );
             manifest->sign();
+
+            // Add database to central settings
             this->databases.emplace(localId, new Mist::Database( this, path + "/" + std::to_string( localId ) + ".db" ) );
             Mist::Database* db = databases.at( localId );
             Helper::Database::Statement query( *settingsDatabase, "INSERT INTO Database (hash, localId, creator, name, manifest) VALUES (?, ?, ?, ?, ?)" );
@@ -391,7 +396,12 @@ Mist::Database* Mist::Central::createDatabase( std::string name ) {
             query.bind( 5, manifest->toString() );
             query.exec();
             transaction.commit();
+
+            // Add creator permission
+            addDatabasePermission( manifest->getCreator().hash(), manifest->getHash() );
+
             db->create( localId, std::move( manifest ) );
+
             return db;
         } else {
             // TODO: handle this
@@ -414,8 +424,11 @@ Mist::Database* Mist::Central::receiveDatabase( const Mist::Database::Manifest& 
     Helper::Database::Statement query( *settingsDatabase, "SELECT IFNULL(MAX(localId),0)+1 AS localId FROM Database" );
     try {
         if ( query.executeStep() ) {
+            // Create local id
             unsigned localId = query.getColumn( "localId" );
             // TODO: check if the file '${localID}.db' exists.
+
+            // Create a copy of the manifest
             using namespace std::placeholders;
             std::unique_ptr<Database::Manifest> manifest( new Database::Manifest(
                     nullptr,
@@ -428,6 +441,8 @@ Mist::Database* Mist::Central::receiveDatabase( const Mist::Database::Manifest& 
             if( !manifest->verify() ) {
                 throw std::runtime_error( "Could not copy manifest, manifest failed verification." );
             }
+
+            // Add database to settings
             this->databases.emplace(localId, new Mist::Database( this, path + "/" + std::to_string( localId ) + ".db" ) );
             Mist::Database* db = databases.at( localId );
             Helper::Database::Statement query( *settingsDatabase, "INSERT INTO Database (hash, localId, creator, name, manifest) VALUES (?, ?, ?, ?, ?)" );
@@ -438,7 +453,12 @@ Mist::Database* Mist::Central::receiveDatabase( const Mist::Database::Manifest& 
             query.bind( 5, manifest->toString() );
             query.exec();
             transaction.commit();
+
+            // Add creator permission
+            addDatabasePermission( manifest->getCreator().hash(), manifest->getHash() );
+
             db->create( localId, std::move( manifest ) );
+
             return db;
         } else {
             // TODO: handle this
@@ -640,6 +660,12 @@ Mist::Central::addDatabasePermission( const CryptoHelper::PublicKeyHash& keyHash
 
 void
 Mist::Central::removeDatabasePermission( const CryptoHelper::PublicKeyHash& keyHash, const CryptoHelper::SHA3& dbHash ) {
+    Database::Manifest manifest{ getDatabaseManifest( dbHash ) };
+    if ( keyHash == manifest.getCreator().hash() ) {
+        LOG( DBUG ) << "Can not remove the creators database permission.";
+        throw std::runtime_error( "Can not remove the creators database permission." );
+    }
+
     Helper::Database::Transaction transaction(*settingsDatabase);
     Helper::Database::Statement query(*settingsDatabase,
         "DELETE FROM UserDatabase"

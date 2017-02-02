@@ -189,7 +189,9 @@ unsigned long Transaction::newObject( const Database::ObjectRef &parent, const s
         }
     }
 
-    affectedObjects.insert( parent );
+    if ( Database::ROOT_OBJECT_ID != parent.id ) {
+        affectedObjects.insert( parent );
+    }
     affectedObjects.insert( { accessDomain, newId } );
 
     return newId;
@@ -366,12 +368,16 @@ void Transaction::moveObject( unsigned long id, const Database::ObjectRef &newPa
                 throw Mist::Exception( Mist::Error::ErrorCode::UnexpectedDatabaseError );
             }
         }
-        Database::ObjectRef oldParent { (Database::AccessDomain) parentQuery.getColumn( "parentAccessDomain" ).getUInt(), (unsigned long) parentQuery.getColumn( "parent" ).getInt64() };
-
-        affectedObjects.insert( oldParent );
-        affectedObjects.insert( { accessDomain, id } );
-        affectedObjects.insert( newParent );
     }
+    if ( newParent.id != Database::ROOT_OBJECT_ID ) {
+        Database::ObjectRef oldParent { (Database::AccessDomain) parentQuery.getColumn( "parentAccessDomain" ).getUInt(), (unsigned long) parentQuery.getColumn( "parent" ).getInt64() };
+        if ( Database::ROOT_OBJECT_ID != oldParent.id ) {
+            affectedObjects.insert( oldParent );
+        }
+    }
+
+    affectedObjects.insert( { accessDomain, id } );
+    affectedObjects.insert( newParent );
 }
 
 /*
@@ -559,7 +565,9 @@ void Transaction::updateObject( unsigned long id, const std::map<std::string, Da
         }
     }
 
-    affectedObjects.insert( obj.parent );
+    if ( Database::ROOT_OBJECT_ID != obj.parent.id ) {
+        affectedObjects.insert( obj.parent );
+    }
     affectedObjects.insert( { obj.accessDomain, obj.id } );
 }
 
@@ -735,7 +743,9 @@ void Transaction::deleteObject( unsigned long id ) {
         }
     }
 
-    affectedObjects.insert( obj.parent );
+    if ( Database::ROOT_OBJECT_ID != obj.parent.id ) {
+        affectedObjects.insert( obj.parent );
+    }
     affectedObjects.insert( { obj.accessDomain, obj.id } );
 }
 
@@ -763,7 +773,7 @@ void Transaction::commit() {
     }
 
     Database::Statement selectParents( *connection.get(),
-            "SELECT accessDomain, t.version AS version, timestamp, userHash, hash, signature "
+            "SELECT t.accessDomain AS accessDomain, t.version AS version, timestamp, userHash, hash, signature "
             "FROM 'Transaction' AS t "
             "LEFT OUTER JOIN TransactionParent tp "
                 "ON t.accessDomain=tp.parentAccessDomain AND t.version=tp.parentVersion "
@@ -773,13 +783,14 @@ void Transaction::commit() {
     // so they get a parent from the other access domain
 
     Database::Statement insertTransactionParent( *connection.get(),
-            "INSERT INTO TransactionParent (version, parentAccessDomain, parentVersion) "
-                    "VALUES (?, ?, ?)" );
+            "INSERT INTO TransactionParent (accessDomain, version, parentAccessDomain, parentVersion) "
+                    "VALUES (?, ?, ?, ?)" );
     try {
         selectParents << version; // << static_cast<int>( accessDomain );
         while ( selectParents.executeStep() ) {
-            insertTransactionParent << version
-                    << static_cast<int>( accessDomain )
+            insertTransactionParent << static_cast<int>( accessDomain )
+                    << version
+                    << selectParents.getColumn( "accessDomain" ).getUInt()
                     << selectParents.getColumn( "version" ).getUInt();
             if ( insertTransactionParent.exec() == 0 ) {
                 LOG( WARNING ) << "Unexpected Database Error";
@@ -859,9 +870,7 @@ void Transaction::commit() {
     db->commit( this );
     LOG( DBUG ) << "Transaction commited.";
 
-    for( const Database::ObjectRef& oref : affectedObjects ) {
-        db->objectChanged( oref );
-    }
+    db->objectsChanged( affectedObjects );
     // TODO: release above suggested lock
 }
 
