@@ -5,7 +5,7 @@ if (process.argv.length < 4) {
 
 var fs = require("fs");
 var path = require("path");
-var mist = require("../build/Debug/mist.node");
+var mist = require("./mist.js");
 var parse = require('shell-quote').parse;
 var rl = require('readline').createInterface({
     input: process.stdin,
@@ -28,6 +28,17 @@ var torPath = process.argv[3];
 mkdirSync(workdir);
 
 var central = new mist.Central(workdir, false);
+var chatSockets = Object();
+
+function readAll(readable, callback) {
+    str = "";
+    readable.on('data', function (chunk) {
+        str += chunk;
+    });
+    readable.on('end', function () {
+        callback(str);
+    });
+}
 
 function create() {
     central.create();
@@ -184,8 +195,7 @@ function acceptDbInvite( dbHash )
     });
 }
 
-function createTestObject( dbHash, name )
-{
+function createTestObject(dbHash, name) {
     var db = central.getDatabase(mist.SHA3.fromString(dbHash));
     var t = db.beginTransaction(mist.Database.AccessDomain.Normal);
     var refA
@@ -208,6 +218,63 @@ function createTestObject( dbHash, name )
     console.log("New object B " + idA);
     t.commit();
     console.log("Committed");
+}
+
+function startHttpChat() {
+    var db = central.registerHttpService("http-", function (request)
+    {
+        readAll(request.readStream(), function (keyHash, message, path) {
+            console.log("Got http chat message '" + message + "' from " + keyHash.toString());
+        })
+    });
+}
+
+function sayHttp(keyHash, message) {
+    central.openServiceRequest(mist.SHA3.fromString(keyHash), "http-chat", "post",
+        "/", function (keyHash, request) {
+            console.log("Sent http chat message '" + message + "' to " + keyHash.toString());
+            request.end(message);
+        });
+}
+
+function registerSocketChatSocket(keyHash, socket) {
+    if (chatSockets[keyHash.toString()] !== undefined) {
+        console.log("We already have a socket to this peer");
+    } else {
+        socket.stream().on('data', function (chunk) {
+            console.log("Got message '" + chunk + "' from " + keyHash.toString());
+        })
+        chatSockets[keyHash.toString()] = socket;
+    }
+}
+
+function startSocketChat() {
+    var db = central.registerService("socket-chat", function (keyHash, socket, path) {
+        console.log("Incoming chat socket from " + keyHash.toString());
+        registerSocketChatSocket(keyHash, socket)
+    });
+}
+
+function openSocketChat(keyHash) {
+    if (chatSockets[keyHash.toString()] !== undefined) {
+        console.log("We already have a socket to " + keyHash.toString());
+    } else {
+        central.openServiceSocket(mist.SHA3.fromString(keyHash), "socket-chat", "/",
+            function (keyHash, socket) {
+                console.log("Opened chat socket to " + keyHash.toString());
+                registerSocketChatSocket(keyHash, socket);
+            });
+    }
+}
+
+function saySocket(keyHash, message) {
+    if (chatSockets[keyHash.toString()] === undefined) {
+        console.log("No socket open for " + keyHash.toString());
+    } else {
+        socket = chatSockets[keyHash.toString()]
+        socket.stream().write(message);
+        console.log("Wrote '" + message + "' to " + keyHash.toString());
+    }
 }
 
 var torStarted = false;
@@ -357,12 +424,39 @@ var userQuery = function () {
                     acceptDbInvite(dbHash);
                 }
             } else if (xs[0] == "create-test-object") {
-                if (xs.length < 2) {
+                if (xs.length < 3) {
                     console.log("Usage: create-test-object DB_HASH NAME");
                 } else {
                     var dbHash = mist.SHA3.fromString(xs[1]);
                     var name = xs[2];
                     createTestObject(dbHash, name);
+                }
+            } else if (xs[0] == "start-http-chat") {
+                startHttpChat();
+            } else if (xs[0] == "say-http") {
+                if (xs.length < 3) {
+                    console.log("Usage: say-http PEER_HASH MESSAGE");
+                } else {
+                    var peerHash = mist.SHA3.fromString(xs[1]);
+                    var message = xs[2];
+                    sayHttp(peerHash, message);
+                }
+            } else if (xs[0] == "start-socket-chat") {
+                startSocketChat();
+            } else if (xs[0] == "open-socket-chat") {
+                if (xs.length < 2) {
+                    console.log("Usage: open-socket-chat PEER_HASH");
+                } else {
+                    var peerHash = mist.SHA3.fromString(xs[1]);
+                    openSocketChat(peerHash);
+                }
+            } else if (xs[0] == "say-socket") {
+                if (xs.length < 3) {
+                    console.log("Usage: say-http PEER_HASH MESSAGE");
+                } else {
+                    var peerHash = mist.SHA3.fromString(xs[1]);
+                    var message = xs[2];
+                    saySocket(peerHash, message);
                 }
             } else if (xs[0] == "help") {
                 console.log("Available commands:");
@@ -392,6 +486,11 @@ var userQuery = function () {
                 console.log("  list-db-invites");
                 console.log("  accept-db-invite DB_HASH");
                 console.log("  create-test-object NAME");
+                console.log("  start-http-chat");
+                console.log("  say-http PEER_HASH MESSAGE");
+                console.log("  start-socket-chat");
+                console.log("  open-socket-chat PEER_HASH");
+                console.log("  say-socket PEER_HASH MESSAGE");
             } else {
                 console.log("Unrecognized command");
             }

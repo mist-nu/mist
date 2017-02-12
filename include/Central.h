@@ -259,7 +259,8 @@ public:
      */
     virtual void listServices( const CryptoHelper::PublicKeyHash& peer, peer_service_list_callback callback );
 
-    using service_connection_callback = std::function<void(std::shared_ptr<mist::io::Socket>)>;
+    using service_connection_callback = std::function<void( CryptoHelper::PublicKeyHash,
+        std::shared_ptr<mist::io::Socket>, std::string )>;
     /**
      * Register a service, that will use a virtual socket to communications.
      *
@@ -269,7 +270,8 @@ public:
      */
     virtual void registerService( const std::string& service, service_connection_callback cb );
 
-    using http_service_connection_callback = std::function<void(mist::h2::ServerRequest)>;
+    using http_service_connection_callback = std::function<void( CryptoHelper::PublicKeyHash,
+        mist::h2::ServerRequest, std::string )>;
     /**
      * Register a service, that will use a http/2 to communicate.
      *

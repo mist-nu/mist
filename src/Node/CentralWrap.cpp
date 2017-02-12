@@ -5,11 +5,14 @@
  */
 
 #include "Node/CentralWrap.hpp"
+#include "Node/ClientStreamWrap.hpp"
 #include "Node/DatabaseWrap.hpp"
 #include "Node/SHA3Wrap.hpp"
 #include "Node/PrivateKeyWrap.hpp"
 #include "Node/PublicKeyWrap.hpp"
+#include "Node/ServerStreamWrap.hpp"
 #include "Node/SignatureWrap.hpp"
+#include "Node/SocketWrap.hpp"
 
 namespace Mist
 {
@@ -110,6 +113,11 @@ CentralWrap::Init(v8::Local<v8::Object> target)
     Method<&CentralWrap::registerService>);
   Nan::SetPrototypeMethod(tpl, "registerHttpService",
     Method<&CentralWrap::registerHttpService>);
+
+  Nan::SetPrototypeMethod(tpl, "openServiceRequest",
+    Method<&CentralWrap::openServiceRequest>);
+  Nan::SetPrototypeMethod(tpl, "openServiceSocket",
+    Method<&CentralWrap::openServiceSocket>);
 
   auto func(Nan::GetFunction(tpl).ToLocalChecked());
 
@@ -402,8 +410,7 @@ CentralWrap::addServicePermission(const Nan::FunctionCallbackInfo<v8::Value>& in
   Nan::HandleScope scope;
   auto keyHash(SHA3Wrap::self(info[0]));
   auto service(convBack<std::string>(info[1]));
-  auto path(convBack<std::string>(info[2]));
-  self()->addServicePermission(keyHash, service, path);
+  self()->addServicePermission(keyHash, service);
 }
 
 void
@@ -412,8 +419,7 @@ CentralWrap::removeServicePermission(const Nan::FunctionCallbackInfo<v8::Value>&
   Nan::HandleScope scope;
   auto keyHash(SHA3Wrap::self(info[0]));
   auto service(convBack<std::string>(info[1]));
-  auto path(convBack<std::string>(info[2]));
-  self()->removeServicePermission(keyHash, service, path);
+  self()->removeServicePermission(keyHash, service);
 }
 
 void
@@ -421,17 +427,12 @@ CentralWrap::listServicePermissions(const Nan::FunctionCallbackInfo<v8::Value>& 
 {
   Nan::HandleScope scope;
   auto keyHash(SHA3Wrap::self(info[0]));
-  auto permissions(self()->listServicePermissions(keyHash));
-  auto map(Nan::New<v8::Object>());
-  for (auto& item : permissions) {
-    auto& services = item.second;
-    auto arr(Nan::New<v8::Array>());
-    for (std::size_t i = 0; i < services.size(); ++i) {
+  auto arr(Nan::New<v8::Array>());
+  auto services(self()->listServicePermissions(keyHash));
+  for (std::size_t i = 0; i < services.size(); ++i) {
       Nan::Set(arr, i, conv(services[i]));
-    }
-    Nan::Set(map, conv(item.first), arr);
   }
-  info.GetReturnValue().Set(map);
+  info.GetReturnValue().Set(arr);
 }
 
 void
@@ -456,21 +457,71 @@ void
 CentralWrap::listServices(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
   Nan::HandleScope scope;
-  // TODO:
+  auto keyHash(SHA3Wrap::self(info[0]));
+  auto callback(info[1].As<v8::Function>());
+  self()->listServices(keyHash, makeAsyncCallback<CryptoHelper::PublicKeyHash,
+    std::vector<std::string>>(callback,
+      [](v8::Local<v8::Function> func, CryptoHelper::PublicKeyHash keyHash,
+        std::vector<std::string> services)
+  {
+    Nan::HandleScope scope;
+    auto arr(Nan::New<v8::Array>());
+    for (std::size_t i = 0; i < services.size(); ++i) {
+        Nan::Set(arr, i, conv(services[i]));
+    }
+    std::array<v8::Local<v8::Value>, 2> args{ conv(keyHash), arr };
+    Nan::Callback cb(func);
+    cb(args.size(), args.data());
+  }));
 }
 
 void
 CentralWrap::registerService(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
   Nan::HandleScope scope;
-  // TODO:
+  auto serviceName(convBack<std::string>(info[0]));
+  auto callback(info[1].As<v8::Function>());
+  self()->registerService(serviceName,
+    makeAsyncCallback<CryptoHelper::PublicKeyHash,
+      std::shared_ptr<mist::io::Socket>, std::string>(callback));
 }
 
 void
 CentralWrap::registerHttpService(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
   Nan::HandleScope scope;
-  // TODO:
+  auto serviceName(convBack<std::string>(info[0]));
+  auto callback(info[1].As<v8::Function>());
+  self()->registerHttpService(serviceName,
+    makeAsyncCallback<CryptoHelper::PublicKeyHash,
+      mist::h2::ServerRequest, std::string>(callback));
+}
+
+void
+CentralWrap::openServiceRequest(const Nan::FunctionCallbackInfo<v8::Value>& info)
+{
+  Nan::HandleScope scope;
+  auto keyHash(SHA3Wrap::self(info[0]));
+  auto serviceName(convBack<std::string>(info[1]));
+  auto method(convBack<std::string>(info[2]));
+  auto path(convBack<std::string>(info[3]));
+  auto callback(info[4].As<v8::Function>());
+  self()->openServiceRequest(keyHash, serviceName, method, path,
+    makeAsyncCallback<CryptoHelper::PublicKeyHash,
+      mist::h2::ClientRequest>(callback));
+}
+
+void
+CentralWrap::openServiceSocket(const Nan::FunctionCallbackInfo<v8::Value>& info)
+{
+  Nan::HandleScope scope;
+  auto keyHash(SHA3Wrap::self(info[0]));
+  auto serviceName(convBack<std::string>(info[1]));
+  auto path(convBack<std::string>(info[2]));
+  auto callback(info[3].As<v8::Function>());
+  self()->openServiceSocket(keyHash, serviceName, path,
+    makeAsyncCallback<CryptoHelper::PublicKeyHash,
+      std::shared_ptr<mist::io::Socket>>(callback));
 }
 
 } // namespace Node

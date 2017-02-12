@@ -8,6 +8,10 @@
 #include <nan.h>
 #include <array>
 
+#include <boost/system/system_error.hpp>
+
+#include "Node/Async.hpp"
+
 namespace Mist
 {
 namespace Node
@@ -162,6 +166,8 @@ constructingTemplate(const char* className)
   return scope.Escape(tpl);
 }
 
+bool convertToNodeException(const boost::system::system_error& e);
+
 template<typename T, typename Ptr>
 class NodeWrap : public Nan::ObjectWrap
 {
@@ -196,10 +202,13 @@ protected:
     try {
       T* obj = ObjectWrap::Unwrap<T>(info.This());
       (obj->*m)(info);
-    } catch (boost::exception& e) {
+    } catch (const boost::system::system_error& e) {
+      if (!convertToNodeException(e))
+        throw;
+    } catch (const boost::exception& e) {
       std::cerr << "Exception in wrapped method: "
         << boost::diagnostic_information(e);
-    } catch (std::exception& e) {
+    } catch (const std::exception& e) {
       std::cerr << "Exception in wrapped method: "
         << boost::diagnostic_information(e);
     } catch (...) {
@@ -219,6 +228,9 @@ protected:
     try {
       T* obj = ObjectWrap::Unwrap<T>(info.This());
       (obj->*m)(name, info);
+    } catch (const boost::system::system_error& e) {
+      if (!convertToNodeException(e))
+        throw;
     } catch (boost::exception& e) {
       std::cerr << "Exception in wrapped getter: "
         << boost::diagnostic_information(e);
@@ -244,6 +256,9 @@ protected:
     try {
       T* obj = ObjectWrap::Unwrap<T>(info.This());
       (obj->*m)(name, value, info);
+    } catch (const boost::system::system_error& e) {
+      if (!convertToNodeException(e))
+        throw;
     } catch (boost::exception& e) {
       std::cerr << "Exception in wrapped setter: "
         << boost::diagnostic_information(e);

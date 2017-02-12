@@ -62,6 +62,7 @@ private:
   void setOnPush(const Nan::FunctionCallbackInfo<v8::Value>& info);
   void headers(const Nan::FunctionCallbackInfo<v8::Value>& info);
   void stream(const Nan::FunctionCallbackInfo<v8::Value>& info);
+  void end(const Nan::FunctionCallbackInfo<v8::Value>& info);
 
 };
 

@@ -78,6 +78,7 @@ private:
     onRead(std::uint8_t* data, std::size_t length);
   void headers(const Nan::FunctionCallbackInfo<v8::Value>& info);
   void stream(const Nan::FunctionCallbackInfo<v8::Value>& info);
+  void end(const Nan::FunctionCallbackInfo<v8::Value>& info);
 
 };
 

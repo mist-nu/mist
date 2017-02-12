@@ -14,6 +14,7 @@
                 "src/Node/Module.cpp",
                 "src/Node/ServerStreamWrap.cpp",
                 "src/Node/ServiceWrap.cpp",
+                "src/Node/SocketWrap.cpp",
                 "src/Node/PeerWrap.cpp",
                 "src/Node/SHA3Wrap.cpp",
                 "src/Node/SHA3HasherWrap.cpp",

@@ -15,6 +15,7 @@
 #include "Node/ServerStreamWrap.hpp"
 #include "Node/ServiceWrap.hpp"
 #include "Node/SignatureWrap.hpp"
+#include "Node/SocketWrap.hpp"
 #include "Node/SHA3HasherWrap.hpp"
 #include "Node/SHA3Wrap.hpp"
 #include "Node/TransactionWrap.hpp"
@@ -58,6 +59,7 @@ Init(v8::Local<v8::Object> target, v8::Local<v8::Object> module)
   ServerRequestWrap::Init(target);
   ServerResponseWrap::Init(target);
   ServiceWrap::Init(target);
+  SocketWrap::Init(target);
   SHA3HasherWrap::Init(target);
   SHA3Wrap::Init(target);
   SignatureWrap::Init(target);

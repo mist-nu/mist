@@ -1108,7 +1108,7 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
                             //[=](std::unique_ptr<JSON::basic_json_value> value)
                             [=](boost::optional<const JSON::Value&> value)
                         {
-                            if (value->is_array()) {
+                            if (value && value->is_array()) {
                                 //JSON::Array& arr = static_cast<JSON::Array&>(*value);
                                 const std::vector<JSON::Value>& arr = value->array;
                                 for (const auto& transaction : arr) {
@@ -1153,7 +1153,9 @@ Mist::Central::PeerSyncState::queryTransactionsNext()
                                     queryTransactionsNext();
                                 }
                             } else {
-                                throw std::runtime_error("Malformed JSON response");
+                                LOG(INFO) << shortFinger() << "Malformed JSON response";
+                                databaseHashesIterator = std::next(databaseHashesIterator);
+                                queryTransactionsNext();
                             }
                         });
                     });
@@ -1612,7 +1614,7 @@ void Mist::Central::registerService( const std::string& service, service_connect
     assert(it.second);
     svc.setOnWebSocket([cb]( mist::Peer& peer, std::string path,
             std::shared_ptr<mist::io::Socket> socket ) {
-        cb(socket);
+        cb(CryptoHelper::PublicKeyHash(peer.publicKeyHash()), socket, path);
     });
 }
 
@@ -1633,7 +1635,7 @@ void Mist::Central::registerHttpService( const std::string& service,
     assert(it.second);
     svc.setOnPeerRequest([cb]( mist::Peer& peer,
             mist::h2::ServerRequest request, std::string path ) {
-        cb(request);
+        cb(CryptoHelper::PublicKeyHash(peer.publicKeyHash()), request, path);
     });
 }
 

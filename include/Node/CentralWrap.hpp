@@ -69,9 +69,13 @@ private:
 
   void startSync(const Nan::FunctionCallbackInfo<v8::Value>& info);
   void stopSync(const Nan::FunctionCallbackInfo<v8::Value>& info);
+
   void listServices(const Nan::FunctionCallbackInfo<v8::Value>& info);
   void registerService(const Nan::FunctionCallbackInfo<v8::Value>& info);
   void registerHttpService(const Nan::FunctionCallbackInfo<v8::Value>& info);
+
+  void openServiceRequest(const Nan::FunctionCallbackInfo<v8::Value>& info);
+  void openServiceSocket(const Nan::FunctionCallbackInfo<v8::Value>& info);
 
 };
 

@@ -4,7 +4,14 @@
  * Free software licensed under GPLv3.
  */
 
-#include "nan.h"
+#include <nan.h>
+
+#include <boost/exception/diagnostic_information.hpp>
+#include <boost/system/error_code.hpp>
+
+#include "error/mist.hpp"
+
+#include "Node/Wrap.hpp"
 
 namespace Mist
 {
@@ -13,7 +20,7 @@ namespace Node
 
 namespace
 {
-  
+
 class Sentinel : public Nan::ObjectWrap
 {
 public:
@@ -66,6 +73,20 @@ v8::Local<v8::Value> noCtorSentinel()
 bool isNoCtorSentinel(v8::Local<v8::Value> obj)
 {
   return obj.As<v8::Object>() == _noCtor;
+}
+
+bool convertToNodeException(const boost::system::system_error& e)
+{
+  Nan::HandleScope scope;
+  if (e.code().category() == mist::mist_category()) {
+    auto error = Nan::Error(e.code().message().c_str());
+    Nan::Set(error.As<v8::Object>(), Nan::New("code").ToLocalChecked(),
+      Nan::New(e.code().value()));
+    Nan::ThrowError(error);
+    return true;
+  } else {
+    return false;
+  }
 }
 
 } // namespace Node

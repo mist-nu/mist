@@ -75,6 +75,8 @@ ClientRequestWrap::Init(v8::Local<v8::Object> target)
     Method<&ClientRequestWrap::_write>);
   Nan::SetPrototypeMethod(tpl, "stream",
     Method<&ClientRequestWrap::stream>);
+  Nan::SetPrototypeMethod(tpl, "end",
+    Method<&ClientRequestWrap::end>);
 
   auto func(Nan::GetFunction(tpl).ToLocalChecked());
 
@@ -158,6 +160,31 @@ ClientRequestWrap::stream(const Nan::FunctionCallbackInfo<v8::Value>& info)
   Nan::HandleScope scope;
 
   info.GetReturnValue().Set(ClientStreamWrap::object(self().stream()));
+}
+
+void
+ClientRequestWrap::end(const Nan::FunctionCallbackInfo<v8::Value>& info)
+{
+  Nan::HandleScope scope;
+
+  if (info.Length() > 0) {
+    auto nodeBuf(info[0]);
+    if (node::Buffer::HasInstance(nodeBuf)) {
+      auto data = reinterpret_cast<const std::uint8_t*>(
+        node::Buffer::Data(nodeBuf));
+      std::vector<std::uint8_t> buf(data,
+        data + node::Buffer::Length(nodeBuf));
+      self().end(buf);
+    } else if (nodeBuf->IsString()) {
+      Nan::Utf8String utf8(nodeBuf);
+      std::string str(*utf8);
+      self().end(str);
+    } else {
+      Nan::ThrowError("Optional argument 1 must be a buffer or a string");
+    }
+  } else {
+    self().end();
+  }
 }
 
 ClientResponseWrap::ClientResponseWrap(mist::h2::ClientResponse _self)
