@@ -459,9 +459,11 @@ CentralWrap::listServices(const Nan::FunctionCallbackInfo<v8::Value>& info)
   Nan::HandleScope scope;
   auto keyHash(SHA3Wrap::self(info[0]));
   auto callback(info[1].As<v8::Function>());
-  self()->listServices(keyHash, makeAsyncCallback<CryptoHelper::PublicKeyHash,
-    std::vector<std::string>>(callback,
-      [](v8::Local<v8::Function> func, CryptoHelper::PublicKeyHash keyHash,
+
+  std::function<void(v8::Local<v8::Function> func,
+    CryptoHelper::PublicKeyHash keyHash, std::vector<std::string> services)>
+    adapter
+    = [](v8::Local<v8::Function> func, CryptoHelper::PublicKeyHash keyHash,
         std::vector<std::string> services)
   {
     Nan::HandleScope scope;
@@ -472,7 +474,10 @@ CentralWrap::listServices(const Nan::FunctionCallbackInfo<v8::Value>& info)
     std::array<v8::Local<v8::Value>, 2> args{ conv(keyHash), arr };
     Nan::Callback cb(func);
     cb(args.size(), args.data());
-  }));
+  };
+
+  self()->listServices(keyHash, makeAsyncCallback<CryptoHelper::PublicKeyHash,
+    std::vector<std::string>>(callback, adapter));
 }
 
 void
