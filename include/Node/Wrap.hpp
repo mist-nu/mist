@@ -8,6 +8,8 @@
 #include <nan.h>
 #include <array>
 
+#include <iostream>
+
 #include <boost/system/system_error.hpp>
 
 #include "Node/Async.hpp"
