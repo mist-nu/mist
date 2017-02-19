@@ -155,34 +155,34 @@ TEST_F(CentralTest, ServicePermission) {
     auto pubKey1(Mist::CryptoHelper::PublicKey::fromPem(pemPubKey1));
     auto pubKey2(Mist::CryptoHelper::PublicKey::fromPem(pemPubKey2));
 
-    central.addServicePermission(pubKey1.hash(), "myChat", "instance0");
-    central.addServicePermission(pubKey1.hash(), "myChat", "instance1");
-    central.addServicePermission(pubKey2.hash(), "myChat", "instance2");
+    central.addServicePermission(pubKey1.hash(), "myChat0");
+    central.addServicePermission(pubKey1.hash(), "myChat1");
+    central.addServicePermission(pubKey2.hash(), "myChat1");
 
-    std::map<std::string, std::vector<std::string>> expected{
-        { "myChat", { "instance0", "instance1" } }
+    std::vector<std::string> expected{
+        { "myChat0", "myChat1" }
     };
     ASSERT_EQ(central.listServicePermissions(pubKey1.hash()),
         expected);
 
     expected = {
-        { "myChat", { "instance2" } }
+        { "myChat1" }
     };
     ASSERT_EQ(central.listServicePermissions(pubKey2.hash()),
         expected);
 
-    central.removeServicePermission(pubKey1.hash(), "myChat", "instance0");
+    central.removeServicePermission(pubKey1.hash(), "myChat0" );
 
     expected = {
-        { "myChat", { "instance1" } }
+        { "myChat1" }
     };
     ASSERT_EQ(central.listServicePermissions(pubKey1.hash()),
         expected);
 
-    central.removeServicePermission(pubKey1.hash(), "myChat", "instance1");
+    central.removeServicePermission(pubKey1.hash(), "myChat1");
     ASSERT_EQ(central.listServicePermissions(pubKey1.hash()).size(), 0u);
 
-    central.removeServicePermission(pubKey2.hash(), "myChat", "instance2");
+    central.removeServicePermission(pubKey2.hash(), "myChat1");
     ASSERT_EQ(central.listServicePermissions(pubKey2.hash()).size(), 0u);
 }
 

@@ -68,12 +68,10 @@ add_definitions(-DBOOST_SYSTEM_NO_DEPRECATED)
 ##############
 # g3log
 ##############
+add_definitions( -DCHANGE_G3LOG_DEBUG_TO_DBUG )
+add_subdirectory(${PROJECT_ROOT}/lib/g3log "${CMAKE_CURRENT_BINARY_DIR}/g3logger_build")
 set( G3LOG_LIB_INCLUDE_DIRS ${PROJECT_ROOT}/lib/g3log/src )
-set( G3LOG_LIB ${PROJECT_ROOT}/lib/g3log/build )
-#find_library( ${G3LOG_LIB} g3logger )
-link_directories( ${G3LOG_LIB} )
 include_directories( ${G3LOG_LIB_INCLUDE_DIRS} )
-#add_definitions( -DCHANGE_G3LOG_DEBUG_TO_DBUG )
 
 ##############
 # mist_conn
