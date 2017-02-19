@@ -50,6 +50,10 @@
                         "GCC_ENABLE_CPP_RTTI": "YES",
                         "GCC_ENABLE_CPP_EXCEPTIONS": "YES"
                     },
+		    'defines': [
+		      'thread_local=',
+		      'TIME_UTC=1'
+		    ]
                 } ],
                 [ 'OS!="win"', {
                     "sources+": [
