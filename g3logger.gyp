@@ -53,7 +53,7 @@
                 } ],
                 [ 'OS!="win"', {
                     "sources+": [
-                        "./lib/g3log/src/crashhandler_windows.cpp",
+                        "./lib/g3log/src/crashhandler_unix.cpp",
                     ],
                 } ],
                 [ 'OS=="win"', {
